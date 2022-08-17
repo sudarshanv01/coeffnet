@@ -28,8 +28,8 @@ class DataPoint(Data):
 
         # There are the matrices that will define the graph.
         tensor_pos = {}
-        tensor_edge_index = {}
         tensor_x = {}
+        tensor_edge_index = [[], []]
         tensor_edge_attr = {}
         num_nodes = 0 # Add up the number of nodes in the graph.
 
@@ -39,9 +39,9 @@ class DataPoint(Data):
             assert tensor_pos[state_index].shape[1] == 3
             num_nodes += tensor_pos[state_index].shape[0]
 
-            # Apply the same treatment to the edge_index.
-            tensor_edge_index[state_index] = torch.as_tensor(edge_index[state_index], dtype=torch.int8)
-            assert tensor_edge_index[state_index].shape[0] == 2
+            edge_scr, edge_dest = edge_index[state_index]
+            tensor_edge_index[0].extend(edge_scr)
+            tensor_edge_index[1].extend(edge_dest)
 
             # Apply the same treatment to the x.
             tensor_x[state_index] = torch.as_tensor(x[state_index], dtype=torch.float)
@@ -64,6 +64,9 @@ class DataPoint(Data):
                     f" `{type(v)}`."
                 )
             tensor_kwargs[k] = v
+
+        # Convert tensor_edge_index to a tensor
+        tensor_edge_index = torch.as_tensor(tensor_edge_index, dtype=torch.int)
 
         super().__init__(
             num_nodes = num_nodes,

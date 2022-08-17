@@ -18,9 +18,6 @@ from torch_geometric.data import InMemoryDataset
 
 from pymatgen.core.structure import Molecule
 
-from e3nn import o3
-from e3nn.util.test import equivariance_error
-
 import networkx as nx
 import matplotlib.pyplot as plt
 
@@ -71,12 +68,13 @@ class HamiltonianDataset(InMemoryDataset):
             angular_momentum_all = [self.n_to_l_basis[element] for element in angular_momentum_all]
             self.basis_info[int(atom_number)] = angular_momentum_all
 
-    def complete_graph(cls, molecule: Molecule) -> Tuple[np.ndarray, List[int]]:
+    def complete_graph(cls, molecule: Molecule, starting_index=0) -> Tuple[np.ndarray, List[int]]:
         """
         NOTE: Modified from mjwen's eigenn package.
         Build a complete graph, where each node is connected to all other nodes.
         Args:
             N: number of atoms
+            starting_index: index of the first graph to start from
         Returns:
             edge index, shape (2, N). For example, for a system with 3 atoms, this is
                 [[0,0,1,1,2,2],
@@ -84,11 +82,18 @@ class HamiltonianDataset(InMemoryDataset):
             num_neigh: number of neighbors for each atom
         """
         # Get the number of atoms in the molecule
+        # This number is the range of the graph that we will build
+        # for this fragment
         N = len(molecule.species)
-        edge_index = np.asarray(list(zip(*itertools.permutations(range(N), r=2))))
-        num_neigh = [N - 1 for _ in range(N)]
+        N_start = starting_index
+        N_end = N_start + N
+        edge_index = np.asarray(list(zip(*itertools.permutations(range(N_start, N_end), r=2))))
+        num_neigh = [N - 1 for _ in range(N_start, N_end)]
 
-        return edge_index, num_neigh
+        # Add the number of atoms to the starting index
+        delta_starting_index = N
+
+        return edge_index, num_neigh, delta_starting_index
     
     def load_data(self):
         """Load the json file with the data."""
@@ -156,6 +161,10 @@ class HamiltonianDataset(InMemoryDataset):
             # Collect the molecular level information
             molecule_info_collected = defaultdict(dict)
 
+            # store the starting index such that we 
+            # always have the same graph.
+            starting_index = 0
+
             for molecule_id in self.input_data[reaction_id]:
 
                 # --- Get state (global) level information ---
@@ -182,7 +191,9 @@ class HamiltonianDataset(InMemoryDataset):
 
                 # Construct a graph from the molecule object, each node
                 # of the graph is connected with every other node.
-                edge_index, num_neigh = self.complete_graph(molecule)
+                edge_index, num_neigh, delta_starting_index = self.complete_graph(molecule,
+                                                                                  starting_index=starting_index)
+                starting_index += delta_starting_index
                 molecule_info_collected['edge_index'][choose_index] = edge_index
 
                 # --- Get irreps level information --- 
@@ -323,9 +334,10 @@ if __name__ == '__main__':
 
     # Graph the dataset
 
-    # for i, data in enumerate(datapoint):
+    for i, data in enumerate(datapoint):
         # Plot the graph for each datapoint
-        # graph = torch_geometric.utils.to_networkx(data) 
-        # nx.draw(graph, with_labels=True)
-        # plt.savefig(os.path.join('output', f'graph_{i}.png'), dpi=300)
+        plt.figure()
+        graph = torch_geometric.utils.to_networkx(data) 
+        nx.draw(graph, with_labels=True, )
+        plt.savefig(os.path.join('output', f'graph_{i}.png'), dpi=300)
         
