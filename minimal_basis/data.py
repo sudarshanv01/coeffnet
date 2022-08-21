@@ -5,14 +5,15 @@ from typing import List, Dict
 import numpy as np
 import numpy.typing as npt
 
+
 class DataPoint(Data):
     """Base class for creating a reaction data point.
-    
+
     Each of pos, edge_index and x correspond to a dictionary of arrays.
-    The key of the dictionary corresponds to the ordering of the 
+    The key of the dictionary corresponds to the ordering of the
     molecular fragments in the reaction. If the sign of the key
     is negative, the fragment is a reactant. If the sign is positive,
-    the fragment is a product. 
+    the fragment is a product.
     TODO: Better way to specify the ordering?
     """
 
@@ -22,7 +23,7 @@ class DataPoint(Data):
         edge_index: Dict[str, npt.ArrayLike],
         x: Dict[str, npt.ArrayLike],
         edge_attr: Dict[str, npt.ArrayLike],
-        y: npt.ArrayLike, 
+        y: npt.ArrayLike,
         **kwargs,
     ):
 
@@ -31,11 +32,13 @@ class DataPoint(Data):
         tensor_x = {}
         tensor_edge_index = [[], []]
         tensor_edge_attr = {}
-        num_nodes = 0 # Add up the number of nodes in the graph.
+        num_nodes = 0  # Add up the number of nodes in the graph.
 
         # This for loop assumes that the keys of pos, edge_index, and x are the same.
         for state_index in pos:
-            tensor_pos[state_index] = torch.as_tensor(pos[state_index], dtype=torch.float)
+            tensor_pos[state_index] = torch.as_tensor(
+                pos[state_index], dtype=torch.float
+            )
             assert tensor_pos[state_index].shape[1] == 3
             num_nodes += tensor_pos[state_index].shape[0]
 
@@ -47,7 +50,9 @@ class DataPoint(Data):
             tensor_x[state_index] = torch.as_tensor(x[state_index], dtype=torch.float)
 
             # Apply the same treatment to the edge_attr.
-            tensor_edge_attr[state_index] = torch.as_tensor(edge_attr[state_index], dtype=torch.float)
+            tensor_edge_attr[state_index] = torch.as_tensor(
+                edge_attr[state_index], dtype=torch.float
+            )
 
         if isinstance(y, torch.Tensor):
             tensor_y = y
@@ -69,11 +74,11 @@ class DataPoint(Data):
         tensor_edge_index = torch.as_tensor(tensor_edge_index, dtype=torch.int)
 
         super().__init__(
-            num_nodes = num_nodes,
-            pos = tensor_pos,
-            edge_index = tensor_edge_index,
-            x = tensor_x,
-            edge_attr = tensor_edge_attr,
-            y = tensor_y,
+            num_nodes=num_nodes,
+            pos=tensor_pos,
+            edge_index=tensor_edge_index,
+            x=tensor_x,
+            edge_attr=tensor_edge_attr,
+            y=tensor_y,
             **tensor_kwargs,
         )
