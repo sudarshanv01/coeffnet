@@ -312,6 +312,7 @@ class HamiltonianDataset(InMemoryDataset):
                 # Get the diagonal elements consisting of each atom
                 indices_atom_basis = self.get_indices_atom_basis(indices_of_basis)
                 logging.debug(f'Indices of atom basis functions: {indices_atom_basis}')
+                molecule_info_collected['indices_atom_basis'][choose_index] = indices_atom_basis
 
                 # Finally, store the irrep
                 irrep = f"{tot_number_of_s}x0e + {tot_number_of_p}x1o + {tot_number_of_d}x2e + {tot_number_of_f}x3o"
@@ -356,7 +357,7 @@ class HamiltonianDataset(InMemoryDataset):
                 molecule_info_collected['edge_attr'][choose_index] = edge_H
 
                 # --- Get the output information and store that in the node
-                y = self.input_data[reaction_id][molecule_id]['barrier_meanref']
+                y = self.input_data[reaction_id][molecule_id]['transition_state_energy']
 
             datapoint = DataPoint(
                 pos = molecule_info_collected['pos'],
@@ -368,6 +369,7 @@ class HamiltonianDataset(InMemoryDataset):
                 irrep_atoms = molecule_info_collected['irrep_atoms'],
                 indices_of_basis = molecule_info_collected['indices_of_basis'],
                 atom_basis_functions = molecule_info_collected['atom_basis_functions'],
+                indices_atom_basis = molecule_info_collected['indices_atom_basis'],
             )
             logging.info('Datapoint:')
             logging.info(datapoint)
@@ -418,4 +420,43 @@ if __name__ == '__main__':
         graph = torch_geometric.utils.to_networkx(data) 
         nx.draw(graph, with_labels=True, )
         plt.savefig(os.path.join('output', f'graph_{i}.png'), dpi=300)
+
+        # Also plot the Hamiltonian for each spin for each spin for each
+        # molecules in a separate subplot. Ensure that each node feature
+        # is highlighted (in a bounding axv/axhline). 
+        fig, ax = plt.subplots(2, len(data['x']),
+                               figsize=(4*len(data['x']), 4),
+                               squeeze=False,
+                               constrained_layout=True)
+        for j, state_index in enumerate(data['x']):
+
+            # Each state_index gets its own subplot 
+            H_up = data['x'][state_index][..., 0]
+            H_down = data['x'][state_index][..., 1]
+            H_up = H_up.numpy() 
+            H_down = H_down.numpy()
+
+            # Plot the Hamiltonian for each spin separately
+            cax1 = ax[0,j].imshow(H_up, cmap='viridis', interpolation='none')
+            cax2 = ax[1,j].imshow(H_down, cmap='viridis', interpolation='none')
+            # Add a colorbar to each subplot
+            fig.colorbar(cax1, ax=ax[0,j])
+            fig.colorbar(cax2, ax=ax[1,j])
+
+            # Highlight node specific features in the matrix
+            # print(data['atom_basis_functions'][state_index])
+            for (start, stop) in data['indices_atom_basis'][state_index]:
+                # Highlight the starting index
+                ax[0,j].axvline(start, color='k')
+                ax[1,j].axvline(start, color='k')
+                ax[0,j].axhline(start, color='k')
+                ax[1,j].axhline(start, color='k')
+                ax[0,j].set_title(f'State {state_index}, spin up')
+                ax[1,j].set_title(f'State {state_index}, spin down')
+            
+        for a in ax.flat:
+            a.set_xticks([])
+            a.set_yticks([])
+            a.set_aspect('equal')
         
+        fig.savefig(os.path.join('output', f'matrix_graph_{i}.png'), dpi=300)
