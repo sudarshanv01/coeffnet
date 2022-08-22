@@ -19,7 +19,7 @@ class TSBarrierModel(torch.nn.Module):
 
     # Irreducible representation of the minimal basis hamiltonian.
     minimal_basis_irrep = o3.Irreps("1x0e + 1x1o + 1x2e")
-    minimal_basis_size = 1 + 9 + 25 
+    minimal_basis_size = 1 + 9 + 25
     irreps_out = o3.Irreps("1x0e")
     irreps_sh = o3.Irreps.spherical_harmonics(lmax=2)
 
@@ -49,19 +49,19 @@ class TSBarrierModel(torch.nn.Module):
 
         # Define the tensor products for each basis function
         self.tensor_product_s = o3.FullyConnectedTensorProduct(
-            irreps_in1='1x0e',
-            irreps_in2='1x0e',
-            irreps_out='1x0e',
+            irreps_in1="1x0e",
+            irreps_in2="1x0e",
+            irreps_out="1x0e",
         )
         self.tensor_product_p = o3.FullyConnectedTensorProduct(
-            irreps_in1='1x1o',
-            irreps_in2='1x1o',
-            irreps_out='1x1o',
+            irreps_in1="1x1o",
+            irreps_in2="1x1o",
+            irreps_out="1x1o",
         )
         self.tensor_product_d = o3.FullyConnectedTensorProduct(
-            irreps_in1='1x2e',
-            irreps_in2='1x2e',
-            irreps_out='1x2e',
+            irreps_in1="1x2e",
+            irreps_in2="1x2e",
+            irreps_out="1x2e",
         )
         # Create a Fully Connected Tensor Product for the NN. The three integers of the
         # list in the first input are the dimensions of the input, intermediate and output.
@@ -80,9 +80,9 @@ class TSBarrierModel(torch.nn.Module):
             # STRATEGY: Generate a minimal basis representation where the
             # Hamiltonians (of both spin up and down) are condensed
             # into a single matrix consisting of an irreducible
-            # representation of only 1s, 1p and 1d. 
+            # representation of only 1s, 1p and 1d.
             num_nodes = data["num_nodes"]
-            minimal_basis = torch.zeros(num_nodes, self.minimal_basis_size) 
+            minimal_basis = torch.zeros(num_nodes, self.minimal_basis_size)
             edge_dst = []
             edge_src = []
             edge_vec = []
@@ -95,7 +95,9 @@ class TSBarrierModel(torch.nn.Module):
 
                 # Generate the mean Hamiltonian for each spin.
                 hamiltonian = data_x.mean(dim=-1)
-                logging.debug("Shape of spin averaged Hamiltonian: {}".format(hamiltonian.shape))
+                logging.debug(
+                    "Shape of spin averaged Hamiltonian: {}".format(hamiltonian.shape)
+                )
 
                 logging.info(
                     "Constructing minimal basis representation for molecule {}.".format(
@@ -110,57 +112,81 @@ class TSBarrierModel(torch.nn.Module):
 
                     # Get the basis functions, in the right order, that make up
                     # atom_basis_1 and atom_basis_2
-                    basis_functions = data['atom_basis_functions'][mol_index][atom_basis[0]:atom_basis[1]]
+                    basis_functions = data["atom_basis_functions"][mol_index][
+                        atom_basis[0] : atom_basis[1]
+                    ]
 
                     # Find the indices of the 's', 'p' and 'd' basis functions
-                    indices_s = [i for i, basis_function in enumerate(basis_functions) if basis_function == 's']
-                    indices_p = [i for i, basis_function in enumerate(basis_functions) if basis_function == 'p']
-                    indices_d = [i for i, basis_function in enumerate(basis_functions) if basis_function == 'd']
-                    logging.debug('There are {} s, {} p and {} d basis functions.'.format(len(indices_s), len(indices_p), len(indices_d)))
+                    indices_s = [
+                        i
+                        for i, basis_function in enumerate(basis_functions)
+                        if basis_function == "s"
+                    ]
+                    indices_p = [
+                        i
+                        for i, basis_function in enumerate(basis_functions)
+                        if basis_function == "p"
+                    ]
+                    indices_d = [
+                        i
+                        for i, basis_function in enumerate(basis_functions)
+                        if basis_function == "d"
+                    ]
+                    logging.debug(
+                        "There are {} s, {} p and {} d basis functions.".format(
+                            len(indices_s), len(indices_p), len(indices_d)
+                        )
+                    )
 
                     # Group the indices into tuples, s has length = 1, p has length 3 and d has length 5.
-                    indices_s = [ [index] for index in indices_s ]
+                    indices_s = [[index] for index in indices_s]
                     # Split indices_p into tuples of size 3.
-                    indices_p = [ indices_p[i:i+3] for i in range(0, len(indices_p), 3) ]
+                    indices_p = [
+                        indices_p[i : i + 3] for i in range(0, len(indices_p), 3)
+                    ]
                     # Split indices_d into tuples of size 5.
-                    indices_d = [ indices_d[i:i+5] for i in range(0, len(indices_d), 5) ]
+                    indices_d = [
+                        indices_d[i : i + 5] for i in range(0, len(indices_d), 5)
+                    ]
 
                     # Create a tensor that contains the basis functions for the atom.
                     tensor_s = torch.eye(1)
                     for s in indices_s:
                         segment_H = torch.tensor([[hamiltonian[s[0], s[0]]]])
-                        tensor_s = self.tensor_product_s(tensor_s, segment_H) 
+                        tensor_s = self.tensor_product_s(tensor_s, segment_H)
 
                     logging.info("Shape of tensor_s: {}".format(tensor_s.shape))
-                    
+
                     tensor_p = torch.eye(3)
                     for p in indices_p:
-                        segment_H = hamiltonian[p[0]:p[-1]+1, p[0]:p[-1]+1]
+                        segment_H = hamiltonian[p[0] : p[-1] + 1, p[0] : p[-1] + 1]
                         tensor_p = self.tensor_product_p(tensor_p, segment_H)
 
                     logging.info("Shape of tensor_p: {}".format(tensor_p.shape))
-                    
+
                     tensor_d = torch.eye(5)
                     for d in indices_d:
-                        segment_H = hamiltonian[d[0]:d[-1]+1, d[0]:d[-1]+1]
+                        segment_H = hamiltonian[d[0] : d[-1] + 1, d[0] : d[-1] + 1]
                         tensor_d = self.tensor_product_d(tensor_d, segment_H)
 
-                    logging.info("Shape of tensor_d: {}".format(tensor_d.shape)) 
+                    logging.info("Shape of tensor_d: {}".format(tensor_d.shape))
 
                     # Make each of the tensors Hermitean.
                     tensor_s = torch.mm(tensor_s, tensor_s.t())
                     tensor_p = torch.mm(tensor_p, tensor_p.t())
                     tensor_d = torch.mm(tensor_d, tensor_d.t())
                     # Normalise by the number of basis functions.
-                    tensor_s = tensor_s / len(indices_s)**2
-                    tensor_p = tensor_p / len(indices_p)**2
-                    tensor_d = tensor_d / len(indices_d)**2
+                    tensor_s = tensor_s / len(indices_s) ** 2
+                    tensor_p = tensor_p / len(indices_p) ** 2
+                    tensor_d = tensor_d / len(indices_d) ** 2
                     logging.debug("Minimal basis (s): \n {}".format(tensor_s))
                     logging.debug("Minimal basis (p): \n {}".format(tensor_p))
                     logging.debug("Minimal basis (d): \n {}".format(tensor_d))
 
                     # Concatenate the tensors.
-                    minimal_basis_flat = torch.cat((tensor_s.flatten(), tensor_p.flatten(), tensor_d.flatten()))
+                    minimal_basis_flat = torch.cat(
+                        (tensor_s.flatten(), tensor_p.flatten(), tensor_d.flatten())
+                    )
                     minimal_basis[i, :] = minimal_basis_flat
 
                 # Generate the graph for the current dataset.
@@ -169,14 +195,19 @@ class TSBarrierModel(torch.nn.Module):
                 # Again: Every molecule is independent in terms of the graph,
                 # so all of these parameters can be independetly generated.
                 edge_src_atom, edge_dst_atom = radius_graph(
-                    data["pos"][mol_index], self.max_radius, max_num_neighbors=self.num_neighbors
+                    data["pos"][mol_index],
+                    self.max_radius,
+                    max_num_neighbors=self.num_neighbors,
                 )
-                edge_vec_atom = data["pos"][mol_index][edge_dst_atom] - data["pos"][mol_index][edge_src_atom]
+                edge_vec_atom = (
+                    data["pos"][mol_index][edge_dst_atom]
+                    - data["pos"][mol_index][edge_src_atom]
+                )
                 # Append the atom indices to the lists.
                 edge_src.append(edge_src_atom)
                 edge_dst.append(edge_dst_atom)
                 edge_vec.append(edge_vec_atom)
-            
+
             # Make the edge lists into tensors.
             # Done here by concatenating the lists.
             edge_src = torch.cat(edge_src)
@@ -206,14 +237,14 @@ class TSBarrierModel(torch.nn.Module):
             # )
 
             # # Also add an embedding for the MLP.
-            # embedding = soft_one_hot_linspace(
-            #     x=edge_vec.norm(dim=1),
-            #     start=0.0,
-            #     end=self.max_radius,
-            #     number=self.num_basis,
-            #     basis="smooth_finite",
-            #     cutoff=True,
-            # ).mul(self.num_basis**0.5)
+            embedding = soft_one_hot_linspace(
+                x=edge_vec.norm(dim=1),
+                start=0.0,
+                end=self.max_radius,
+                number=self.num_basis,
+                basis="smooth_finite",
+                cutoff=True,
+            ).mul(self.num_basis**0.5)
 
             # # Construct the summation of the required dimension
             # output = self.tensor_product(
