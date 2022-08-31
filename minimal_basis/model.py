@@ -1,3 +1,4 @@
+import enum
 import logging
 
 import torch
@@ -117,21 +118,19 @@ class TSBarrierModel(torch.nn.Module):
                     ]
 
                     # Find the indices of the 's', 'p' and 'd' basis functions
-                    indices_s = [
-                        i
-                        for i, basis_function in enumerate(basis_functions)
-                        if basis_function == "s"
-                    ]
-                    indices_p = [
-                        i
-                        for i, basis_function in enumerate(basis_functions)
-                        if basis_function == "p"
-                    ]
-                    indices_d = [
-                        i
-                        for i, basis_function in enumerate(basis_functions)
-                        if basis_function == "d"
-                    ]
+                    indices_s = []
+                    indices_p = []
+                    indices_d = []
+                    for i, basis_functions in enumerate(basis_functions):
+                        if basis_functions == "s":
+                            indices_s.append(i)
+                        elif basis_functions == "p":
+                            indices_p.append(i)
+                        elif basis_functions == "d":
+                            indices_d.append(i)
+                        # else:
+                        #     logging.debug("Basis function not found: {}".format(basis_functions))
+
                     logging.debug(
                         "There are {} s, {} p and {} d basis functions.".format(
                             len(indices_s), len(indices_p), len(indices_d)
@@ -232,9 +231,9 @@ class TSBarrierModel(torch.nn.Module):
             # Determine the spherical harmonics to perform the convolution
             # The spherical harmonics of the chosen degree will be performed
             # on the (normalised) edge vector.
-            # sh = o3.spherical_harmonics(
-            #     self.irreps_sh, edge_vec, normalize=True, normalization="component"
-            # )
+            sh = o3.spherical_harmonics(
+                self.irreps_sh, edge_vec, normalize=True, normalization="component"
+            )
 
             # # Also add an embedding for the MLP.
             embedding = soft_one_hot_linspace(
@@ -247,12 +246,12 @@ class TSBarrierModel(torch.nn.Module):
             ).mul(self.num_basis**0.5)
 
             # # Construct the summation of the required dimension
-            # output = self.tensor_product(
-            #     input_features[edge_src], sh, self.fc_network(embedding)
-            # )
-            # output = scatter(output, edge_dst, dim=0, dim_size=num_nodes).div(
-            #     self.num_neighbors**0.5
-            # )
+            output = self.tensor_product(
+                input_features[edge_src], sh, self.fc_network(embedding)
+            )
+            output = scatter(output, edge_dst, dim=0, dim_size=num_nodes).div(
+                self.num_neighbors**0.5
+            )
 
             # Append the summed output_vector to the list of output_vectors.
             # This operation corresponds to the summing of all atom-centered features.

@@ -502,8 +502,12 @@ if __name__ == "__main__":
             H_down = H_down.numpy()
 
             # Plot the Hamiltonian for each spin separately
-            cax1 = ax[0, j].imshow(H_up, cmap="viridis", interpolation="none")
-            cax2 = ax[1, j].imshow(H_down, cmap="viridis", interpolation="none")
+            cax1 = ax[0, j].imshow(
+                H_up, cmap="viridis", interpolation="none", vmin=-5, vmax=5
+            )
+            cax2 = ax[1, j].imshow(
+                H_down, cmap="viridis", interpolation="none", vmin=-5, vmax=5
+            )
             # Add a colorbar to each subplot
             fig.colorbar(cax1, ax=ax[0, j])
             fig.colorbar(cax2, ax=ax[1, j])
