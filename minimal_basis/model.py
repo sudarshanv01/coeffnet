@@ -89,11 +89,6 @@ class TSBarrierModel(torch.nn.Module):
                 self.minimal_basis_matrix_size,
             )
 
-            # Determine the edge components
-            # edge_dst = []
-            # edge_src = []
-            # edge_vec = []
-
             for mol_index, data_x in data["x"].items():
                 # Within each molecule, the basis representation
                 # of each atom must interact with the basis representation
@@ -155,37 +150,25 @@ class TSBarrierModel(torch.nn.Module):
                     ]
 
                     # Create a tensor that contains the basis functions for the atom.
-                    tensor_s = torch.eye(1)
+                    tensor_s = torch.zeros(1, 1)
                     for s in indices_s:
                         segment_H = torch.tensor([[hamiltonian[s[0], s[0]]]])
-                        tensor_s = self.tensor_product_s(tensor_s, segment_H)
-
+                        tensor_s += segment_H
                     logger.info("Shape of tensor_s: {}".format(tensor_s.shape))
+                    tensor_s /= len(indices_s)
 
-                    tensor_p = torch.eye(3)
+                    tensor_p = torch.zeros(3, 3)
                     for p in indices_p:
                         segment_H = hamiltonian[p[0] : p[-1] + 1, p[0] : p[-1] + 1]
-                        tensor_p = self.tensor_product_p(tensor_p, segment_H)
-
+                        tensor_p += segment_H
                     logger.info("Shape of tensor_p: {}".format(tensor_p.shape))
 
-                    tensor_d = torch.eye(5)
+                    tensor_d = torch.zeros(5, 5)
                     for d in indices_d:
                         segment_H = hamiltonian[d[0] : d[-1] + 1, d[0] : d[-1] + 1]
-                        tensor_d = self.tensor_product_d(tensor_d, segment_H)
+                        tensor_d += segment_H
 
                     logger.info("Shape of tensor_d: {}".format(tensor_d.shape))
-
-                    # Make each of the tensors Hermitian
-                    # and normalise by the number of basis functions.
-                    tensor_s = tensor_s + tensor_s.t()
-                    tensor_s = tensor_s / len(indices_s)
-                    if len(indices_p) > 0:
-                        tensor_p = tensor_p + tensor_p.t()
-                        tensor_p = tensor_p / len(indices_p)
-                    if len(indices_d) > 0:
-                        tensor_d = tensor_d + tensor_d.t()
-                        tensor_d = tensor_d / len(indices_d)
 
                     logger.debug("Minimal basis (s): \n {}".format(tensor_s))
                     logger.debug("Minimal basis (p): \n {}".format(tensor_p))
@@ -204,13 +187,21 @@ class TSBarrierModel(torch.nn.Module):
                         "Minimal basis representation: \n {}".format(minimal_basis[i])
                     )
 
+            logger.debug(f"Minimal basis shape: {minimal_basis.shape}")
+
             edge_src, edge_dst = data.edge_index
             logger.debug(f"Edge src: {edge_src}")
             logger.debug(f"Edge dst: {edge_dst}")
             edge_vec = data.pos[edge_dst] - data.pos[edge_src]
             logger.debug(f"Edge vec: {edge_vec}")
 
-            yield num_nodes, edge_src, edge_dst, edge_vec, minimal_basis
+            minimal_basis_diag = torch.zeros(num_nodes, self.minimal_basis_matrix_size)
+            for i, minimal_basis_atom in enumerate(minimal_basis):
+                minimal_basis_diag[i] = torch.diag(minimal_basis_atom)
+
+            logger.debug(f"Minimal basis diag: {minimal_basis_diag}")
+
+            yield num_nodes, edge_src, edge_dst, edge_vec, minimal_basis_diag
 
     def forward(self, dataset):
         """Forward pass of the model."""
@@ -234,28 +225,26 @@ class TSBarrierModel(torch.nn.Module):
             )
 
             # Also add an embedding for the MLP.
-            # embedding = soft_one_hot_linspace(
-            #     x=edge_vec.norm(dim=1),
-            #     start=0.0,
-            #     end=self.max_radius,
-            #     number=self.num_basis,
-            #     basis="smooth_finite",
-            #     cutoff=True,
-            # ).mul(self.num_basis**0.5)
+            embedding = soft_one_hot_linspace(
+                x=edge_vec.norm(dim=1),
+                start=0.0,
+                end=self.max_radius,
+                number=self.num_basis,
+                basis="smooth_finite",
+                cutoff=True,
+            ).mul(self.num_basis**0.5)
 
-            # Construct the summation of the required dimension
-            # output = self.tensor_product(
-            #     input_features[edge_src], sh, self.fc_network(embedding)
-            # )
-            # output = scatter(output, edge_dst, dim=0, dim_size=num_nodes).div(
-            #     self.num_neighbors**0.5
-            # )
-            # logger.debug(f"Output: {output}")
+            output = self.tensor_product(
+                input_features[edge_src], sh, self.fc_network(embedding)
+            )
+            output = scatter(output, edge_dst, dim=0, dim_size=num_nodes).div(
+                self.num_neighbors**0.5
+            )
+            logger.debug(f"Output: {output}")
 
             # Append the summed output_vector to the list of output_vectors.
             # This operation corresponds to the summing of all atom-centered features.
-            # output_vector.append(output.sum())
-            output_vector.append(input_features.sum())
+            output_vector.append(output.sum())
 
         # Make the output_vector a tensor.
         output_vector = torch.tensor(output_vector, requires_grad=True)
