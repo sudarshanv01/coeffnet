@@ -1,4 +1,3 @@
-import enum
 import logging
 
 import torch
@@ -21,15 +20,16 @@ class TSBarrierModel(torch.nn.Module):
     # Irreducible representation of the minimal basis hamiltonian.
     minimal_basis_irrep = o3.Irreps("1x0e + 1x1o + 1x2e")
     minimal_basis_size = 1 + 9 + 25
+    minimal_basis_matrix_size = 1 + 3 + 5
     irreps_out = o3.Irreps("1x0e")
     irreps_sh = o3.Irreps.spherical_harmonics(lmax=2)
 
     def __init__(self, max_radius=5, num_neighbors=10, num_basis=10):
 
         # Information about creating a minimal basis representation.
-        logging.info("Creating neural network model.")
-        logging.info("Irrep of minimal basis: {}".format(self.minimal_basis_irrep))
-        logging.info("Size of minimal basis: {}".format(self.minimal_basis_size))
+        logger.info("Creating neural network model.")
+        logger.info("Irrep of minimal basis: {}".format(self.minimal_basis_irrep))
+        logger.info("Size of minimal basis: {}".format(self.minimal_basis_size))
 
         super().__init__()
 
@@ -77,16 +77,22 @@ class TSBarrierModel(torch.nn.Module):
 
         # Iterate over the dataset to get the characteristics of the graph.
         for data in dataset:
-            logging.info("Processing new data graph.")
+            logger.info("Processing new data graph.")
             # STRATEGY: Generate a minimal basis representation where the
             # Hamiltonians (of both spin up and down) are condensed
             # into a single matrix consisting of an irreducible
             # representation of only 1s, 1p and 1d.
             num_nodes = data["num_nodes"]
-            minimal_basis = torch.zeros(num_nodes, self.minimal_basis_size)
-            edge_dst = []
-            edge_src = []
-            edge_vec = []
+            minimal_basis = torch.zeros(
+                num_nodes,
+                self.minimal_basis_matrix_size,
+                self.minimal_basis_matrix_size,
+            )
+
+            # Determine the edge components
+            # edge_dst = []
+            # edge_src = []
+            # edge_vec = []
 
             for mol_index, data_x in data["x"].items():
                 # Within each molecule, the basis representation
@@ -96,11 +102,11 @@ class TSBarrierModel(torch.nn.Module):
 
                 # Generate the mean Hamiltonian for each spin.
                 hamiltonian = data_x.mean(dim=-1)
-                logging.debug(
+                logger.debug(
                     "Shape of spin averaged Hamiltonian: {}".format(hamiltonian.shape)
                 )
 
-                logging.info(
+                logger.info(
                     "Constructing minimal basis representation for molecule {}.".format(
                         mol_index
                     )
@@ -109,7 +115,7 @@ class TSBarrierModel(torch.nn.Module):
                 # Iterate over all atoms, the minimal basis representation is for each atom.
                 for i, atom_basis in enumerate(data["indices_atom_basis"][mol_index]):
 
-                    logging.info("Processing atom {}.".format(i))
+                    logger.info("Processing atom {}.".format(i))
 
                     # Get the basis functions, in the right order, that make up
                     # atom_basis_1 and atom_basis_2
@@ -129,9 +135,9 @@ class TSBarrierModel(torch.nn.Module):
                         elif basis_functions == "d":
                             indices_d.append(i)
                         # else:
-                        #     logging.debug("Basis function not found: {}".format(basis_functions))
+                        #     logger.debug("Basis function not found: {}".format(basis_functions))
 
-                    logging.debug(
+                    logger.debug(
                         "There are {} s, {} p and {} d basis functions.".format(
                             len(indices_s), len(indices_p), len(indices_d)
                         )
@@ -154,70 +160,62 @@ class TSBarrierModel(torch.nn.Module):
                         segment_H = torch.tensor([[hamiltonian[s[0], s[0]]]])
                         tensor_s = self.tensor_product_s(tensor_s, segment_H)
 
-                    logging.info("Shape of tensor_s: {}".format(tensor_s.shape))
+                    logger.info("Shape of tensor_s: {}".format(tensor_s.shape))
 
                     tensor_p = torch.eye(3)
                     for p in indices_p:
                         segment_H = hamiltonian[p[0] : p[-1] + 1, p[0] : p[-1] + 1]
                         tensor_p = self.tensor_product_p(tensor_p, segment_H)
 
-                    logging.info("Shape of tensor_p: {}".format(tensor_p.shape))
+                    logger.info("Shape of tensor_p: {}".format(tensor_p.shape))
 
                     tensor_d = torch.eye(5)
                     for d in indices_d:
                         segment_H = hamiltonian[d[0] : d[-1] + 1, d[0] : d[-1] + 1]
                         tensor_d = self.tensor_product_d(tensor_d, segment_H)
 
-                    logging.info("Shape of tensor_d: {}".format(tensor_d.shape))
+                    logger.info("Shape of tensor_d: {}".format(tensor_d.shape))
 
-                    # Make each of the tensors Hermitean.
-                    tensor_s = torch.mm(tensor_s, tensor_s.t())
-                    tensor_p = torch.mm(tensor_p, tensor_p.t())
-                    tensor_d = torch.mm(tensor_d, tensor_d.t())
-                    # Normalise by the number of basis functions.
-                    tensor_s = tensor_s / len(indices_s) ** 2
-                    tensor_p = tensor_p / len(indices_p) ** 2
-                    tensor_d = tensor_d / len(indices_d) ** 2
-                    logging.debug("Minimal basis (s): \n {}".format(tensor_s))
-                    logging.debug("Minimal basis (p): \n {}".format(tensor_p))
-                    logging.debug("Minimal basis (d): \n {}".format(tensor_d))
+                    # Make each of the tensors Hermitian
+                    # and normalise by the number of basis functions.
+                    tensor_s = tensor_s + tensor_s.t()
+                    tensor_s = tensor_s / len(indices_s)
+                    if len(indices_p) > 0:
+                        tensor_p = tensor_p + tensor_p.t()
+                        tensor_p = tensor_p / len(indices_p)
+                    if len(indices_d) > 0:
+                        tensor_d = tensor_d + tensor_d.t()
+                        tensor_d = tensor_d / len(indices_d)
 
-                    # Concatenate the tensors.
-                    minimal_basis_flat = torch.cat(
-                        (tensor_s.flatten(), tensor_p.flatten(), tensor_d.flatten())
+                    logger.debug("Minimal basis (s): \n {}".format(tensor_s))
+                    logger.debug("Minimal basis (p): \n {}".format(tensor_p))
+                    logger.debug("Minimal basis (d): \n {}".format(tensor_d))
+
+                    minimal_basis[i, 0, 0] = tensor_s
+                    minimal_basis[i, 1:4, 1:4] = tensor_p
+                    minimal_basis[i, 4:, 4:] = tensor_d
+
+                    logger.info(
+                        "Shape of minimal basis representation: {}".format(
+                            minimal_basis[i].shape
+                        )
                     )
-                    minimal_basis[i, :] = minimal_basis_flat
+                    logger.debug(
+                        "Minimal basis representation: \n {}".format(minimal_basis[i])
+                    )
 
-                # Generate the graph for the current dataset.
-                # Most of the edge dependent quantities are already stored in datapoint.
-                # We just have to modify them into the form that we require here.
-                # Again: Every molecule is independent in terms of the graph,
-                # so all of these parameters can be independetly generated.
-                edge_src_atom, edge_dst_atom = radius_graph(
-                    data["pos"][mol_index],
-                    self.max_radius,
-                    max_num_neighbors=self.num_neighbors,
-                )
-                edge_vec_atom = (
-                    data["pos"][mol_index][edge_dst_atom]
-                    - data["pos"][mol_index][edge_src_atom]
-                )
-                # Append the atom indices to the lists.
-                edge_src.append(edge_src_atom)
-                edge_dst.append(edge_dst_atom)
-                edge_vec.append(edge_vec_atom)
-
-            # Make the edge lists into tensors.
-            # Done here by concatenating the lists.
-            edge_src = torch.cat(edge_src)
-            edge_dst = torch.cat(edge_dst)
-            edge_vec = torch.cat(edge_vec)
+            edge_src, edge_dst = data.edge_index
+            logger.debug(f"Edge src: {edge_src}")
+            logger.debug(f"Edge dst: {edge_dst}")
+            edge_vec = data.pos[edge_dst] - data.pos[edge_src]
+            logger.debug(f"Edge vec: {edge_vec}")
 
             yield num_nodes, edge_src, edge_dst, edge_vec, minimal_basis
 
     def forward(self, dataset):
         """Forward pass of the model."""
 
+        # Store all the energies here.
         output_vector = []
 
         for (
@@ -235,23 +233,24 @@ class TSBarrierModel(torch.nn.Module):
                 self.irreps_sh, edge_vec, normalize=True, normalization="component"
             )
 
-            # # Also add an embedding for the MLP.
-            embedding = soft_one_hot_linspace(
-                x=edge_vec.norm(dim=1),
-                start=0.0,
-                end=self.max_radius,
-                number=self.num_basis,
-                basis="smooth_finite",
-                cutoff=True,
-            ).mul(self.num_basis**0.5)
+            # Also add an embedding for the MLP.
+            # embedding = soft_one_hot_linspace(
+            #     x=edge_vec.norm(dim=1),
+            #     start=0.0,
+            #     end=self.max_radius,
+            #     number=self.num_basis,
+            #     basis="smooth_finite",
+            #     cutoff=True,
+            # ).mul(self.num_basis**0.5)
 
-            # # Construct the summation of the required dimension
-            output = self.tensor_product(
-                input_features[edge_src], sh, self.fc_network(embedding)
-            )
-            output = scatter(output, edge_dst, dim=0, dim_size=num_nodes).div(
-                self.num_neighbors**0.5
-            )
+            # Construct the summation of the required dimension
+            # output = self.tensor_product(
+            #     input_features[edge_src], sh, self.fc_network(embedding)
+            # )
+            # output = scatter(output, edge_dst, dim=0, dim_size=num_nodes).div(
+            #     self.num_neighbors**0.5
+            # )
+            # logger.debug(f"Output: {output}")
 
             # Append the summed output_vector to the list of output_vectors.
             # This operation corresponds to the summing of all atom-centered features.
@@ -268,9 +267,10 @@ if __name__ == "__main__":
     """Test a convolutional Neural Network"""
 
     # Read in the dataset inputs.
-    JSON_FILE = "input_files/output_ts_calc_debug.json"
-    BASIS_FILE = "input_files/def2-tzvppd.json"
-    logging.basicConfig(filename="example.log", filemode="w", level=logging.DEBUG)
+    JSON_FILE = "input_files/output_QMrxn20_debug.json"
+    BASIS_FILE = "input_files/sto-3g.json"
+    logging.basicConfig(filename="model.log", filemode="w", level=logging.DEBUG)
+    logger = logging.getLogger(__name__)
 
     data_point = HamiltonianDataset(JSON_FILE, BASIS_FILE)
     data_point.load_data()

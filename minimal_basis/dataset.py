@@ -263,6 +263,10 @@ class HamiltonianDataset(InMemoryDataset):
                 edge_index, num_neigh, delta_starting_index = self.complete_graph(
                     molecule, starting_index=starting_index
                 )
+                # if edge_index is empty, then it is monoatomic and hence
+                # the edges must be connected to themselves.
+                if len(edge_index) == 0:
+                    edge_index = [[starting_index], [starting_index]]
                 # Move the starting index so that the next molecule comes after
                 # this molecule.
                 starting_index += delta_starting_index
@@ -429,6 +433,10 @@ class HamiltonianDataset(InMemoryDataset):
                 atom_basis_functions=molecule_info_collected["atom_basis_functions"],
                 indices_atom_basis=molecule_info_collected["indices_atom_basis"],
             )
+
+            # Validate the datapoint structure.
+            self._validate_datapoint(datapoint)
+
             logging.info("Datapoint:")
             logging.info(datapoint)
             logging.info("-------")
@@ -437,6 +445,34 @@ class HamiltonianDataset(InMemoryDataset):
             datapoint_list.append(datapoint)
 
         return datapoint_list
+
+    def _validate_datapoint(cls, datapoint: DataPoint) -> None:
+        """Check if everything is validated for the datapoint."""
+        x = datapoint.x
+        # x should be a dictionary composed of square tensors.
+        n_react = 0
+        n_prod = 0
+        for react_index in x:
+            assert (
+                x[react_index].shape[0] == x[react_index].shape[1]
+            ), "x should be a square tensor."
+            assert x[react_index].shape[-1] == 2, "Spin dimension should be 2"
+
+            if react_index < 0:
+                n_react += len(x[react_index])
+            elif react_index > 0:
+                n_prod += len(x[react_index])
+            else:
+                raise ValueError(
+                    "Reactant index should be negative and product index should be positive."
+                )
+
+        assert (
+            n_react == n_prod
+        ), "Number of reactant atoms should be equal to number of product atoms."
+
+        # Make sure that the y-data is a scalar
+        assert datapoint.y.shape == torch.Size([]), "y should be a scalar."
 
     def split_matrix_node_edge(cls, matrix, indices_of_basis):
         """Split the matrix into node and edge features."""
@@ -461,10 +497,10 @@ class HamiltonianDataset(InMemoryDataset):
 
 if __name__ == "__main__":
     """Test the DataPoint class."""
-    JSON_FILE = "input_files/output_ts_calc_debug.json"
-    BASIS_FILE = "input_files/def2-tzvppd.json"
+    JSON_FILE = "input_files/output_QMrxn20_debug.json"
+    BASIS_FILE = "input_files/sto-3g.json"
 
-    logging.basicConfig(filename="example.log", filemode="w", level=logging.DEBUG)
+    logging.basicConfig(filename="dataset.log", filemode="w", level=logging.DEBUG)
 
     data_point = HamiltonianDataset(JSON_FILE, BASIS_FILE)
     data_point.load_data()
@@ -472,16 +508,30 @@ if __name__ == "__main__":
     datapoint = data_point.get_data()
 
     # Graph the dataset
-
     for i, data in enumerate(datapoint):
         # Plot the graph for each datapoint
-        plt.figure()
         graph = torch_geometric.utils.to_networkx(data)
-        nx.draw(
-            graph,
-            with_labels=True,
-        )
-        plt.savefig(os.path.join("output", f"graph_{i}.png"), dpi=300)
+        # Iteratively add subplots to a figure
+        fig = plt.figure()
+        for j, nx_graph in enumerate(nx.strongly_connected_components(graph)):
+            # Get the number of reactants and products based on the len of x
+            n_react_prod = len(data.x)
+            # Split n_react_prod into num_x and num_y
+            # to make sure the plots look nice
+            num_x = int(np.ceil(np.sqrt(n_react_prod)))
+            num_y = int(np.ceil(n_react_prod / num_x))
+            # Add subplot to figure
+            ax = fig.add_subplot(num_x, num_y, j + 1)
+            nx.draw(
+                graph.subgraph(nx_graph),
+                pos=nx.spring_layout(graph.subgraph(nx_graph), seed=42),
+                with_labels=False,
+                cmap="Set2",
+                ax=ax,
+            )
+
+        fig.savefig(os.path.join("output", f"graph_{i}.png"), dpi=300)
+        plt.close(fig)
 
         # Also plot the Hamiltonian for each spin for each spin for each
         # molecules in a separate subplot. Ensure that each node feature
@@ -529,3 +579,4 @@ if __name__ == "__main__":
             a.set_aspect("equal")
 
         fig.savefig(os.path.join("output", f"matrix_graph_{i}.png"), dpi=300)
+        plt.close(fig)
