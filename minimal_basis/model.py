@@ -1,3 +1,4 @@
+from importlib.metadata import requires
 import logging
 
 import torch
@@ -10,6 +11,8 @@ from e3nn.math import soft_one_hot_linspace
 from e3nn.util.test import equivariance_error
 
 from dataset import HamiltonianDataset
+
+import matplotlib.pyplot as plt
 
 
 class TSBarrierModel(torch.nn.Module):
@@ -24,7 +27,7 @@ class TSBarrierModel(torch.nn.Module):
     irreps_out = o3.Irreps("1x0e")
     irreps_sh = o3.Irreps.spherical_harmonics(lmax=2)
 
-    def __init__(self, max_radius=5, num_neighbors=10, num_basis=10):
+    def __init__(self, max_radius=10, num_neighbors=10, num_basis=10):
 
         # Information about creating a minimal basis representation.
         logger.info("Creating neural network model.")
@@ -207,15 +210,15 @@ class TSBarrierModel(torch.nn.Module):
         """Forward pass of the model."""
 
         # Store all the energies here.
-        output_vector = []
+        output_vector = torch.zeros(len(dataset), requires_grad=True)
 
-        for (
+        for index, (
             num_nodes,
             edge_src,
             edge_dst,
             edge_vec,
             input_features,
-        ) in self.graph_generator(dataset):
+        ) in enumerate(self.graph_generator(dataset)):
 
             # Determine the spherical harmonics to perform the convolution
             # The spherical harmonics of the chosen degree will be performed
@@ -244,12 +247,24 @@ class TSBarrierModel(torch.nn.Module):
 
             # Append the summed output_vector to the list of output_vectors.
             # This operation corresponds to the summing of all atom-centered features.
-            output_vector.append(output.sum())
+            norm_output = torch.norm(output)
+            # output_vector.append(norm_output)
+            output_vector[index] = norm_output
+            # output_vector.append(output.sum())
 
         # Make the output_vector a tensor.
-        output_vector = torch.tensor(output_vector, requires_grad=True)
+        # output_vector = torch.tensor(output_vector, requires_grad=True)
 
         return output_vector
+
+
+def visualize_results(predicted, calculated, ax, epoch=None, loss=None):
+    """Plot the DFT calculated vs the fit results."""
+    predicted = predicted.detach().cpu().numpy()
+    calculated = calculated.detach().cpu().numpy()
+    ax.scatter(calculated, predicted, s=140, cmap="Set2")
+    if epoch is not None and loss is not None:
+        ax.set_xlabel(f"Epoch: {epoch}, Loss: {loss.item():.4f}", fontsize=16)
 
 
 if __name__ == "__main__":
@@ -281,13 +296,21 @@ if __name__ == "__main__":
     optim = torch.optim.Adam(model.parameters(), lr=1e-3)
 
     for step in range(300):
+
         optim.zero_grad()
         pred = model(datapoint)
         loss = (pred - train_y).pow(2).sum()
-        loss.backward()
 
-        optim.step()
+        for name, param in model.named_parameters():
+            print(name, param.grad)
+
+        loss.backward()
 
         if step % 10 == 0:
             accuracy = (pred - train_y).abs().sum()
             print(f"epoch {step:5d} | loss {loss:<10.1f} | {accuracy:5.1f} accuracy")
+            fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+            visualize_results(pred, train_y, ax, epoch=step, loss=loss)
+            fig.savefig(f"plots/step_{step:03d}.png")
+
+        optim.step()
