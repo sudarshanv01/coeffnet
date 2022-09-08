@@ -203,6 +203,7 @@ class TSBarrierModel(torch.nn.Module):
                 minimal_basis_diag[i, ...] = torch.diag(minimal_basis_atom)
 
             logger.debug(f"Minimal basis diag: {minimal_basis_diag}")
+            logger.info(f"Minimal basis diag shape: {minimal_basis_diag.shape}")
 
             yield num_nodes, edge_src, edge_dst, edge_vec, minimal_basis_diag
 
@@ -241,7 +242,7 @@ class TSBarrierModel(torch.nn.Module):
                 input_features[edge_src], sh, self.fc_network(embedding)
             )
             output = scatter(output, edge_dst, dim=0, dim_size=num_nodes).div(
-                num_nodes**0.5
+                num_nodes**2
             )
             logger.debug(f"Output: {output}")
 
@@ -262,6 +263,7 @@ def visualize_results(predicted, calculated, epoch=None, loss=None):
     if epoch is not None and loss is not None:
         ax.set_xlabel(f"Epoch: {epoch}, Loss: {loss.item():.4f}", fontsize=16)
     fig.savefig(f"plots/step_{step:03d}.png")
+    plt.close(fig)
 
 
 def avail_checkpoint(CHECKPOINT_DIR):
@@ -315,7 +317,7 @@ if __name__ == "__main__":
     # Training the model.
     optim = torch.optim.Adam(model.parameters(), lr=1e-3)
 
-    for step in range(100):
+    for step in range(1000):
 
         optim.zero_grad()
         pred = model(datapoint)
