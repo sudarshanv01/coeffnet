@@ -1,5 +1,6 @@
-from importlib.metadata import requires
+import os
 import logging
+import glob
 
 import torch
 from torch_cluster import radius_graph
@@ -37,7 +38,6 @@ class TSBarrierModel(torch.nn.Module):
         super().__init__()
 
         self.max_radius = max_radius
-        self.num_neighbors = num_neighbors
         self.num_basis = num_basis
 
         # Define the tensor product that is needed
@@ -200,7 +200,7 @@ class TSBarrierModel(torch.nn.Module):
 
             minimal_basis_diag = torch.zeros(num_nodes, self.minimal_basis_matrix_size)
             for i, minimal_basis_atom in enumerate(minimal_basis):
-                minimal_basis_diag[i] = torch.diag(minimal_basis_atom)
+                minimal_basis_diag[i, ...] = torch.diag(minimal_basis_atom)
 
             logger.debug(f"Minimal basis diag: {minimal_basis_diag}")
 
@@ -210,7 +210,7 @@ class TSBarrierModel(torch.nn.Module):
         """Forward pass of the model."""
 
         # Store all the energies here.
-        output_vector = torch.zeros(len(dataset), requires_grad=True)
+        output_vector = torch.zeros(len(dataset))
 
         for index, (
             num_nodes,
@@ -241,30 +241,37 @@ class TSBarrierModel(torch.nn.Module):
                 input_features[edge_src], sh, self.fc_network(embedding)
             )
             output = scatter(output, edge_dst, dim=0, dim_size=num_nodes).div(
-                self.num_neighbors**0.5
+                num_nodes**0.5
             )
             logger.debug(f"Output: {output}")
 
             # Append the summed output_vector to the list of output_vectors.
             # This operation corresponds to the summing of all atom-centered features.
             norm_output = torch.norm(output)
-            # output_vector.append(norm_output)
             output_vector[index] = norm_output
-            # output_vector.append(output.sum())
-
-        # Make the output_vector a tensor.
-        # output_vector = torch.tensor(output_vector, requires_grad=True)
 
         return output_vector
 
 
-def visualize_results(predicted, calculated, ax, epoch=None, loss=None):
+def visualize_results(predicted, calculated, epoch=None, loss=None):
     """Plot the DFT calculated vs the fit results."""
+    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
     predicted = predicted.detach().cpu().numpy()
     calculated = calculated.detach().cpu().numpy()
     ax.scatter(calculated, predicted, s=140, cmap="Set2")
     if epoch is not None and loss is not None:
         ax.set_xlabel(f"Epoch: {epoch}, Loss: {loss.item():.4f}", fontsize=16)
+    fig.savefig(f"plots/step_{step:03d}.png")
+
+
+def avail_checkpoint(CHECKPOINT_DIR):
+    """Check if a checkpoint file is available, and if it is
+    return the name of the largest checkpoint file."""
+    checkpoint_files = glob.glob(os.path.join(CHECKPOINT_DIR, "step_*.pt"))
+    if len(checkpoint_files) == 0:
+        return None
+    else:
+        return max(checkpoint_files, key=os.path.getctime)
 
 
 if __name__ == "__main__":
@@ -273,7 +280,14 @@ if __name__ == "__main__":
     # Read in the dataset inputs.
     JSON_FILE = "input_files/output_QMrxn20_debug.json"
     BASIS_FILE = "input_files/sto-3g.json"
-    logging.basicConfig(filename="model.log", filemode="w", level=logging.DEBUG)
+    CHECKPOINT_FOLDER = "checkpoints"
+    # Create the folder if it does not exist.
+    if not os.path.exists(CHECKPOINT_FOLDER):
+        os.makedirs(CHECKPOINT_FOLDER)
+    # Get details of the checkpoint
+    checkpoint_file = avail_checkpoint(CHECKPOINT_FOLDER)
+
+    logging.basicConfig(filename="model.log", filemode="w", level=logging.INFO)
     logger = logging.getLogger(__name__)
 
     data_point = HamiltonianDataset(JSON_FILE, BASIS_FILE)
@@ -283,6 +297,12 @@ if __name__ == "__main__":
 
     # Instantiate the model.
     model = TSBarrierModel()
+    if checkpoint_file is not None:
+        model.load_state_dict(torch.load(checkpoint_file))
+        logger.info(f"Loaded checkpoint file: {checkpoint_file}")
+        model.eval()
+    else:
+        logger.info("No checkpoint file found, starting from scratch")
 
     # Get the training y
     train_y = []
@@ -295,22 +315,29 @@ if __name__ == "__main__":
     # Training the model.
     optim = torch.optim.Adam(model.parameters(), lr=1e-3)
 
-    for step in range(300):
+    for step in range(100):
 
         optim.zero_grad()
         pred = model(datapoint)
         loss = (pred - train_y).pow(2).sum()
-
-        for name, param in model.named_parameters():
-            print(name, param.grad)
 
         loss.backward()
 
         if step % 10 == 0:
             accuracy = (pred - train_y).abs().sum()
             print(f"epoch {step:5d} | loss {loss:<10.1f} | {accuracy:5.1f} accuracy")
-            fig, ax = plt.subplots(1, 1, figsize=(8, 8))
-            visualize_results(pred, train_y, ax, epoch=step, loss=loss)
-            fig.savefig(f"plots/step_{step:03d}.png")
+
+            # Plot the errors for each step.
+            visualize_results(pred, train_y, epoch=step, loss=loss)
+
+            # Save the model params.
+            logger.debug(f"Saving model parameters for step {step}")
+            for param_tensor in model.state_dict():
+                logger.debug(param_tensor)
+                logger.debug(model.state_dict()[param_tensor].size())
+            for name, param in model.named_parameters():
+                logger.debug(name)
+                logger.debug(param.grad)
+            torch.save(model.state_dict(), f"{CHECKPOINT_FOLDER}/step_{step:03d}.pt")
 
         optim.step()
