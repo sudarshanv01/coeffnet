@@ -3,20 +3,21 @@ import logging
 import glob
 
 import torch
-from torch_cluster import radius_graph
 from torch_scatter import scatter
+from torch_geometric.nn import MessagePassing
 
 from e3nn import o3, nn
 from e3nn.math import soft_one_hot_linspace
 
-from e3nn.util.test import equivariance_error
-
 from dataset import HamiltonianDataset
 
 import matplotlib.pyplot as plt
+from plot_params import get_plot_params
+
+get_plot_params()
 
 
-class TSBarrierModel(torch.nn.Module):
+class TSBarrierModel(MessagePassing):
     """Create a neural network model to predict
     the transition state energy node and edge attributes
     taken from matrices."""
@@ -25,21 +26,22 @@ class TSBarrierModel(torch.nn.Module):
     minimal_basis_irrep = o3.Irreps("1x0e + 1x1o + 1x2e")
     minimal_basis_size = 1 + 9 + 25
     minimal_basis_matrix_size = 1 + 3 + 5
+    num_basis = 1 + 3 + 5
     irreps_out = o3.Irreps("1x0e")
     irreps_sh = o3.Irreps.spherical_harmonics(lmax=2)
+    LOWER_BOUND = -20
+    UPPER_BOUND = 20
 
-    def __init__(self, max_radius=10, num_neighbors=10, num_basis=10):
+    def __init__(self, device, max_radius=10):
+        super().__init__()
 
         # Information about creating a minimal basis representation.
         logger.info("Creating neural network model.")
         logger.info("Irrep of minimal basis: {}".format(self.minimal_basis_irrep))
         logger.info("Size of minimal basis: {}".format(self.minimal_basis_size))
 
-        super().__init__()
-
+        self.device = device
         self.max_radius = max_radius
-        self.num_basis = num_basis
-
         # Define the tensor product that is needed
         # As of now, we will take the following expression
         # out = 1/sqrt(z) sum_{nearest neighbor} f_in * h(rel_pos) * Y(rel_pos)
@@ -51,27 +53,11 @@ class TSBarrierModel(torch.nn.Module):
             shared_weights=False,
         )
 
-        # Define the tensor products for each basis function
-        self.tensor_product_s = o3.FullyConnectedTensorProduct(
-            irreps_in1="1x0e",
-            irreps_in2="1x0e",
-            irreps_out="1x0e",
-        )
-        self.tensor_product_p = o3.FullyConnectedTensorProduct(
-            irreps_in1="1x1o",
-            irreps_in2="1x1o",
-            irreps_out="1x1o",
-        )
-        self.tensor_product_d = o3.FullyConnectedTensorProduct(
-            irreps_in1="1x2e",
-            irreps_in2="1x2e",
-            irreps_out="1x2e",
-        )
         # Create a Fully Connected Tensor Product for the NN. The three integers of the
         # list in the first input are the dimensions of the input, intermediate and output.
         # The second option is the activation function.
         self.fc_network = nn.FullyConnectedNet(
-            [self.num_basis, 16, self.tensor_product.weight_numel], torch.relu
+            [self.num_basis, 32, self.tensor_product.weight_numel], torch.relu
         )
 
     def graph_generator(self, dataset):
@@ -86,11 +72,15 @@ class TSBarrierModel(torch.nn.Module):
             # into a single matrix consisting of an irreducible
             # representation of only 1s, 1p and 1d.
             num_nodes = data["num_nodes"]
+
             minimal_basis = torch.zeros(
                 num_nodes,
                 self.minimal_basis_matrix_size,
                 self.minimal_basis_matrix_size,
             )
+
+            # Keep track of the atom index in the overall data object.
+            index_atom = 0
 
             for mol_index, data_x in data["x"].items():
                 # Within each molecule, the basis representation
@@ -132,8 +122,6 @@ class TSBarrierModel(torch.nn.Module):
                             indices_p.append(i)
                         elif basis_functions == "d":
                             indices_d.append(i)
-                        # else:
-                        #     logger.debug("Basis function not found: {}".format(basis_functions))
 
                     logger.debug(
                         "There are {} s, {} p and {} d basis functions.".format(
@@ -165,11 +153,15 @@ class TSBarrierModel(torch.nn.Module):
                         segment_H = hamiltonian[p[0] : p[-1] + 1, p[0] : p[-1] + 1]
                         tensor_p += segment_H
                     logger.info("Shape of tensor_p: {}".format(tensor_p.shape))
+                    if len(indices_p) > 0:
+                        tensor_p /= len(indices_p)
 
                     tensor_d = torch.zeros(5, 5)
                     for d in indices_d:
                         segment_H = hamiltonian[d[0] : d[-1] + 1, d[0] : d[-1] + 1]
                         tensor_d += segment_H
+                    if len(indices_d) > 0:
+                        tensor_d /= len(indices_d)
 
                     logger.info("Shape of tensor_d: {}".format(tensor_d.shape))
 
@@ -177,9 +169,9 @@ class TSBarrierModel(torch.nn.Module):
                     logger.debug("Minimal basis (p): \n {}".format(tensor_p))
                     logger.debug("Minimal basis (d): \n {}".format(tensor_d))
 
-                    minimal_basis[i, 0, 0] = tensor_s
-                    minimal_basis[i, 1:4, 1:4] = tensor_p
-                    minimal_basis[i, 4:, 4:] = tensor_d
+                    minimal_basis[index_atom, 0, 0] = tensor_s
+                    minimal_basis[index_atom, 1:4, 1:4] = tensor_p
+                    minimal_basis[index_atom, 4:, 4:] = tensor_d
 
                     logger.info(
                         "Shape of minimal basis representation: {}".format(
@@ -190,9 +182,13 @@ class TSBarrierModel(torch.nn.Module):
                         "Minimal basis representation: \n {}".format(minimal_basis[i])
                     )
 
+                    # Add up the index of the atoms
+                    index_atom += 1
+
             logger.debug(f"Minimal basis shape: {minimal_basis.shape}")
 
-            edge_src, edge_dst = data.edge_index
+            edge_index = data.edge_index
+            edge_src, edge_dst = edge_index
             logger.debug(f"Edge src: {edge_src}")
             logger.debug(f"Edge dst: {edge_dst}")
             edge_vec = data.pos[edge_dst] - data.pos[edge_src]
@@ -200,14 +196,24 @@ class TSBarrierModel(torch.nn.Module):
 
             minimal_basis_diag = torch.zeros(num_nodes, self.minimal_basis_matrix_size)
             for i, minimal_basis_atom in enumerate(minimal_basis):
-                minimal_basis_diag[i, ...] = torch.diag(minimal_basis_atom)
+                diagonal_rep_total = torch.diag(minimal_basis_atom)
+                # Filter the diagonal representation such that
+                # only elements between UPPER and LOWER are included.
+                # Elements not obeying this condition are set to 0.
+                diagonal_rep_filtered = torch.where(
+                    (diagonal_rep_total > self.UPPER_BOUND)
+                    | (diagonal_rep_total < self.LOWER_BOUND),
+                    torch.zeros_like(diagonal_rep_total),
+                    diagonal_rep_total,
+                )
+                minimal_basis_diag[i, ...] = diagonal_rep_filtered
 
             logger.debug(f"Minimal basis diag: {minimal_basis_diag}")
             logger.info(f"Minimal basis diag shape: {minimal_basis_diag.shape}")
 
-            yield num_nodes, edge_src, edge_dst, edge_vec, minimal_basis_diag
+            yield num_nodes, edge_src, edge_dst, edge_vec, edge_index, minimal_basis_diag
 
-    def forward(self, dataset):
+    def forward(self, dataset) -> torch.Tensor:
         """Forward pass of the model."""
 
         # Store all the energies here.
@@ -218,6 +224,7 @@ class TSBarrierModel(torch.nn.Module):
             edge_src,
             edge_dst,
             edge_vec,
+            edge_index,
             input_features,
         ) in enumerate(self.graph_generator(dataset)):
 
@@ -238,17 +245,32 @@ class TSBarrierModel(torch.nn.Module):
                 cutoff=True,
             ).mul(self.num_basis**0.5)
 
+            # Transfer everything to the GPU.
+            sh = sh.to(self.device)
+            embedding = embedding.to(self.device)
+            input_features = input_features.to(self.device)
+            edge_index = edge_index.to(self.device)
+            edge_dst = edge_dst.to(self.device)
+
             output = self.tensor_product(
                 input_features[edge_src], sh, self.fc_network(embedding)
             )
             output = scatter(output, edge_dst, dim=0, dim_size=num_nodes).div(
-                num_nodes**2
+                num_nodes**0.5
             )
             logger.debug(f"Output: {output}")
 
+            # Propogate the output through the network.
+            output = self.propagate(edge_index, x=output, norm=num_nodes)
+
             # Append the summed output_vector to the list of output_vectors.
             # This operation corresponds to the summing of all atom-centered features.
-            norm_output = torch.norm(output)
+            norm_output = torch.sum(output)
+            # Normalise by the number of nodes.
+            norm_output /= num_nodes
+            # Reutn the absolute value of the output.
+            norm_output = torch.abs(norm_output)
+
             output_vector[index] = norm_output
 
         return output_vector
@@ -256,13 +278,15 @@ class TSBarrierModel(torch.nn.Module):
 
 def visualize_results(predicted, calculated, epoch=None, loss=None):
     """Plot the DFT calculated vs the fit results."""
-    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+    fig, ax = plt.subplots(1, 1, figsize=(4, 4))
     predicted = predicted.detach().cpu().numpy()
     calculated = calculated.detach().cpu().numpy()
-    ax.scatter(calculated, predicted, s=140, cmap="Set2")
+    ax.scatter(calculated, predicted, cmap="Set2")
     if epoch is not None and loss is not None:
-        ax.set_xlabel(f"Epoch: {epoch}, Loss: {loss.item():.4f}", fontsize=16)
-    fig.savefig(f"plots/step_{step:03d}.png")
+        ax.set_xlabel(f"Epoch: {epoch}, Loss: {loss.item():.3f}")
+    ax.set_xlabel("DFT calculated (eV)")
+    ax.set_ylabel("Fit results (eV)")
+    fig.savefig(f"plots/step_{step:03d}.png", dpi=300)
     plt.close(fig)
 
 
@@ -279,18 +303,22 @@ def avail_checkpoint(CHECKPOINT_DIR):
 if __name__ == "__main__":
     """Test a convolutional Neural Network"""
 
+    logging.basicConfig(filename="model.log", filemode="w", level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
+    DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    logging.info(f"Device: {DEVICE}")
+
     # Read in the dataset inputs.
     JSON_FILE = "input_files/output_QMrxn20_debug.json"
     BASIS_FILE = "input_files/sto-3g.json"
     CHECKPOINT_FOLDER = "checkpoints"
+
     # Create the folder if it does not exist.
     if not os.path.exists(CHECKPOINT_FOLDER):
         os.makedirs(CHECKPOINT_FOLDER)
     # Get details of the checkpoint
     checkpoint_file = avail_checkpoint(CHECKPOINT_FOLDER)
-
-    logging.basicConfig(filename="model.log", filemode="w", level=logging.INFO)
-    logger = logging.getLogger(__name__)
 
     data_point = HamiltonianDataset(JSON_FILE, BASIS_FILE)
     data_point.load_data()
@@ -298,7 +326,8 @@ if __name__ == "__main__":
     datapoint = data_point.get_data()
 
     # Instantiate the model.
-    model = TSBarrierModel()
+    model = TSBarrierModel(DEVICE)
+    model.to(DEVICE)
     if checkpoint_file is not None:
         model.load_state_dict(torch.load(checkpoint_file))
         logger.info(f"Loaded checkpoint file: {checkpoint_file}")
@@ -317,6 +346,10 @@ if __name__ == "__main__":
     # Training the model.
     optim = torch.optim.Adam(model.parameters(), lr=1e-3)
 
+    # Write header of log file
+    with open("training.log", "w") as f:
+        f.write("Epoch\t Loss\t Accuracy\n")
+
     for step in range(1000):
 
         optim.zero_grad()
@@ -325,9 +358,12 @@ if __name__ == "__main__":
 
         loss.backward()
 
+        # Write out the epoch and loss to the log file.
+        accuracy = (pred - train_y).abs().sum()
+        with open("training.log", "a") as f:
+            f.write(f"{step:5d} \t {loss:<10.1f} \t {accuracy:5.1f}\n")
+
         if step % 10 == 0:
-            accuracy = (pred - train_y).abs().sum()
-            print(f"epoch {step:5d} | loss {loss:<10.1f} | {accuracy:5.1f} accuracy")
 
             # Plot the errors for each step.
             visualize_results(pred, train_y, epoch=step, loss=loss)
