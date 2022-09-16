@@ -36,11 +36,13 @@ class DataPoint(Data):
 
         # This for loop assumes that the keys of pos, edge_index, and x are the same.
         for state_index in pos:
-            tensor_pos.extend(pos[state_index])
+            if pos[state_index] is not None:
+                tensor_pos.extend(pos[state_index])
 
-            edge_scr, edge_dest = edge_index[state_index]
-            tensor_edge_index[0].extend(edge_scr)
-            tensor_edge_index[1].extend(edge_dest)
+            if edge_index[state_index] is not None:
+                edge_scr, edge_dest = edge_index[state_index]
+                tensor_edge_index[0].extend(edge_scr)
+                tensor_edge_index[1].extend(edge_dest)
 
             # Apply the same treatment to the x.
             tensor_x[state_index] = torch.as_tensor(x[state_index], dtype=torch.float)

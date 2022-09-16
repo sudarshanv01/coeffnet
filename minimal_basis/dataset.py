@@ -38,9 +38,14 @@ class HamiltonianDataset(InMemoryDataset):
         self,
         filename: Union[str, Path],
         basis_file: Dict[str, int],
+        graph_generation_method: str = "complete",
     ):
         self.filename = filename
         self.basis_file = basis_file
+        self.graph_generation_method = graph_generation_method
+
+        # Make sure that the graph_generation_method is valid
+        assert self.graph_generation_method in ["complete", "sn2"], "Invalid graph generation method."
 
         # Store the converter to convert the basis functions
         self.BASIS_CONVERTER = {
@@ -126,7 +131,51 @@ class HamiltonianDataset(InMemoryDataset):
 
         return edge_index, num_neigh, delta_starting_index
 
-    # def sn2_graph(cls, molecule)
+    def sn2_graph(cls, molecule_list: List[Molecule], starting_index=0) -> Tuple[np.ndarray, List[int], int]:
+        """Generate an SN2 specific graph, where the reactants and products
+        form fully connected graphs."""
+        # Get the total number of atoms in the molecule list
+        N = sum([len(molecule.species) for molecule in molecule_list])
+        # Decide on a start and stop index for this particular graph
+        N_start = starting_index
+        N_end = N_start + N
+        # Create the edge index
+        edge_index = np.asarray(
+            list(zip(*itertools.permutations(range(N_start, N_end), r=2)))
+        )
+        # Create the number of neighbors
+        num_neigh = [N - 1 for _ in range(N_start, N_end)]
+
+        # Add the number of atoms to the starting index
+        delta_starting_index = N
+
+        return edge_index, num_neigh, delta_starting_index
+    
+    def sn2_positions(cls, molecule_list: List[Molecule], distance_to_translate=10) -> List[Molecule]:
+        """Generate the positions which will be put into the SN2 graph.
+        The idea is to put the incoming (or outgoing) species suitably far 
+        away from the backbone."""
+
+        assert len(molecule_list) == 2, "Only two molecules are allowed in the SN2 graph."
+
+        # Determine which species is the incoming/outgoing one and which is
+        # the backbone. The incoming/outgoing species is the one with the
+        # fewer atoms.
+        if len(molecule_list[0].species) < len(molecule_list[1].species):
+            attacking = molecule_list[0]
+            backbone = molecule_list[1]
+        else:
+            attacking = molecule_list[1]
+            backbone = molecule_list[0]
+        
+        # Center the backbone and attacking molecule
+        backbone_centered = backbone.get_centered_molecule() 
+        attacking_centered = attacking.get_centered_molecule()
+
+        # Move the attacking_centered molecule 10A away from the backbone
+        attacking_centered.translate_sites(vector=[distance_to_translate, 0, 0])
+
+        return [backbone_centered, attacking_centered]
 
     def load_data(self):
         """Load the json file with the data."""
@@ -221,15 +270,10 @@ class HamiltonianDataset(InMemoryDataset):
 
             # Collect the molecular level information
             molecule_info_collected = defaultdict(dict)
+
             # Store the molecules separately to make sure
             # that the graph creation process is flexible
             molecules_in_reaction = defaultdict(list)
-
-            # This index makes sure that a single graph is generated
-            # consisting of all reactants and products. The index monitors
-            # the total number of atoms, making sure that there is no overlap
-            # in terms of the index of the resulting graph.
-            # starting_index = 0
 
             for molecule_id in self.input_data[reaction_id]:
                 # Prepare the information for each molecule, this forms
@@ -260,28 +304,12 @@ class HamiltonianDataset(InMemoryDataset):
                 molecule_dict = self.input_data[reaction_id][molecule_id]["molecule"]
                 if state_fragment == "initial_state":
                     molecules_in_reaction["reactants"].append(molecule_dict)
+                    molecules_in_reaction["reactants_index"].append(choose_index)
                 elif state_fragment == "final_state":
                     molecules_in_reaction["products"].append(molecule_dict)
+                    molecules_in_reaction["products_index"].append(choose_index)
 
                 molecule = Molecule.from_dict(molecule_dict)
-
-                # Get the positions of the molecule (these are cartesian coordinates)
-                # pos = [list(a.coords) for a in molecule]
-                # molecule_info_collected["pos"][choose_index] = pos
-
-                # Construct a graph from the molecule object, each node
-                # of the graph is connected with every other node.
-                # edge_index, _, delta_starting_index = self.complete_graph(
-                #     molecule, starting_index=starting_index
-                # )
-                # if edge_index is empty, then it is monoatomic and hence
-                # the edges must be connected to themselves.
-                # if len(edge_index) == 0:
-                #     edge_index = [[starting_index], [starting_index]]
-                # Move the starting index so that the next molecule comes after
-                # this molecule.
-                # starting_index += delta_starting_index
-                # molecule_info_collected["edge_index"][choose_index] = edge_index
 
                 # Get the atom basis functions
                 atom_basis_functions = []
@@ -436,6 +464,87 @@ class HamiltonianDataset(InMemoryDataset):
             # There are several possibilities to generate such a graph
             # so depending on the option selected, the relative ordering
             # of the dict may change, this is expected behaviour.
+            if self.graph_generation_method == "complete":
+                # Generate an internally fully connected graph between 
+                # each atom in a specific molecule. Separate molecules
+                # are not linked to each other.
+
+                # Keep a tab on the index of the molecule
+                starting_index = 0
+
+                # There is no separation between reactants and products
+                # with this method, but since they are stored in separate
+                # entries in the dictionary, this is not a problem.
+                for states in ["reactants", "products"]:
+                    molecules_list = molecules_in_reaction[states]
+                    choose_indices = molecules_in_reaction[states + '_index']
+
+                    for k, choose_index in enumerate(choose_indices):
+                        # Choose the corresponding molecule
+                        molecule = Molecule.from_dict(molecules_list[k])
+
+                        # Construct a graph from the molecule object, each node
+                        # of the graph is connected with every other node.
+                        edge_index, _, delta_starting_index = self.complete_graph(
+                            molecule, starting_index=starting_index,
+                        )
+
+                        # Get the positions of the molecule (these are cartesian coordinates)
+                        pos = [list(a.coords) for a in molecule]
+
+                        molecule_info_collected["pos"][choose_index] = pos
+
+                        # if edge_index is empty, then it is monoatomic and hence
+                        # the edges must be connected to themselves.
+                        if len(edge_index) == 0:
+                            edge_index = [[starting_index], [starting_index]]
+                        # Move the starting index so that the next molecule comes after
+                        # this molecule.
+                        starting_index += delta_starting_index
+                        molecule_info_collected["edge_index"][choose_index] = edge_index
+                
+            elif self.graph_generation_method == "sn2":
+                # In this generation scheme, the reactant and product are
+                # have separate graphs which are connected to each other
+                # the positions of each fragments have to altered
+
+                # Keep a tab on the index of the molecule
+                starting_index = 0
+
+                # There is no separation between reactants and products
+                # with this method, but since they are stored in separate
+                # entries in the dictionary, this is not a problem.
+                for states in ["reactants", "products"]:
+                    molecules_list = molecules_in_reaction[states]
+                    # Convert each molecule_list to a molecule
+                    molecules_list = [Molecule.from_dict(molecule) for molecule in molecules_list]
+                    choose_indices = molecules_in_reaction[states + '_index']
+
+                    # Reorder the molecular positions
+                    molecules_list = self.sn2_positions(molecules_list)
+
+                    # Generate the graph based on the sn2 method
+                    edge_index, _, delta_starting_index = self.sn2_graph(
+                        molecules_list, starting_index=starting_index,
+                    )
+
+                    starting_index += delta_starting_index
+
+                    for k, choose_index in enumerate(choose_indices):
+
+                        # Choose the corresponding molecule
+                        molecule = molecules_list[k]
+
+                        # Get the positions of the molecule (these are cartesian coordinates)
+                        pos = [list(a.coords) for a in molecule]
+                        molecule_info_collected["pos"][choose_index] = pos
+
+                        # Store the edge_index for only one of the molecules
+                        # because they will be the same
+                        if k == 0:
+                            molecule_info_collected["edge_index"][choose_index] = edge_index
+                        else:
+                            molecule_info_collected["edge_index"][choose_index] = None
 
             datapoint = DataPoint(
                 pos=molecule_info_collected["pos"],
@@ -515,10 +624,11 @@ if __name__ == "__main__":
     """Test the DataPoint class."""
     JSON_FILE = "input_files/output_QMrxn20_debug.json"
     BASIS_FILE = "input_files/sto-3g.json"
+    GRAPH_GENERTION_METHOD = "sn2" 
 
     logging.basicConfig(filename="dataset.log", filemode="w", level=logging.DEBUG)
 
-    data_point = HamiltonianDataset(JSON_FILE, BASIS_FILE)
+    data_point = HamiltonianDataset(JSON_FILE, BASIS_FILE, graph_generation_method=GRAPH_GENERTION_METHOD)
     data_point.load_data()
     data_point.parse_basis_data()
     datapoint = data_point.get_data()
