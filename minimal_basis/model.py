@@ -1,6 +1,7 @@
 import os
 import logging
 import glob
+import datetime
 
 import torch
 from torch_scatter import scatter
@@ -286,7 +287,7 @@ def visualize_results(predicted, calculated, epoch=None, loss=None):
         ax.set_xlabel(f"Epoch: {epoch}, Loss: {loss.item():.3f}")
     ax.set_xlabel("DFT calculated (eV)")
     ax.set_ylabel("Fit results (eV)")
-    fig.savefig(f"plots/step_{step:03d}.png", dpi=300)
+    fig.savefig(f"{PLOT_FOLDER}/step_{step:03d}.png", dpi=300)
     plt.close(fig)
 
 
@@ -303,25 +304,40 @@ def avail_checkpoint(CHECKPOINT_DIR):
 if __name__ == "__main__":
     """Test a convolutional Neural Network"""
 
-    logging.basicConfig(filename="model.log", filemode="w", level=logging.INFO)
+    LOGFILES_FOLDER = "log_files"
+    logging.basicConfig(
+        filename=os.path.join(LOGFILES_FOLDER, "model.log"),
+        filemode="w",
+        level=logging.INFO,
+    )
     logger = logging.getLogger(__name__)
 
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     logging.info(f"Device: {DEVICE}")
 
+    # Prefix tag to the output folders
+    today = datetime.datetime.now()
+    folder_string = today.strftime("%Y%m%d_%H%M%S")
+
     # Read in the dataset inputs.
     JSON_FILE = "input_files/output_QMrxn20_debug.json"
     BASIS_FILE = "input_files/sto-3g.json"
     CHECKPOINT_FOLDER = "checkpoints"
+    PLOT_FOLDER = f"plots/{folder_string}"
+    GRAPH_GENERTION_METHOD = "sn2"
 
     # Create the folder if it does not exist.
     if not os.path.exists(CHECKPOINT_FOLDER):
         os.makedirs(CHECKPOINT_FOLDER)
+    if not os.path.exists(PLOT_FOLDER):
+        os.makedirs(PLOT_FOLDER)
 
     # Get details of the checkpoint
     checkpoint_file = avail_checkpoint(CHECKPOINT_FOLDER)
 
-    data_point = HamiltonianDataset(JSON_FILE, BASIS_FILE)
+    data_point = HamiltonianDataset(
+        JSON_FILE, BASIS_FILE, graph_generation_method=GRAPH_GENERTION_METHOD
+    )
     data_point.load_data()
     data_point.parse_basis_data()
     datapoint = data_point.get_data()
@@ -348,10 +364,10 @@ if __name__ == "__main__":
     optim = torch.optim.Adam(model.parameters(), lr=1e-3)
 
     # Write header of log file
-    with open("training.log", "w") as f:
+    with open(os.path.join(LOGFILES_FOLDER, f"training_{folder_string}.log"), "w") as f:
         f.write("Epoch\t Loss\t Accuracy\n")
 
-    for step in range(300):
+    for step in range(1000):
 
         optim.zero_grad()
         pred = model(datapoint)
@@ -360,8 +376,12 @@ if __name__ == "__main__":
         loss.backward()
 
         # Write out the epoch and loss to the log file.
-        accuracy = (pred - train_y).abs().sum()
-        with open("training.log", "a") as f:
+        # TODO: Change this to better reflect the loss.
+        # Right now it is just the mean absolute error.
+        accuracy = (pred - train_y).abs().sum() / len(train_y)
+        with open(
+            os.path.join(LOGFILES_FOLDER, f"training_{folder_string}.log"), "a"
+        ) as f:
             f.write(f"{step:5d} \t {loss:<10.1f} \t {accuracy:5.1f}\n")
 
         if step % 10 == 0:

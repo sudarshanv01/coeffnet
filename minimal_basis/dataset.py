@@ -38,7 +38,7 @@ class HamiltonianDataset(InMemoryDataset):
         self,
         filename: Union[str, Path],
         basis_file: Dict[str, int],
-        graph_generation_method: str = "complete",
+        graph_generation_method: str = "separate",
     ):
         self.filename = filename
         self.basis_file = basis_file
@@ -46,7 +46,7 @@ class HamiltonianDataset(InMemoryDataset):
 
         # Make sure that the graph_generation_method is valid
         assert self.graph_generation_method in [
-            "complete",
+            "separate",
             "sn2",
         ], "Invalid graph generation method."
 
@@ -104,7 +104,7 @@ class HamiltonianDataset(InMemoryDataset):
 
         logging.info("")
 
-    def complete_graph(
+    def separate_graph(
         cls, molecule: Molecule, starting_index=0
     ) -> Tuple[np.ndarray, List[int], int]:
         """
@@ -473,7 +473,7 @@ class HamiltonianDataset(InMemoryDataset):
             # There are several possibilities to generate such a graph
             # so depending on the option selected, the relative ordering
             # of the dict may change, this is expected behaviour.
-            if self.graph_generation_method == "complete":
+            if self.graph_generation_method == "separate":
                 # Generate an internally fully connected graph between
                 # each atom in a specific molecule. Separate molecules
                 # are not linked to each other.
@@ -494,7 +494,7 @@ class HamiltonianDataset(InMemoryDataset):
 
                         # Construct a graph from the molecule object, each node
                         # of the graph is connected with every other node.
-                        edge_index, _, delta_starting_index = self.complete_graph(
+                        edge_index, _, delta_starting_index = self.separate_graph(
                             molecule,
                             starting_index=starting_index,
                         )
