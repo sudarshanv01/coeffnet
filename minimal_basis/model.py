@@ -317,6 +317,7 @@ if __name__ == "__main__":
     # Create the folder if it does not exist.
     if not os.path.exists(CHECKPOINT_FOLDER):
         os.makedirs(CHECKPOINT_FOLDER)
+
     # Get details of the checkpoint
     checkpoint_file = avail_checkpoint(CHECKPOINT_FOLDER)
 
@@ -350,7 +351,7 @@ if __name__ == "__main__":
     with open("training.log", "w") as f:
         f.write("Epoch\t Loss\t Accuracy\n")
 
-    for step in range(1000):
+    for step in range(300):
 
         optim.zero_grad()
         pred = model(datapoint)

@@ -1,4 +1,5 @@
 """Generate all the Data objects needed to predict the TS Hamiltonian."""
+from email.policy import default
 import os
 import json
 from pathlib import Path
@@ -125,6 +126,8 @@ class HamiltonianDataset(InMemoryDataset):
 
         return edge_index, num_neigh, delta_starting_index
 
+    # def sn2_graph(cls, molecule)
+
     def load_data(self):
         """Load the json file with the data."""
         with open(self.filename) as f:
@@ -218,12 +221,15 @@ class HamiltonianDataset(InMemoryDataset):
 
             # Collect the molecular level information
             molecule_info_collected = defaultdict(dict)
+            # Store the molecules separately to make sure
+            # that the graph creation process is flexible
+            molecules_in_reaction = defaultdict(list)
 
             # This index makes sure that a single graph is generated
             # consisting of all reactants and products. The index monitors
             # the total number of atoms, making sure that there is no overlap
             # in terms of the index of the resulting graph.
-            starting_index = 0
+            # starting_index = 0
 
             for molecule_id in self.input_data[reaction_id]:
                 # Prepare the information for each molecule, this forms
@@ -252,25 +258,30 @@ class HamiltonianDataset(InMemoryDataset):
                     f"--- Molecule level information: {self.MOLECULE_INFORMATION}"
                 )
                 molecule_dict = self.input_data[reaction_id][molecule_id]["molecule"]
+                if state_fragment == "initial_state":
+                    molecules_in_reaction["reactants"].append(molecule_dict)
+                elif state_fragment == "final_state":
+                    molecules_in_reaction["products"].append(molecule_dict)
+
                 molecule = Molecule.from_dict(molecule_dict)
 
                 # Get the positions of the molecule (these are cartesian coordinates)
-                pos = [list(a.coords) for a in molecule]
-                molecule_info_collected["pos"][choose_index] = pos
+                # pos = [list(a.coords) for a in molecule]
+                # molecule_info_collected["pos"][choose_index] = pos
 
                 # Construct a graph from the molecule object, each node
                 # of the graph is connected with every other node.
-                edge_index, num_neigh, delta_starting_index = self.complete_graph(
-                    molecule, starting_index=starting_index
-                )
+                # edge_index, _, delta_starting_index = self.complete_graph(
+                #     molecule, starting_index=starting_index
+                # )
                 # if edge_index is empty, then it is monoatomic and hence
                 # the edges must be connected to themselves.
-                if len(edge_index) == 0:
-                    edge_index = [[starting_index], [starting_index]]
+                # if len(edge_index) == 0:
+                #     edge_index = [[starting_index], [starting_index]]
                 # Move the starting index so that the next molecule comes after
                 # this molecule.
-                starting_index += delta_starting_index
-                molecule_info_collected["edge_index"][choose_index] = edge_index
+                # starting_index += delta_starting_index
+                # molecule_info_collected["edge_index"][choose_index] = edge_index
 
                 # Get the atom basis functions
                 atom_basis_functions = []
@@ -420,6 +431,11 @@ class HamiltonianDataset(InMemoryDataset):
 
                 # --- Get the output information and store that in the node
                 y = self.input_data[reaction_id][molecule_id]["transition_state_energy"]
+
+            # Generate a separate graph for each reactant and product.
+            # There are several possibilities to generate such a graph
+            # so depending on the option selected, the relative ordering
+            # of the dict may change, this is expected behaviour.
 
             datapoint = DataPoint(
                 pos=molecule_info_collected["pos"],
