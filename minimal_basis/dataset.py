@@ -45,7 +45,10 @@ class HamiltonianDataset(InMemoryDataset):
         self.graph_generation_method = graph_generation_method
 
         # Make sure that the graph_generation_method is valid
-        assert self.graph_generation_method in ["complete", "sn2"], "Invalid graph generation method."
+        assert self.graph_generation_method in [
+            "complete",
+            "sn2",
+        ], "Invalid graph generation method."
 
         # Store the converter to convert the basis functions
         self.BASIS_CONVERTER = {
@@ -131,7 +134,9 @@ class HamiltonianDataset(InMemoryDataset):
 
         return edge_index, num_neigh, delta_starting_index
 
-    def sn2_graph(cls, molecule_list: List[Molecule], starting_index=0) -> Tuple[np.ndarray, List[int], int]:
+    def sn2_graph(
+        cls, molecule_list: List[Molecule], starting_index=0
+    ) -> Tuple[np.ndarray, List[int], int]:
         """Generate an SN2 specific graph, where the reactants and products
         form fully connected graphs."""
         # Get the total number of atoms in the molecule list
@@ -150,13 +155,17 @@ class HamiltonianDataset(InMemoryDataset):
         delta_starting_index = N
 
         return edge_index, num_neigh, delta_starting_index
-    
-    def sn2_positions(cls, molecule_list: List[Molecule], distance_to_translate=10) -> List[Molecule]:
+
+    def sn2_positions(
+        cls, molecule_list: List[Molecule], distance_to_translate=10
+    ) -> List[Molecule]:
         """Generate the positions which will be put into the SN2 graph.
-        The idea is to put the incoming (or outgoing) species suitably far 
+        The idea is to put the incoming (or outgoing) species suitably far
         away from the backbone."""
 
-        assert len(molecule_list) == 2, "Only two molecules are allowed in the SN2 graph."
+        assert (
+            len(molecule_list) == 2
+        ), "Only two molecules are allowed in the SN2 graph."
 
         # Determine which species is the incoming/outgoing one and which is
         # the backbone. The incoming/outgoing species is the one with the
@@ -167,9 +176,9 @@ class HamiltonianDataset(InMemoryDataset):
         else:
             attacking = molecule_list[1]
             backbone = molecule_list[0]
-        
+
         # Center the backbone and attacking molecule
-        backbone_centered = backbone.get_centered_molecule() 
+        backbone_centered = backbone.get_centered_molecule()
         attacking_centered = attacking.get_centered_molecule()
 
         # Move the attacking_centered molecule 10A away from the backbone
@@ -465,7 +474,7 @@ class HamiltonianDataset(InMemoryDataset):
             # so depending on the option selected, the relative ordering
             # of the dict may change, this is expected behaviour.
             if self.graph_generation_method == "complete":
-                # Generate an internally fully connected graph between 
+                # Generate an internally fully connected graph between
                 # each atom in a specific molecule. Separate molecules
                 # are not linked to each other.
 
@@ -477,7 +486,7 @@ class HamiltonianDataset(InMemoryDataset):
                 # entries in the dictionary, this is not a problem.
                 for states in ["reactants", "products"]:
                     molecules_list = molecules_in_reaction[states]
-                    choose_indices = molecules_in_reaction[states + '_index']
+                    choose_indices = molecules_in_reaction[states + "_index"]
 
                     for k, choose_index in enumerate(choose_indices):
                         # Choose the corresponding molecule
@@ -486,7 +495,8 @@ class HamiltonianDataset(InMemoryDataset):
                         # Construct a graph from the molecule object, each node
                         # of the graph is connected with every other node.
                         edge_index, _, delta_starting_index = self.complete_graph(
-                            molecule, starting_index=starting_index,
+                            molecule,
+                            starting_index=starting_index,
                         )
 
                         # Get the positions of the molecule (these are cartesian coordinates)
@@ -502,7 +512,7 @@ class HamiltonianDataset(InMemoryDataset):
                         # this molecule.
                         starting_index += delta_starting_index
                         molecule_info_collected["edge_index"][choose_index] = edge_index
-                
+
             elif self.graph_generation_method == "sn2":
                 # In this generation scheme, the reactant and product are
                 # have separate graphs which are connected to each other
@@ -517,15 +527,18 @@ class HamiltonianDataset(InMemoryDataset):
                 for states in ["reactants", "products"]:
                     molecules_list = molecules_in_reaction[states]
                     # Convert each molecule_list to a molecule
-                    molecules_list = [Molecule.from_dict(molecule) for molecule in molecules_list]
-                    choose_indices = molecules_in_reaction[states + '_index']
+                    molecules_list = [
+                        Molecule.from_dict(molecule) for molecule in molecules_list
+                    ]
+                    choose_indices = molecules_in_reaction[states + "_index"]
 
                     # Reorder the molecular positions
                     molecules_list = self.sn2_positions(molecules_list)
 
                     # Generate the graph based on the sn2 method
                     edge_index, _, delta_starting_index = self.sn2_graph(
-                        molecules_list, starting_index=starting_index,
+                        molecules_list,
+                        starting_index=starting_index,
                     )
 
                     starting_index += delta_starting_index
@@ -542,7 +555,9 @@ class HamiltonianDataset(InMemoryDataset):
                         # Store the edge_index for only one of the molecules
                         # because they will be the same
                         if k == 0:
-                            molecule_info_collected["edge_index"][choose_index] = edge_index
+                            molecule_info_collected["edge_index"][
+                                choose_index
+                            ] = edge_index
                         else:
                             molecule_info_collected["edge_index"][choose_index] = None
 
@@ -624,11 +639,13 @@ if __name__ == "__main__":
     """Test the DataPoint class."""
     JSON_FILE = "input_files/output_QMrxn20_debug.json"
     BASIS_FILE = "input_files/sto-3g.json"
-    GRAPH_GENERTION_METHOD = "sn2" 
+    GRAPH_GENERTION_METHOD = "sn2"
 
     logging.basicConfig(filename="dataset.log", filemode="w", level=logging.DEBUG)
 
-    data_point = HamiltonianDataset(JSON_FILE, BASIS_FILE, graph_generation_method=GRAPH_GENERTION_METHOD)
+    data_point = HamiltonianDataset(
+        JSON_FILE, BASIS_FILE, graph_generation_method=GRAPH_GENERTION_METHOD
+    )
     data_point.load_data()
     data_point.parse_basis_data()
     datapoint = data_point.get_data()
