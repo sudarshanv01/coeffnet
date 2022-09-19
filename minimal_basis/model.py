@@ -2,6 +2,8 @@ import os
 import logging
 import glob
 import datetime
+from typing import Dict, Union, List, Tuple
+from pprint import pprint
 
 import torch
 from torch_scatter import scatter
@@ -23,47 +25,171 @@ class TSBarrierModel(MessagePassing):
     the transition state energy node and edge attributes
     taken from matrices."""
 
-    # Irreducible representation of the minimal basis hamiltonian.
-    minimal_basis_irrep = o3.Irreps("1x0e + 1x1o + 1x2e")
-    minimal_basis_size = 1 + 9 + 25
-    minimal_basis_matrix_size = 1 + 3 + 5
-    num_basis = 1 + 3 + 5
-    irreps_out = o3.Irreps("1x0e")
+    # A minimal basis consisting of s, p and d components.
+    # Any node or edge feature must be of this irrep.
+    irreps_minimal_basis = o3.Irreps("1x0e + 1x1o + 1x2e")
+    # The spherical hamonics which we will take tensor products with
+    # for both node and edge features.
     irreps_sh = o3.Irreps.spherical_harmonics(lmax=2)
-    LOWER_BOUND = -20
-    UPPER_BOUND = 20
+    # The final output irrep which will be with the tensor product
+    # of the node and edge features.
+    irreps_out = o3.Irreps("1x0e + 1x1o + 1x2e")
+    # Also store the dimensions of the minimal basis representation.
+    minimal_basis_matrix_size = 9
 
     def __init__(self, device, max_radius=10):
         super().__init__()
 
         # Information about creating a minimal basis representation.
         logger.info("Creating neural network model.")
-        logger.info("Irrep of minimal basis: {}".format(self.minimal_basis_irrep))
-        logger.info("Size of minimal basis: {}".format(self.minimal_basis_size))
 
         self.device = device
         self.max_radius = max_radius
-        # Define the tensor product that is needed
-        # As of now, we will take the following expression
-        # out = 1/sqrt(z) sum_{nearest neighbor} f_in * h(rel_pos) * Y(rel_pos)
-        # where Y are the spherical harmonics, h is an MLP and f_in is the input feature.
-        self.tensor_product = o3.FullyConnectedTensorProduct(
-            irreps_in1=self.minimal_basis_irrep,
+
+        # The first tensor product is between node (or edge) features
+        # and spherical harmonics.
+        self.tensor_product_1 = o3.FullyConnectedTensorProduct(
+            irreps_in1=self.irreps_minimal_basis,
             irreps_in2=self.irreps_sh,
+            irreps_out=self.irreps_minimal_basis,
+        )
+        # The second tensor product is between node and edge features.
+        self.tensor_product_2 = o3.FullyConnectedTensorProduct(
+            irreps_in1=self.irreps_minimal_basis,
+            irreps_in2=self.irreps_minimal_basis,
             irreps_out=self.irreps_out,
-            shared_weights=False,
         )
 
-        # Create a Fully Connected Tensor Product for the NN. The three integers of the
-        # list in the first input are the dimensions of the input, intermediate and output.
-        # The second option is the activation function.
-        self.fc_network = nn.FullyConnectedNet(
-            [self.num_basis, 32, self.tensor_product.weight_numel], torch.relu
+    def determine_spd_functions(cls, basis_functions):
+        """For a list of basis functions, determine the number of s, p and d functions.
+        Typically useful for finding the relevant index of a sub-matrix."""
+        indices_s = []
+        indices_p = []
+        indices_d = []
+        for i, basis_functions in enumerate(basis_functions):
+            if basis_functions == "s":
+                indices_s.append(i)
+            elif basis_functions == "p":
+                indices_p.append(i)
+            elif basis_functions == "d":
+                indices_d.append(i)
+
+        logger.debug(
+            "There are {} s, {} p and {} d basis functions.".format(
+                len(indices_s), len(indices_p), len(indices_d)
+            )
         )
+
+        # Group the indices into tuples, s has length = 1, p has length 3 and d has length 5.
+        indices_s = [[index] for index in indices_s]
+        # Split indices_p into tuples of size 3.
+        indices_p = [indices_p[i : i + 3] for i in range(0, len(indices_p), 3)]
+        # Split indices_d into tuples of size 5.
+        indices_d = [indices_d[i : i + 5] for i in range(0, len(indices_d), 5)]
+
+        return indices_s, indices_p, indices_d
+
+    def construct_minimal_basis(
+        cls,
+        indices_s: List[list],
+        indices_p: List[list],
+        indices_d: List[list],
+        matrix: torch.tensor,
+    ) -> torch.Tensor:
+        """For any set of combined s,p and d matrices, get the minimal basis
+        representation consisting of only 1s, 1p and 1d matrix."""
+
+        # First construct the diagonal blocks of the matrix.
+        # Starting with the s-block.
+        tensor_s = torch.zeros(1, 1, 2)
+        index_s1, index_s2 = indices_s
+        for s1 in index_s1:
+            for s2 in index_s2:
+                segment_H = matrix[s1[0], s2[0], ...]
+                tensor_s += segment_H
+        tensor_s /= len(index_s1) * len(index_s2)
+
+        # Now construct the p-block.
+        tensor_p = torch.zeros(3, 3, 2)
+        index_p1, index_p2 = indices_p
+        for p1 in index_p1:
+            for p2 in index_p2:
+                segment_H = matrix[p1[0] : p1[-1] + 1, p2[0] : p2[-1] + 1, ...]
+                tensor_p += segment_H
+        if len(index_p1) > 0 and len(index_p2) > 0:
+            tensor_p /= len(index_p1) * len(index_p2)
+
+        # And finally the d-block.
+        tensor_d = torch.zeros(5, 5, 2)
+        index_d1, index_d2 = indices_d
+        for d1 in index_d1:
+            for d2 in index_d2:
+                segment_H = matrix[d1[0] : d1[-1] + 1, d2[0] : d2[-1] + 1, ...]
+                tensor_d += segment_H
+        if len(index_d1) > 0 and len(index_d2) > 0:
+            tensor_d /= len(index_d1) * len(index_d2)
+
+        # Now construct the off-diagonal blocks of the matrix.
+        # Starting with the s-p block.
+        tensor_sp = torch.zeros(1, 3, 2)
+        for s in index_s1:
+            for p in index_p2:
+                segment_H = matrix[s[0], p[0] : p[-1] + 1, ...]
+                tensor_sp += segment_H
+        if len(index_s1) > 0 and len(index_p2) > 0:
+            tensor_sp /= len(index_s1) * len(index_p2)
+
+        # Now construct the s-d block.
+        tensor_sd = torch.zeros(1, 5, 2)
+        for s in index_s1:
+            for d in index_d2:
+                segment_H = matrix[s[0], d[0] : d[-1] + 1, ...]
+                tensor_sd += segment_H
+        if len(index_s1) > 0 and len(index_d2) > 0:
+            tensor_sd /= len(index_s1) * len(index_d2)
+
+        # And finally the p-d block.
+        tensor_pd = torch.zeros(3, 5, 2)
+        for p in index_p1:
+            for d in index_d2:
+                segment_H = matrix[p[0] : p[-1] + 1, d[0] : d[-1] + 1, ...]
+                tensor_pd += segment_H
+        if len(index_p1) > 0 and len(index_d2) > 0:
+            tensor_pd /= len(index_p1) * len(index_d2)
+
+        # Create transposed versions of the off-diagonal blocks.
+        tensor_sp_t = torch.zeros(3, 1, 2)
+        tensor_sd_t = torch.zeros(5, 1, 2)
+        tensor_pd_t = torch.zeros(5, 3, 2)
+        for i in range(2):
+            tensor_sp_t[..., i] = tensor_sp[..., i].T
+            tensor_sd_t[..., i] = tensor_sd[..., i].T
+            tensor_pd_t[..., i] = tensor_pd[..., i].T
+
+        # Put the blocks together to form the minimal basis representation.
+        minimal_basis = torch.zeros(
+            cls.minimal_basis_matrix_size, cls.minimal_basis_matrix_size, 2
+        )
+        minimal_basis[:1, :1, :] = tensor_s
+        minimal_basis[1:4, 1:4, :] = tensor_p
+        minimal_basis[4:, 4:, :] = tensor_d
+        minimal_basis[:1, 1:4, :] = tensor_sp
+        minimal_basis[1:4, :1, :] = tensor_sp_t
+        minimal_basis[:1, 4:, :] = tensor_sd
+        minimal_basis[4:, :1, :] = tensor_sd_t
+        minimal_basis[1:4, 4:, :] = tensor_pd
+        minimal_basis[4:, 1:4, :] = tensor_pd_t
+
+        logging.debug("Minimal basis representation of the Hamiltonian (alpha):")
+        logging.debug(minimal_basis[..., 0])
+        logging.debug("Minimal basis representation of the Hamiltonian (beta):")
+        logging.debug(minimal_basis[..., 1])
+
+        return minimal_basis
 
     def graph_generator(self, dataset):
-        """Return the graph, including node and edge attributes,
-        for a given dataset."""
+        """Generate node and edge attributes as well as other critical information
+        about the graph. This generator is meant to be used in the forward for loop."""
 
         # Iterate over the dataset to get the characteristics of the graph.
         for data in dataset:
@@ -74,34 +200,39 @@ class TSBarrierModel(MessagePassing):
             # representation of only 1s, 1p and 1d.
             num_nodes = data["num_nodes"]
 
-            minimal_basis = torch.zeros(
+            # Edge information, both source and destination.
+            edge_index = data.edge_index
+            edge_src, edge_dst = edge_index
+            logger.debug(f"Edge src: {edge_src}")
+            logger.debug(f"Edge dst: {edge_dst}")
+            edge_vec = data.pos[edge_dst] - data.pos[edge_src]
+            logger.debug(f"Edge vec: {edge_vec}")
+            num_edges = edge_src.shape[0]
+
+            # The minimal basis representation of the node features of
+            # the Hamiltonian. The shape of this matrix is (all_nodes, num_basis, num_basis, 2).
+            # The last dimension is for the spin up and spin down components.
+            minimal_basis_node = torch.zeros(
                 num_nodes,
                 self.minimal_basis_matrix_size,
                 self.minimal_basis_matrix_size,
+                2,
+            )
+            # Similar minimal basis construction for the edge features.
+            minimal_basis_edge = torch.zeros(
+                num_edges,
+                self.minimal_basis_matrix_size,
+                self.minimal_basis_matrix_size,
+                2,
             )
 
             # Keep track of the atom index in the overall data object.
             index_atom = 0
 
-            for mol_index, data_x in data["x"].items():
-                # Within each molecule, the basis representation
-                # of each atom must interact with the basis representation
-                # of the other atoms. Therefore, we need to loop over all
-                # pairs of atoms.
-
-                # Generate the mean Hamiltonian for each spin.
-                hamiltonian = data_x.mean(dim=-1)
-                logger.debug(
-                    "Shape of spin averaged Hamiltonian: {}".format(hamiltonian.shape)
-                )
-
-                logger.info(
-                    "Constructing minimal basis representation for molecule {}.".format(
-                        mol_index
-                    )
-                )
-
-                # Iterate over all atoms, the minimal basis representation is for each atom.
+            # Start with constructing the node features.
+            # Since we are looking at the node features, it is sufficient to
+            # iterate over all atoms (as they correspond to the nodes).
+            for mol_index, hamiltonian in data["x"].items():
                 for i, atom_basis in enumerate(data["indices_atom_basis"][mol_index]):
 
                     logger.info("Processing atom {}.".format(i))
@@ -113,106 +244,68 @@ class TSBarrierModel(MessagePassing):
                     ]
 
                     # Find the indices of the 's', 'p' and 'd' basis functions
-                    indices_s = []
-                    indices_p = []
-                    indices_d = []
-                    for i, basis_functions in enumerate(basis_functions):
-                        if basis_functions == "s":
-                            indices_s.append(i)
-                        elif basis_functions == "p":
-                            indices_p.append(i)
-                        elif basis_functions == "d":
-                            indices_d.append(i)
-
-                    logger.debug(
-                        "There are {} s, {} p and {} d basis functions.".format(
-                            len(indices_s), len(indices_p), len(indices_d)
-                        )
+                    # The indices are relative to the submatrix of the Hamiltonian
+                    # that this loop is working on.
+                    indices_s, indices_p, indices_d = self.determine_spd_functions(
+                        basis_functions
                     )
 
-                    # Group the indices into tuples, s has length = 1, p has length 3 and d has length 5.
-                    indices_s = [[index] for index in indices_s]
-                    # Split indices_p into tuples of size 3.
-                    indices_p = [
-                        indices_p[i : i + 3] for i in range(0, len(indices_p), 3)
-                    ]
-                    # Split indices_d into tuples of size 5.
-                    indices_d = [
-                        indices_d[i : i + 5] for i in range(0, len(indices_d), 5)
-                    ]
-
-                    # Create a tensor that contains the basis functions for the atom.
-                    tensor_s = torch.zeros(1, 1)
-                    for s in indices_s:
-                        segment_H = torch.tensor([[hamiltonian[s[0], s[0]]]])
-                        tensor_s += segment_H
-                    logger.info("Shape of tensor_s: {}".format(tensor_s.shape))
-                    tensor_s /= len(indices_s)
-
-                    tensor_p = torch.zeros(3, 3)
-                    for p in indices_p:
-                        segment_H = hamiltonian[p[0] : p[-1] + 1, p[0] : p[-1] + 1]
-                        tensor_p += segment_H
-                    logger.info("Shape of tensor_p: {}".format(tensor_p.shape))
-                    if len(indices_p) > 0:
-                        tensor_p /= len(indices_p)
-
-                    tensor_d = torch.zeros(5, 5)
-                    for d in indices_d:
-                        segment_H = hamiltonian[d[0] : d[-1] + 1, d[0] : d[-1] + 1]
-                        tensor_d += segment_H
-                    if len(indices_d) > 0:
-                        tensor_d /= len(indices_d)
-
-                    logger.info("Shape of tensor_d: {}".format(tensor_d.shape))
-
-                    logger.debug("Minimal basis (s): \n {}".format(tensor_s))
-                    logger.debug("Minimal basis (p): \n {}".format(tensor_p))
-                    logger.debug("Minimal basis (d): \n {}".format(tensor_d))
-
-                    minimal_basis[index_atom, 0, 0] = tensor_s
-                    minimal_basis[index_atom, 1:4, 1:4] = tensor_p
-                    minimal_basis[index_atom, 4:, 4:] = tensor_d
-
-                    logger.info(
-                        "Shape of minimal basis representation: {}".format(
-                            minimal_basis[i].shape
-                        )
+                    # Get the minimal basis representation of the Hamiltonian
+                    # for each node. Since we are on the diagonal block elements,
+                    # each list of indices can just be doubled for the x, y labelling.
+                    minimal_basis = self.construct_minimal_basis(
+                        [indices_s, indices_s],
+                        [indices_p, indices_p],
+                        [indices_d, indices_d],
+                        hamiltonian,
                     )
-                    logger.debug(
-                        "Minimal basis representation: \n {}".format(minimal_basis[i])
-                    )
+                    # Store the minimal basis representation for each node.
+                    minimal_basis_node[index_atom, ...] = minimal_basis
 
                     # Add up the index of the atoms
                     index_atom += 1
 
-            logger.debug(f"Minimal basis shape: {minimal_basis.shape}")
-
-            edge_index = data.edge_index
-            edge_src, edge_dst = edge_index
-            logger.debug(f"Edge src: {edge_src}")
-            logger.debug(f"Edge dst: {edge_dst}")
-            edge_vec = data.pos[edge_dst] - data.pos[edge_src]
-            logger.debug(f"Edge vec: {edge_vec}")
-
-            minimal_basis_diag = torch.zeros(num_nodes, self.minimal_basis_matrix_size)
-            for i, minimal_basis_atom in enumerate(minimal_basis):
-                diagonal_rep_total = torch.diag(minimal_basis_atom)
-                # Filter the diagonal representation such that
-                # only elements between UPPER and LOWER are included.
-                # Elements not obeying this condition are set to 0.
-                diagonal_rep_filtered = torch.where(
-                    (diagonal_rep_total > self.UPPER_BOUND)
-                    | (diagonal_rep_total < self.LOWER_BOUND),
-                    torch.zeros_like(diagonal_rep_total),
-                    diagonal_rep_total,
+            # Now construct the edge features. Iterate over the edge features
+            # taking information from the source and destination nodes. These
+            # source and destination nodes will provide information about the
+            # sub-blocks of the coupling matrix that are needed to construct
+            # the minimal basis representation of the edge features.
+            for edge_i, (src, dst) in enumerate(zip(edge_src, edge_dst)):
+                # The source and destination nodes should give the index
+                # of the features that we want to construct.
+                start_src, end_src = data["indices_atom_basis"][src]
+                start_dst, end_dst = data["indices_atom_basis"][dst]
+                # Carve out the sub-blocks of the coupling matrix that are needed.
+                # The matrix is Hermitian, so we only need to take the upper triangle.
+                submatrix_V = data["edge_attr"][
+                    start_src:end_src, start_dst:end_dst, ...
+                ]
+                # Determine the basis functions in submatrix_V
+                basis_functions_src = data["atom_basis_functions"][src][
+                    start_src:end_src
+                ]
+                basis_functions_dst = data["atom_basis_functions"][dst][
+                    start_dst:end_dst
+                ]
+                (
+                    indices_s_src,
+                    indices_p_src,
+                    indices_d_src,
+                ) = self.determine_spd_functions(basis_functions_src)
+                (
+                    indices_s_dst,
+                    indices_p_dst,
+                    indices_d_dst,
+                ) = self.determine_spd_functions(basis_functions_dst)
+                minimal_basis = self.construct_minimal_basis(
+                    [indices_s_src, indices_s_dst],
+                    [indices_p_src, indices_p_dst],
+                    [indices_d_src, indices_d_dst],
+                    submatrix_V,
                 )
-                minimal_basis_diag[i, ...] = diagonal_rep_filtered
+                minimal_basis_edge[edge_i, ...] = minimal_basis
 
-            logger.debug(f"Minimal basis diag: {minimal_basis_diag}")
-            logger.info(f"Minimal basis diag shape: {minimal_basis_diag.shape}")
-
-            yield num_nodes, edge_src, edge_dst, edge_vec, edge_index, minimal_basis_diag
+            yield num_nodes, edge_src, edge_dst, edge_vec, edge_index, minimal_basis_node, minimal_basis_edge
 
     def forward(self, dataset) -> torch.Tensor:
         """Forward pass of the model."""
@@ -226,8 +319,11 @@ class TSBarrierModel(MessagePassing):
             edge_dst,
             edge_vec,
             edge_index,
-            input_features,
+            node_features,
+            edge_features,
         ) in enumerate(self.graph_generator(dataset)):
+
+            adsdsa
 
             # Determine the spherical harmonics to perform the convolution
             # The spherical harmonics of the chosen degree will be performed
@@ -308,7 +404,7 @@ if __name__ == "__main__":
     logging.basicConfig(
         filename=os.path.join(LOGFILES_FOLDER, "model.log"),
         filemode="w",
-        level=logging.INFO,
+        level=logging.DEBUG,
     )
     logger = logging.getLogger(__name__)
 

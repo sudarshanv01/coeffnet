@@ -1,5 +1,4 @@
 """Generate all the Data objects needed to predict the TS Hamiltonian."""
-from email.policy import default
 import os
 import json
 from pathlib import Path
@@ -748,6 +747,15 @@ if __name__ == "__main__":
             squeeze=False,
             constrained_layout=True,
         )
+        # Plot the coupling elements, i.e. all the elements are not on the diagonal
+        figd, axd = plt.subplots(
+            2,
+            len(data["edge_attr"]),
+            figsize=(4 * len(data["edge_attr"]), 4),
+            squeeze=False,
+            constrained_layout=True,
+        )
+
         for j, state_index in enumerate(data["x"]):
 
             # Each state_index gets its own subplot
@@ -755,6 +763,11 @@ if __name__ == "__main__":
             H_down = data["x"][state_index][..., 1]
             H_up = H_up.numpy()
             H_down = H_down.numpy()
+
+            V_up = data["edge_attr"][state_index][..., 0]
+            V_down = data["edge_attr"][state_index][..., 1]
+            V_up = V_up.numpy()
+            V_down = V_down.numpy()
 
             # Plot the Hamiltonian for each spin separately
             cax1 = ax[0, j].imshow(
@@ -767,6 +780,17 @@ if __name__ == "__main__":
             fig.colorbar(cax1, ax=ax[0, j])
             fig.colorbar(cax2, ax=ax[1, j])
 
+            # Plot the coupling elements, i.e. all the elements are not on the diagonal
+            cax1 = axd[0, j].imshow(
+                V_up, cmap="viridis", interpolation="none", vmin=-5, vmax=5
+            )
+            cax2 = axd[1, j].imshow(
+                V_down, cmap="viridis", interpolation="none", vmin=-5, vmax=5
+            )
+            # Add a colorbar to each subplot
+            figd.colorbar(cax1, ax=axd[0, j])
+            figd.colorbar(cax2, ax=axd[1, j])
+
             # Highlight node specific features in the matrix
             # print(data['atom_basis_functions'][state_index])
             for (start, stop) in data["indices_atom_basis"][state_index]:
@@ -777,11 +801,23 @@ if __name__ == "__main__":
                 ax[1, j].axhline(start, color="k")
                 ax[0, j].set_title(f"State {state_index}, spin up")
                 ax[1, j].set_title(f"State {state_index}, spin down")
+                axd[0, j].axvline(start, color="k")
+                axd[1, j].axvline(start, color="k")
+                axd[0, j].axhline(start, color="k")
+                axd[1, j].axhline(start, color="k")
+                axd[0, j].set_title(f"State {state_index}, spin up")
+                axd[1, j].set_title(f"State {state_index}, spin down")
 
         for a in ax.flat:
             a.set_xticks([])
             a.set_yticks([])
             a.set_aspect("equal")
 
-        fig.savefig(os.path.join("output", f"matrix_graph_{i}.png"), dpi=300)
+        for a in axd.flat:
+            a.set_xticks([])
+            a.set_yticks([])
+            a.set_aspect("equal")
+
+        fig.savefig(os.path.join("output", f"hamiltonian_graph_{i}.png"), dpi=300)
+        figd.savefig(os.path.join("output", f"coupling_graph_{i}.png"), dpi=300)
         plt.close(fig)
