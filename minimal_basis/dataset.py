@@ -18,6 +18,8 @@ import torch_geometric
 from torch_geometric.data import InMemoryDataset
 
 from pymatgen.core.structure import Molecule
+from pymatgen.analysis.graphs import MoleculeGraph
+from pymatgen.analysis.local_env import OpenBabelNN
 
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -137,24 +139,84 @@ class HamiltonianDataset(InMemoryDataset):
     def sn2_graph(
         cls, molecule_list: List[Molecule], starting_index=0
     ) -> Tuple[np.ndarray, List[int], int]:
-        """Generate an SN2 specific graph, where the reactants and products
-        form fully connected graphs."""
+        """Generate the SN2 graph where the each molecule in
+        `molecule_list` is connected via the bonds, but the
+        atoms between molecules are fully connected."""
+
         # Get the total number of atoms in the molecule list
-        N = sum([len(molecule.species) for molecule in molecule_list])
-        # Decide on a start and stop index for this particular graph
-        N_start = starting_index
-        N_end = N_start + N
-        # Create the edge index
-        edge_index = np.asarray(
-            list(zip(*itertools.permutations(range(N_start, N_end), r=2)))
-        )
-        # Create the number of neighbors
-        num_neigh = [N - 1 for _ in range(N_start, N_end)]
+        num_atoms_index = []
+        counter_atoms = starting_index
+        all_edges = []
 
-        # Add the number of atoms to the starting index
-        delta_starting_index = N
+        for i, molecule in enumerate(molecule_list):
+            # In this loop, a graph consisting of the atoms of a particular
+            # molecule are generated. This is an _intra-molecular_ graph.
+            # The index counter_atoms makes sure that the atoms are numbered
+            # correctly in the globals scheme of things wrt reactants and products.
 
-        return edge_index, num_neigh, delta_starting_index
+            mol_graph = MoleculeGraph.with_local_env_strategy(
+                molecule, OpenBabelNN(order=True)
+            )
+            edges = [
+                (counter_atoms + i, counter_atoms + j)
+                for i, j, attr in mol_graph.graph.edges.data()
+            ]
+
+            # make it bidirectional
+            # reverse = [(counter_atoms+j, counter_atoms+i) for i, j in edges]
+            edges_mol = edges
+
+            # sort by first i
+            edges_mol = sorted(edges_mol, key=lambda pair: pair[0])
+            all_edges.extend(edges_mol)
+
+            # Add the number of atoms to the total number of atoms
+            # This is used to keep track of the total number of atoms
+            # in the system, including all the seperate molecules in
+            # either the reactants or the products.
+            # `num_atoms_index` is supposed to function as the starting
+            # index of a new molecule.
+            num_atoms_index.append(counter_atoms)
+            # Add the number of atoms in the molecule to the counter
+            counter_atoms += len(molecule.species)
+
+        for i, n_i in enumerate(num_atoms_index):
+            # In this loop, the _inter-molecular_ edges are added.
+            # Each atom from molecule i is connected to each atom from molecule j
+            # for i != j.
+
+            if i == len(num_atoms_index) - 1:
+                index_species_i = range(n_i, counter_atoms)
+            else:
+                index_species_i = range(n_i, num_atoms_index[i + 1])
+
+            for j, n_j in enumerate(num_atoms_index):
+
+                if i != j:
+
+                    # Only perform fully connected graphs between
+                    # molecules that are not the same.
+                    if j == len(num_atoms_index) - 1:
+                        index_species_j = range(n_j, counter_atoms)
+                    else:
+                        index_species_j = range(n_j, num_atoms_index[j + 1])
+
+                    # Get all combinations of the atoms between the two molecules
+                    # with index_species_i and index_species_j
+                    edges = list(
+                        zip(*itertools.product(index_species_i, index_species_j))
+                    )
+                    edges = np.array(edges).T.tolist()
+
+                    # make it bidirectional
+                    # reverse = [(j, i) for i, j in edges]
+                    all_edges.extend(edges)
+                    # all_edges.extend(reverse)
+
+        all_edges.sort(key=lambda pair: pair[0])
+        all_edges = np.array(all_edges).T.tolist()
+
+        return all_edges, None, counter_atoms
 
     def sn2_positions(
         cls, molecule_list: List[Molecule], distance_to_translate=10
@@ -656,7 +718,7 @@ if __name__ == "__main__":
         graph = torch_geometric.utils.to_networkx(data)
         # Iteratively add subplots to a figure
         fig = plt.figure()
-        for j, nx_graph in enumerate(nx.strongly_connected_components(graph)):
+        for j, nx_graph in enumerate(nx.weakly_connected_components(graph)):
             # Get the number of reactants and products based on the len of x
             n_react_prod = len(data.x)
             # Split n_react_prod into num_x and num_y

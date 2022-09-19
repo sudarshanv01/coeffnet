@@ -5,6 +5,10 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 
+from plot_params import get_plot_params
+
+get_plot_params()
+
 if __name__ == "__main__":
     """For a gives training log file, plot the training curves."""
     parser = argparse.ArgumentParser()
@@ -23,13 +27,11 @@ if __name__ == "__main__":
     # loss and the third is the accuracy.
 
     # Plot the loss and accuracy curves.
-    fig, ax = plt.subplots(1, 2, figsize=(10, 5), sharex=True, constrained_layout=True)
+    fig, ax = plt.subplots(1, 2, figsize=(6, 3), sharex=True, constrained_layout=True)
     ax[0].plot(log_data[:, 0], log_data[:, 1])
-    ax[0].set_title("Loss")
     ax[0].set_xlabel("Epoch")
-    ax[0].set_ylabel("Loss")
+    ax[0].set_ylabel("RMSE Loss (eV)")
     ax[1].plot(log_data[:, 0], log_data[:, 2])
-    ax[1].set_title("Accuracy")
     ax[1].set_xlabel("Epoch")
-    ax[1].set_ylabel("Accuracy")
+    ax[1].set_ylabel("Mean absolute error (eV)")
     fig.savefig(savefile, dpi=300)

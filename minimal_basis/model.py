@@ -367,7 +367,7 @@ if __name__ == "__main__":
     with open(os.path.join(LOGFILES_FOLDER, f"training_{folder_string}.log"), "w") as f:
         f.write("Epoch\t Loss\t Accuracy\n")
 
-    for step in range(1000):
+    for step in range(500):
 
         optim.zero_grad()
         pred = model(datapoint)
