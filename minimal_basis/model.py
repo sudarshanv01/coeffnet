@@ -7,6 +7,7 @@ from pprint import pprint
 
 import torch
 from torch_scatter import scatter
+from torch_scatter import scatter_mean
 from torch_geometric.nn import MessagePassing
 
 from e3nn import o3, nn
@@ -47,18 +48,33 @@ class TSBarrierModel(MessagePassing):
         self.max_radius = max_radius
 
         # The first tensor product is between node (or edge) features
-        # and spherical harmonics.
+        # and spherical harmonics. The weights for this tensor product
+        # will be provided by the network.
         self.tensor_product_1 = o3.FullyConnectedTensorProduct(
             irreps_in1=self.irreps_minimal_basis,
             irreps_in2=self.irreps_sh,
             irreps_out=self.irreps_minimal_basis,
+            shared_weights=False,
         )
         # The second tensor product is between node and edge features.
         self.tensor_product_2 = o3.FullyConnectedTensorProduct(
             irreps_in1=self.irreps_minimal_basis,
             irreps_in2=self.irreps_minimal_basis,
             irreps_out=self.irreps_out,
+            shared_weights=False,
         )
+        # Create a fully connected nn to perform the tensor products
+        self.fc_network_1 = nn.FullyConnectedNet(
+            [self.minimal_basis_matrix_size, 32, self.tensor_product_1.weight_numel],
+            torch.relu,
+        )
+        self.fc_network_1.to(self.device)
+        # Create a fully connected nn to perform products between node and edge features.
+        self.fc_network_2 = nn.FullyConnectedNet(
+            [self.minimal_basis_matrix_size, 32, self.tensor_product_2.weight_numel],
+            torch.relu,
+        )
+        self.fc_network_2.to(self.device)
 
     def determine_spd_functions(cls, basis_functions):
         """For a list of basis functions, determine the number of s, p and d functions.
@@ -194,13 +210,12 @@ class TSBarrierModel(MessagePassing):
         # Iterate over the dataset to get the characteristics of the graph.
         for data in dataset:
             logger.info("Processing new data graph.")
-            # STRATEGY: Generate a minimal basis representation where the
-            # Hamiltonians (of both spin up and down) are condensed
-            # into a single matrix consisting of an irreducible
-            # representation of only 1s, 1p and 1d.
+
+            # === Information about the graph ===
+            # Node information
             num_nodes = data["num_nodes"]
 
-            # Edge information, both source and destination.
+            # Edge information
             edge_index = data.edge_index
             edge_src, edge_dst = edge_index
             logger.debug(f"Edge src: {edge_src}")
@@ -209,6 +224,7 @@ class TSBarrierModel(MessagePassing):
             logger.debug(f"Edge vec: {edge_vec}")
             num_edges = edge_src.shape[0]
 
+            # === Intialise the node and edge attributes ===
             # The minimal basis representation of the node features of
             # the Hamiltonian. The shape of this matrix is (all_nodes, num_basis, num_basis, 2).
             # The last dimension is for the spin up and spin down components.
@@ -217,22 +233,26 @@ class TSBarrierModel(MessagePassing):
                 self.minimal_basis_matrix_size,
                 self.minimal_basis_matrix_size,
                 2,
+                device=self.device,
             )
-            # Similar minimal basis construction for the edge features.
+            # Minimal basis representation of the edge features of the Hamiltonian.
             minimal_basis_edge = torch.zeros(
                 num_edges,
                 self.minimal_basis_matrix_size,
                 self.minimal_basis_matrix_size,
                 2,
+                device=self.device,
             )
-
             # Keep track of the atom index in the overall data object.
             index_atom = 0
 
-            # Start with constructing the node features.
+            # === Node attributes ===
             # Since we are looking at the node features, it is sufficient to
             # iterate over all atoms (as they correspond to the nodes).
-            for mol_index, hamiltonian in data["x"].items():
+            for mol_index, hamiltonian in sorted(data["x"].items()):
+                # Note that we are sorting the keys to make sure that the
+                # atom data is the same as the one in Data object, and that
+                # way we have a consistent measure of the node features.
                 for i, atom_basis in enumerate(data["indices_atom_basis"][mol_index]):
 
                     logger.info("Processing atom {}.".format(i))
@@ -265,45 +285,71 @@ class TSBarrierModel(MessagePassing):
                     # Add up the index of the atoms
                     index_atom += 1
 
-            # Now construct the edge features. Iterate over the edge features
-            # taking information from the source and destination nodes. These
+            # === Edge attributes ===
+            # Start by determining the mapping between the edge list and the
+            # molecule from which they came from. This is stored seprately
+            # for each data object. We will also need a mapping between
+            # the edge index and the internal index of each molecule.
+            edge_molecule_mapping = data["edge_molecule_mapping"]
+            edge_internal_mol_mapping = data["edge_internal_mol_mapping"]
+            # Iterate over the edge features taking information from the source and destination nodes. These
             # source and destination nodes will provide information about the
             # sub-blocks of the coupling matrix that are needed to construct
             # the minimal basis representation of the edge features.
-            for edge_i, (src, dst) in enumerate(zip(edge_src, edge_dst)):
+            for edge_i, (src_, dst_) in enumerate(zip(edge_src, edge_dst)):
+                # Convert src_ and dst_ to floats
+                src = int(src_)
+                dst = int(dst_)
                 # The source and destination nodes should give the index
                 # of the features that we want to construct.
-                start_src, end_src = data["indices_atom_basis"][src]
-                start_dst, end_dst = data["indices_atom_basis"][dst]
-                # Carve out the sub-blocks of the coupling matrix that are needed.
-                # The matrix is Hermitian, so we only need to take the upper triangle.
-                submatrix_V = data["edge_attr"][
-                    start_src:end_src, start_dst:end_dst, ...
-                ]
-                # Determine the basis functions in submatrix_V
-                basis_functions_src = data["atom_basis_functions"][src][
-                    start_src:end_src
-                ]
-                basis_functions_dst = data["atom_basis_functions"][dst][
-                    start_dst:end_dst
-                ]
-                (
-                    indices_s_src,
-                    indices_p_src,
-                    indices_d_src,
-                ) = self.determine_spd_functions(basis_functions_src)
-                (
-                    indices_s_dst,
-                    indices_p_dst,
-                    indices_d_dst,
-                ) = self.determine_spd_functions(basis_functions_dst)
-                minimal_basis = self.construct_minimal_basis(
-                    [indices_s_src, indices_s_dst],
-                    [indices_p_src, indices_p_dst],
-                    [indices_d_src, indices_d_dst],
-                    submatrix_V,
-                )
-                minimal_basis_edge[edge_i, ...] = minimal_basis
+                src_mol = edge_molecule_mapping[src]
+                dst_mol = edge_molecule_mapping[dst]
+                # If the source and destination nodes are from the same molecule,
+                # then it is fine to assume that they have some inter-orbital interaction
+                # because they come fromt he same calculation. If not, then we
+                # have to assume that the interaction is zero, as a matrix.
+                if src_mol == dst_mol:
+                    src_internal = edge_internal_mol_mapping[src]
+                    dst_internal = edge_internal_mol_mapping[dst]
+                    start_src, end_src = data["indices_atom_basis"][src_mol][
+                        src_internal
+                    ]
+                    start_dst, end_dst = data["indices_atom_basis"][dst_mol][
+                        dst_internal
+                    ]
+                    # Carve out the sub-blocks of the coupling matrix that are needed.
+                    # The matrix is Hermitian, so we only need to take the upper triangle.
+                    submatrix_V = data["edge_attr"][src_mol][
+                        start_src:end_src, start_dst:end_dst, ...
+                    ]
+                    # Determine the basis functions in submatrix_V
+                    basis_functions_src = data["atom_basis_functions"][src_mol][
+                        start_src:end_src
+                    ]
+                    basis_functions_dst = data["atom_basis_functions"][dst_mol][
+                        start_dst:end_dst
+                    ]
+                    (
+                        indices_s_src,
+                        indices_p_src,
+                        indices_d_src,
+                    ) = self.determine_spd_functions(basis_functions_src)
+                    (
+                        indices_s_dst,
+                        indices_p_dst,
+                        indices_d_dst,
+                    ) = self.determine_spd_functions(basis_functions_dst)
+                    minimal_basis = self.construct_minimal_basis(
+                        [indices_s_src, indices_s_dst],
+                        [indices_p_src, indices_p_dst],
+                        [indices_d_src, indices_d_dst],
+                        submatrix_V,
+                    )
+                    minimal_basis_edge[edge_i, ...] = minimal_basis
+                else:
+                    # If we are considering inter-orbitals interaction between two molecules
+                    # then we assume that the interaction is zero.
+                    pass
 
             yield num_nodes, edge_src, edge_dst, edge_vec, edge_index, minimal_basis_node, minimal_basis_edge
 
@@ -323,39 +369,72 @@ class TSBarrierModel(MessagePassing):
             edge_features,
         ) in enumerate(self.graph_generator(dataset)):
 
-            adsdsa
+            # === Move tensors to the correct device ===
+            edge_src = edge_src.to(self.device)
+            edge_dst = edge_dst.to(self.device)
+            edge_vec = edge_vec.to(self.device)
+            edge_index = edge_index.to(self.device)
+            node_features = node_features.to(self.device)
+            edge_features = edge_features.to(self.device)
 
-            # Determine the spherical harmonics to perform the convolution
-            # The spherical harmonics of the chosen degree will be performed
-            # on the (normalised) edge vector.
-            sh = o3.spherical_harmonics(
-                self.irreps_sh, edge_vec, normalize=True, normalization="component"
-            )
-
-            # Also add an embedding for the MLP.
+            # === Construct embedding ===
             embedding = soft_one_hot_linspace(
                 x=edge_vec.norm(dim=1),
                 start=0.0,
                 end=self.max_radius,
-                number=self.num_basis,
+                number=self.minimal_basis_matrix_size,
                 basis="smooth_finite",
                 cutoff=True,
-            ).mul(self.num_basis**0.5)
+            ).mul(self.minimal_basis_matrix_size**0.5)
+            embedding.to(self.device)
 
-            # Transfer everything to the GPU.
-            sh = sh.to(self.device)
-            embedding = embedding.to(self.device)
-            input_features = input_features.to(self.device)
-            edge_index = edge_index.to(self.device)
-            edge_dst = edge_dst.to(self.device)
+            # === Construct the spherical harmonics ===
+            sh = o3.spherical_harmonics(
+                self.irreps_sh, edge_vec, normalize=True, normalization="component"
+            )
+            sh.to(self.device)
 
-            output = self.tensor_product(
-                input_features[edge_src], sh, self.fc_network(embedding)
+            # === Constuct appropriate tensor products ===
+            # Mean over the last dimension of node and edge features
+            # Physically, this means that we are averaging over the
+            # the two spins.
+            edge_features = edge_features.mean(dim=-1)
+            node_features = node_features.mean(dim=-1)
+
+            # Now construct diagonal version of these matrices.
+            diag_nodes = torch.zeros(
+                node_features.shape[0],
+                self.minimal_basis_matrix_size,
+                device=self.device,
             )
-            output = scatter(output, edge_dst, dim=0, dim_size=num_nodes).div(
-                num_nodes**0.5
+            diag_edges = torch.zeros(
+                edge_features.shape[0],
+                self.minimal_basis_matrix_size,
+                device=self.device,
             )
-            logger.debug(f"Output: {output}")
+            for i in range(node_features.shape[0]):
+                diag_nodes[i, :] = torch.diag(node_features[i, ...])
+            for i in range(edge_features.shape[0]):
+                diag_edges[i, :] = torch.diag(edge_features[i, ...])
+
+            # === First batch of tensor products ===
+            tp_diag_edges = self.tensor_product_1(
+                diag_edges[edge_src],
+                sh,
+                self.fc_network_1(embedding),
+            )
+            tp_diag_nodes = self.tensor_product_1(
+                diag_nodes[edge_dst],
+                sh,
+                self.fc_network_1(embedding),
+            )
+
+            # === Second batch of tensor products ===
+            output = self.tensor_product_2(
+                tp_diag_edges[edge_src],
+                tp_diag_nodes[edge_src],
+                self.fc_network_2(embedding),
+            )
 
             # Propogate the output through the network.
             output = self.propagate(edge_index, x=output, norm=num_nodes)
@@ -365,7 +444,8 @@ class TSBarrierModel(MessagePassing):
             norm_output = torch.sum(output)
             # Normalise by the number of nodes.
             norm_output /= num_nodes
-            # Reutn the absolute value of the output.
+
+            # Return the absolute value of the output.
             norm_output = torch.abs(norm_output)
 
             output_vector[index] = norm_output

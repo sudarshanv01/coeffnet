@@ -2,6 +2,7 @@
 import os
 import json
 from pathlib import Path
+from pprint import pprint
 from typing import Dict, Union, List, Tuple
 import logging
 import itertools
@@ -136,8 +137,8 @@ class HamiltonianDataset(InMemoryDataset):
         return edge_index, num_neigh, delta_starting_index
 
     def sn2_graph(
-        cls, molecule_list: List[Molecule], starting_index=0
-    ) -> Tuple[np.ndarray, List[int], int]:
+        cls, molecule_dict: Dict[int, Molecule], starting_index=0
+    ) -> Tuple[np.ndarray, List[int], int, Dict[int, int]]:
         """Generate the SN2 graph where the each molecule in
         `molecule_list` is connected via the bonds, but the
         atoms between molecules are fully connected."""
@@ -146,8 +147,14 @@ class HamiltonianDataset(InMemoryDataset):
         num_atoms_index = []
         counter_atoms = starting_index
         all_edges = []
+        # Keep track of which edge belongs to which molecule
+        # through mapping each edge with the choose_index
+        edge_choose_index_mapping = {}
+        # Keep track of the index of the atom in a molecule
+        # by mapping it to the edge index
+        edge_internal_mol_mapping = {}
 
-        for i, molecule in enumerate(molecule_list):
+        for k, (choose_index, molecule) in enumerate(molecule_dict.items()):
             # In this loop, a graph consisting of the atoms of a particular
             # molecule are generated. This is an _intra-molecular_ graph.
             # The index counter_atoms makes sure that the atoms are numbered
@@ -156,17 +163,10 @@ class HamiltonianDataset(InMemoryDataset):
             mol_graph = MoleculeGraph.with_local_env_strategy(
                 molecule, OpenBabelNN(order=True)
             )
-            edges = [
+            edges_mol = [
                 (counter_atoms + i, counter_atoms + j)
                 for i, j, attr in mol_graph.graph.edges.data()
             ]
-
-            # make it bidirectional
-            # reverse = [(counter_atoms+j, counter_atoms+i) for i, j in edges]
-            edges_mol = edges
-
-            # sort by first i
-            edges_mol = sorted(edges_mol, key=lambda pair: pair[0])
             all_edges.extend(edges_mol)
 
             # Add the number of atoms to the total number of atoms
@@ -176,6 +176,24 @@ class HamiltonianDataset(InMemoryDataset):
             # `num_atoms_index` is supposed to function as the starting
             # index of a new molecule.
             num_atoms_index.append(counter_atoms)
+
+            # Add the mapping between the edges and the choose_index
+            if mol_graph.graph.edges.data():
+                for edge in edges_mol:
+                    edge_choose_index_mapping[edge[0]] = choose_index
+                    edge_choose_index_mapping[edge[1]] = choose_index
+                    # Map the internal index of the atom in the molecule
+                    # to the edge index
+                    edge_internal_mol_mapping[edge[0]] = edge[0] - counter_atoms
+                    edge_internal_mol_mapping[edge[1]] = edge[1] - counter_atoms
+            else:
+                # There is no edge in the graph, so the molecule is a single atom
+                # so include its index
+                edge_choose_index_mapping[counter_atoms] = choose_index
+                # Map the internal index of the atom in the molecule
+                # to the edge index
+                edge_internal_mol_mapping[counter_atoms] = 0
+
             # Add the number of atoms in the molecule to the counter
             counter_atoms += len(molecule.species)
 
@@ -207,15 +225,18 @@ class HamiltonianDataset(InMemoryDataset):
                     )
                     edges = np.array(edges).T.tolist()
 
-                    # make it bidirectional
-                    # reverse = [(j, i) for i, j in edges]
                     all_edges.extend(edges)
-                    # all_edges.extend(reverse)
 
         all_edges.sort(key=lambda pair: pair[0])
         all_edges = np.array(all_edges).T.tolist()
 
-        return all_edges, None, counter_atoms
+        return (
+            all_edges,
+            None,
+            counter_atoms,
+            edge_choose_index_mapping,
+            edge_internal_mol_mapping,
+        )
 
     def sn2_positions(
         cls, molecule_list: List[Molecule], distance_to_translate=10
@@ -582,6 +603,14 @@ class HamiltonianDataset(InMemoryDataset):
                 # Keep a tab on the index of the molecule
                 starting_index = 0
 
+                # This dictionary creates a mapping between the edges
+                # list, which is a cumulative list of all the edges
+                # and the molecule from which they came from.
+                edge_molecule_mapping = {}
+                # This dictionary creates a mapping between the edges
+                # list and the internal index of the molecule.
+                edge_internal_mol_mapping = {}
+
                 # There is no separation between reactants and products
                 # with this method, but since they are stored in separate
                 # entries in the dictionary, this is not a problem.
@@ -592,15 +621,27 @@ class HamiltonianDataset(InMemoryDataset):
                         Molecule.from_dict(molecule) for molecule in molecules_list
                     ]
                     choose_indices = molecules_in_reaction[states + "_index"]
+                    # Create a dict between molecule_list and choose_indices
+                    molecule_dict = {}
+                    for k, choose_index in enumerate(choose_indices):
+                        molecule_dict[choose_index] = molecules_list[k]
 
                     # Reorder the molecular positions
                     molecules_list = self.sn2_positions(molecules_list)
 
                     # Generate the graph based on the sn2 method
-                    edge_index, _, delta_starting_index = self.sn2_graph(
-                        molecules_list,
+                    (
+                        edge_index,
+                        _,
+                        delta_starting_index,
+                        edge_molecule_mapping_,
+                        edge_internal_mol_mapping_,
+                    ) = self.sn2_graph(
+                        molecule_dict,
                         starting_index=starting_index,
                     )
+                    edge_molecule_mapping.update(edge_molecule_mapping_)
+                    edge_internal_mol_mapping.update(edge_internal_mol_mapping_)
 
                     starting_index += delta_starting_index
 
@@ -633,6 +674,8 @@ class HamiltonianDataset(InMemoryDataset):
                 indices_of_basis=molecule_info_collected["indices_of_basis"],
                 atom_basis_functions=molecule_info_collected["atom_basis_functions"],
                 indices_atom_basis=molecule_info_collected["indices_atom_basis"],
+                edge_molecule_mapping=edge_molecule_mapping,
+                edge_internal_mol_mapping=edge_internal_mol_mapping,
             )
 
             # Validate the datapoint structure.

@@ -35,7 +35,7 @@ class DataPoint(Data):
         num_nodes = 0  # Add up the number of nodes in the graph.
 
         # This for loop assumes that the keys of pos, edge_index, and x are the same.
-        for state_index in pos:
+        for state_index in sorted(pos):
             if pos[state_index] is not None:
                 tensor_pos.extend(pos[state_index])
 
