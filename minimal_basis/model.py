@@ -453,16 +453,30 @@ class TSBarrierModel(MessagePassing):
         return output_vector
 
 
-def visualize_results(predicted, calculated, epoch=None, loss=None):
+def visualize_results(
+    predicted_train,
+    calculated_train,
+    predicted_validate,
+    calculated_validate,
+    epoch=None,
+    loss=None,
+):
     """Plot the DFT calculated vs the fit results."""
-    fig, ax = plt.subplots(1, 1, figsize=(4, 4))
-    predicted = predicted.detach().cpu().numpy()
-    calculated = calculated.detach().cpu().numpy()
-    ax.scatter(calculated, predicted, cmap="Set2")
+    fig, ax = plt.subplots(1, 1, figsize=(4, 4), constrained_layout=True)
+
+    # Convert to numpy
+    predicted_train = predicted_train.detach().cpu().numpy()
+    calculated_train = calculated_train.detach().cpu().numpy()
+    predicted_validate = predicted_validate.detach().cpu().numpy()
+    calculated_validate = calculated_validate.detach().cpu().numpy()
+
+    ax.scatter(calculated_train, predicted_train, cmap="Set2", label="Train")
+    ax.scatter(calculated_validate, predicted_validate, cmap="Set3", label="Validate")
     if epoch is not None and loss is not None:
         ax.set_xlabel(f"Epoch: {epoch}, Loss: {loss.item():.3f}")
     ax.set_xlabel("DFT calculated (eV)")
     ax.set_ylabel("Fit results (eV)")
+    ax.legend(loc="best")
     fig.savefig(f"{PLOT_FOLDER}/step_{step:03d}.png", dpi=300)
     plt.close(fig)
 
@@ -487,6 +501,9 @@ if __name__ == "__main__":
         level=logging.DEBUG,
     )
     logger = logging.getLogger(__name__)
+
+    # Determine split rations
+    train_ratio, val_ratio, test_ratio = 0.8, 0.1, 0.1
 
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     logging.info(f"Device: {DEVICE}")
@@ -518,6 +535,19 @@ if __name__ == "__main__":
     data_point.parse_basis_data()
     datapoint = data_point.get_data()
 
+    # Split the data into training, validation and test sets.
+    train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(
+        datapoint,
+        [
+            int(train_ratio * len(datapoint)),
+            int(val_ratio * len(datapoint)),
+            len(datapoint)
+            - int(train_ratio * len(datapoint))
+            - int(val_ratio * len(datapoint)),
+        ],
+        generator=torch.Generator().manual_seed(42),
+    )
+
     # Instantiate the model.
     model = TSBarrierModel(DEVICE)
     model.to(DEVICE)
@@ -530,40 +560,60 @@ if __name__ == "__main__":
 
     # Get the training y
     train_y = []
-    for data in datapoint:
+    for data in train_dataset:
         train_y.append(data.y)
-
-    # Make train_y a tensor.
     train_y = torch.tensor(train_y, dtype=torch.float)
+
+    # Get the validation y
+    val_y = []
+    for data in val_dataset:
+        val_y.append(data.y)
+    val_y = torch.tensor(val_y, dtype=torch.float)
+
+    # Get the test y
+    test_y = []
+    for data in test_dataset:
+        test_y.append(data.y)
+    test_y = torch.tensor(test_y, dtype=torch.float)
+
+    logging.info(f"Training set size: {len(train_dataset)}")
+    logging.info(f"Validation set size: {len(val_dataset)}")
+    logging.info(f"Test set size: {len(test_dataset)}")
 
     # Training the model.
     optim = torch.optim.Adam(model.parameters(), lr=1e-3)
 
     # Write header of log file
     with open(os.path.join(LOGFILES_FOLDER, f"training_{folder_string}.log"), "w") as f:
-        f.write("Epoch\t Loss\t Accuracy\n")
+        f.write("Epoch\t Loss\t AccuracyTrain\t AccuracyVal\n")
 
     for step in range(500):
 
         optim.zero_grad()
-        pred = model(datapoint)
+        pred = model(train_dataset)
         loss = (pred - train_y).pow(2).sum()
 
         loss.backward()
 
-        # Write out the epoch and loss to the log file.
-        # TODO: Change this to better reflect the loss.
-        # Right now it is just the mean absolute error.
-        accuracy = (pred - train_y).abs().sum() / len(train_y)
+        accuracy_train = (pred - train_y).abs().sum() / len(train_y)
+
+        # Check the validation dataset
+        predict_val_y = model(val_dataset)
+        accuracy_validation = (predict_val_y - val_y).abs().sum() / len(val_y)
+
         with open(
             os.path.join(LOGFILES_FOLDER, f"training_{folder_string}.log"), "a"
         ) as f:
-            f.write(f"{step:5d} \t {loss:<10.1f} \t {accuracy:5.1f}\n")
+            f.write(
+                f"{step:5d} \t {loss:<10.1f} \t {accuracy_train:5.1f}\t {accuracy_validation:5.1f}\n"
+            )
 
         if step % 10 == 0:
 
             # Plot the errors for each step.
-            visualize_results(pred, train_y, epoch=step, loss=loss)
+            visualize_results(
+                pred, train_y, predict_val_y, val_y, epoch=step, loss=loss
+            )
 
             # Save the model params.
             logger.debug(f"Saving model parameters for step {step}")
