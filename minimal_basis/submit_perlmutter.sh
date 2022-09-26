@@ -1,7 +1,7 @@
 #!/bin/bash -l
 
 #SBATCH --job-name=job
-#SBATCH --time=0-10:00:00  
+#SBATCH --time=0-4:00:00  
 #SBATCH --ntasks=1      
 #SBATCH --cpus-per-task=2     # 2 cpus for the job
 #SBATCH --gpus=1              # 1 gpu for the job 

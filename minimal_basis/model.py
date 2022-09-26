@@ -37,6 +37,9 @@ class TSBarrierModel(MessagePassing):
     irreps_out = o3.Irreps("1x0e + 1x1o + 1x2e")
     # Also store the dimensions of the minimal basis representation.
     minimal_basis_matrix_size = 9
+    # Truncate the energy range for the operators
+    MIN_ENERGY = -10
+    MAX_ENERGY = 10
 
     def __init__(self, device, max_radius=10):
         super().__init__()
@@ -65,16 +68,16 @@ class TSBarrierModel(MessagePassing):
         )
         # Create a fully connected nn to perform the tensor products
         self.fc_network_1 = nn.FullyConnectedNet(
-            [self.minimal_basis_matrix_size, 32, self.tensor_product_1.weight_numel],
+            [self.minimal_basis_matrix_size, 16, self.tensor_product_1.weight_numel],
             torch.relu,
         )
-        self.fc_network_1.to(self.device)
+        self.fc_network_1 = self.fc_network_1.to(self.device)
         # Create a fully connected nn to perform products between node and edge features.
         self.fc_network_2 = nn.FullyConnectedNet(
-            [self.minimal_basis_matrix_size, 32, self.tensor_product_2.weight_numel],
+            [self.minimal_basis_matrix_size, 16, self.tensor_product_2.weight_numel],
             torch.relu,
         )
-        self.fc_network_2.to(self.device)
+        self.fc_network_2 = self.fc_network_2.to(self.device)
 
     def determine_spd_functions(cls, basis_functions):
         """For a list of basis functions, determine the number of s, p and d functions.
@@ -386,13 +389,13 @@ class TSBarrierModel(MessagePassing):
                 basis="smooth_finite",
                 cutoff=True,
             ).mul(self.minimal_basis_matrix_size**0.5)
-            embedding.to(self.device)
+            embedding = embedding.to(self.device)
 
             # === Construct the spherical harmonics ===
             sh = o3.spherical_harmonics(
                 self.irreps_sh, edge_vec, normalize=True, normalization="component"
             )
-            sh.to(self.device)
+            sh = sh.to(self.device)
 
             # === Constuct appropriate tensor products ===
             # Mean over the last dimension of node and edge features
@@ -412,10 +415,41 @@ class TSBarrierModel(MessagePassing):
                 self.minimal_basis_matrix_size,
                 device=self.device,
             )
+            # Take the diagonal elements and store them
+            # in the diagonal matrices.
+            # Set elements that are lower than MIN_ENERGY and higher
+            # than MAX_ENERGY to 0 in diag_nodes and diag_edges
             for i in range(node_features.shape[0]):
-                diag_nodes[i, :] = torch.diag(node_features[i, ...])
+                diag_nodes_ = torch.diag(node_features[i, ...])
+                diag_nodes_ = torch.where(
+                    diag_nodes_ < self.MIN_ENERGY,
+                    torch.zeros_like(diag_nodes_),
+                    diag_nodes_,
+                )
+                diag_nodes_ = torch.where(
+                    diag_nodes_ > self.MAX_ENERGY,
+                    torch.zeros_like(diag_nodes_),
+                    diag_nodes_,
+                )
+                diag_nodes[i, :] = diag_nodes_
             for i in range(edge_features.shape[0]):
-                diag_edges[i, :] = torch.diag(edge_features[i, ...])
+                diag_edges_ = torch.diag(edge_features[i, ...])
+                diag_edges_ = torch.where(
+                    diag_edges_ < self.MIN_ENERGY,
+                    torch.zeros_like(diag_edges_),
+                    diag_edges_,
+                )
+                diag_edges_ = torch.where(
+                    diag_edges_ > self.MAX_ENERGY,
+                    torch.zeros_like(diag_edges_),
+                    diag_edges_,
+                )
+                diag_edges[i, :] = diag_edges_
+
+            logging.debug("Diagonal node features are:")
+            logging.debug(diag_nodes)
+            logging.debug("Diagonal edge features are:")
+            logging.debug(diag_edges)
 
             # === First batch of tensor products ===
             tp_diag_edges = self.tensor_product_1(
@@ -435,6 +469,8 @@ class TSBarrierModel(MessagePassing):
                 tp_diag_nodes[edge_src],
                 self.fc_network_2(embedding),
             )
+            logging.debug("Output of the tensor product is:")
+            logging.debug(output)
 
             # Propogate the output through the network.
             output = self.propagate(edge_index, x=output, norm=num_nodes)
@@ -451,6 +487,9 @@ class TSBarrierModel(MessagePassing):
             output_vector[index] = norm_output
 
         return output_vector
+
+    def message(self, x_j: torch.Tensor, norm: torch.Tensor) -> torch.Tensor:
+        return x_j
 
 
 def visualize_results(
@@ -498,7 +537,7 @@ if __name__ == "__main__":
     logging.basicConfig(
         filename=os.path.join(LOGFILES_FOLDER, "model.log"),
         filemode="w",
-        level=logging.DEBUG,
+        level=logging.INFO,
     )
     logger = logging.getLogger(__name__)
 
@@ -550,7 +589,10 @@ if __name__ == "__main__":
 
     # Instantiate the model.
     model = TSBarrierModel(DEVICE)
-    model.to(DEVICE)
+    model = model.to(DEVICE)
+    if torch.cuda.device_count() > 1:
+        logging.info("Using multiple GPUs")
+        model = torch.nn.DataParallel(model)
     if checkpoint_file is not None:
         model.load_state_dict(torch.load(checkpoint_file))
         logger.info(f"Loaded checkpoint file: {checkpoint_file}")
