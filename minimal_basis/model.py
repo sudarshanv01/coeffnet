@@ -552,7 +552,7 @@ if __name__ == "__main__":
     folder_string = today.strftime("%Y%m%d_%H%M%S")
 
     # Read in the dataset inputs.
-    JSON_FILE = "input_files/output_QMrxn20_debug.json"
+    JSON_FILE = "input_files/output_QMrxn20_calc.json"
     BASIS_FILE = "input_files/sto-3g.json"
     CHECKPOINT_FOLDER = "checkpoints"
     PLOT_FOLDER = f"plots/{folder_string}"
@@ -591,7 +591,7 @@ if __name__ == "__main__":
     model = TSBarrierModel(DEVICE)
     if torch.cuda.device_count() > 1:
         logging.info("Using multiple GPUs")
-        model = torch.nn.DataParallel(model)
+        raise NotImplementedError("Multiple GPUs not yet implemented")
     if checkpoint_file is not None:
         model.load_state_dict(torch.load(checkpoint_file))
         logger.info(f"Loaded checkpoint file: {checkpoint_file}")
