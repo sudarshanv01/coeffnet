@@ -552,7 +552,7 @@ if __name__ == "__main__":
     folder_string = today.strftime("%Y%m%d_%H%M%S")
 
     # Read in the dataset inputs.
-    JSON_FILE = "input_files/output_QMrxn20_calc.json"
+    JSON_FILE = "input_files/output_QMrxn20_debug.json"
     BASIS_FILE = "input_files/sto-3g.json"
     CHECKPOINT_FOLDER = "checkpoints"
     PLOT_FOLDER = f"plots/{folder_string}"
