@@ -589,7 +589,6 @@ if __name__ == "__main__":
 
     # Instantiate the model.
     model = TSBarrierModel(DEVICE)
-    model = model.to(DEVICE)
     if torch.cuda.device_count() > 1:
         logging.info("Using multiple GPUs")
         model = torch.nn.DataParallel(model)
@@ -599,6 +598,7 @@ if __name__ == "__main__":
         model.eval()
     else:
         logger.info("No checkpoint file found, starting from scratch")
+    model = model.to(DEVICE)
 
     # Get the training y
     train_y = []
