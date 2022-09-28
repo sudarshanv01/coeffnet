@@ -5,7 +5,7 @@
 #SBATCH --qos=condo_mp_es1
 #SBATCH --account=lr_mp
 #SBATCH --time=24:00:00
-#SBATCH --gres=gpu:2
+#SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=2 
 #SBATCH --constraint=es1_v100
 #SBATCH --error=slurm-%j.err
