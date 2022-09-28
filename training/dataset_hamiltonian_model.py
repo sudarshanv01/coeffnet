@@ -1,5 +1,6 @@
 import os
 import logging
+import numpy as np
 
 import torch_geometric
 import networkx as nx
@@ -45,7 +46,7 @@ if __name__ == "__main__":
                 ax=ax,
             )
 
-        fig.savefig(os.path.join("output", f"graph_{i}.png"), dpi=300)
+        fig.savefig(os.path.join("plots", f"graph_{i}.png"), dpi=300)
         plt.close(fig)
 
         # Also plot the Hamiltonian for each spin for each spin for each
@@ -129,6 +130,6 @@ if __name__ == "__main__":
             a.set_yticks([])
             a.set_aspect("equal")
 
-        fig.savefig(os.path.join("output", f"hamiltonian_graph_{i}.png"), dpi=300)
-        figd.savefig(os.path.join("output", f"coupling_graph_{i}.png"), dpi=300)
+        fig.savefig(os.path.join("plots", f"hamiltonian_graph_{i}.png"), dpi=300)
+        figd.savefig(os.path.join("plots", f"coupling_graph_{i}.png"), dpi=300)
         plt.close(fig)

@@ -1,8 +1,7 @@
 import os
 import itertools
 from typing import Dict, Union, List, Tuple
-
-from glob import glob
+import glob
 
 import numpy as np
 

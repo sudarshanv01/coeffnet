@@ -5,7 +5,13 @@ import numpy.typing as npt
 import torch
 from torch_geometric.data import Data
 
-from _dtype import DTYPE, DTYPE_INT, DTYPE_BOOL, TORCH_FLOATS, TORCH_INTS
+from minimal_basis.data._dtype import (
+    DTYPE,
+    DTYPE_INT,
+    DTYPE_BOOL,
+    TORCH_FLOATS,
+    TORCH_INTS,
+)
 
 
 class DataPoint(Data):
