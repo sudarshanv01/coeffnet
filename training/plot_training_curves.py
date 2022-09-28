@@ -6,7 +6,7 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 
-from plot_params import get_plot_params
+from minimal_basis.utils import get_plot_params
 
 get_plot_params()
 
