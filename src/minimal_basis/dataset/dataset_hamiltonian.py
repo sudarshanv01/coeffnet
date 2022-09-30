@@ -16,7 +16,8 @@ import torch
 from torch_geometric.data import InMemoryDataset
 
 from minimal_basis.data import DataPoint
-from minimal_basis.utils import separate_graph, sn2_graph, sn2_positions
+from minimal_basis.dataset.utils import generate_graphs_by_method
+from minimal_basis.data._dtype import DTYPE
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ class HamiltonianDataset(InMemoryDataset):
     """Dataset for the Hamiltonian for all species in a reaction."""
 
     GLOBAL_INFORMATION = ["state_fragment"]
-    MOLECULE_INFORMATION = ["positions", "graphs", "irrep"]
+    MOLECULE_INFORMATION = ["positions", "graphs"]
     FEATURE_INFORMATION = ["hamiltonian"]
 
     def __init__(
@@ -57,15 +58,15 @@ class HamiltonianDataset(InMemoryDataset):
 
         super().__init__()
 
+    def len(self):
+        """Return the length."""
+        return len(self.input_data)
+
     def parse_basis_data(self):
         """Parse the basis information from data from basissetexchange.org
         json format to a dict containing the number of s, p and d functions
         for each atom. The resulting dictionary, self.basis_info contains the
         total set of basis functions for each atom.
-
-        TODO: Currently, it is assumed that the number and type of basis functions
-        for each atom is fixed. This might not always be the case, and would need
-        to be verified based on the calculation.
         """
 
         elemental_data = self.basis_info_raw["elements"]
@@ -156,7 +157,20 @@ class HamiltonianDataset(InMemoryDataset):
         return number_basis_list
 
     def get_data(self) -> List[DataPoint]:
-        """Gets data from JSON file and store it in a list of DataPoint objects."""
+        """Gets data from JSON file and store it in a list of DataPoint objects.
+        Conventions:
+        -----------
+        1. Sign of `molecule_id` is used to check the state of the molecule
+           molecules that have a negative `molecule_id` belong to a either
+           the reactants or products and vice versa.
+        2. `indices_of_basis` refers to a list of lists containing the
+           start and stop index of the basis function corresponding to
+           each orbital. That is, it is basis used in the calculations.
+        3. `indices_atom_basis` refers to a list of lists containing the
+           start and stop index of the basis function corresponding to
+           each atom. That is, it is the atomic-basis representation of
+           the Hamiltonian matrix.
+        """
 
         # This function must return a list of Data objects
         # Each reaction corresponds to a Data object
@@ -165,14 +179,7 @@ class HamiltonianDataset(InMemoryDataset):
         # Iterate over the reaction ID and generate a series
         # of Data objects for each reaction. The Data objects
         # would need the position and edge index, and the features
-        # TODO: Currently only implement the Hamiltonian for each
-        # species. The features of this Hamiltonian are dictated
-        # by the number of elements and the chosen basis set.
-
         for reaction_id in self.input_data:
-            # The reaction_id is the key for the reactions database
-            index_prod = 0
-            index_react = 0
 
             # Collect the molecular level information
             molecule_info_collected = defaultdict(dict)
@@ -192,15 +199,6 @@ class HamiltonianDataset(InMemoryDataset):
                 state_fragment = self.input_data[reaction_id][molecule_id][
                     "state_fragments"
                 ]
-                if state_fragment == "initial_state":
-                    index_react -= 1
-                    choose_index = index_react
-                elif state_fragment == "final_state":
-                    index_prod += 1
-                    choose_index = index_prod
-                else:
-                    raise ValueError("State fragment not recognised.")
-                logger.info("State of molecule: {}".format(state_fragment))
 
                 # --- Get molecule level information ---
                 # Get the molecule object
@@ -210,10 +208,10 @@ class HamiltonianDataset(InMemoryDataset):
                 molecule_dict = self.input_data[reaction_id][molecule_id]["molecule"]
                 if state_fragment == "initial_state":
                     molecules_in_reaction["reactants"].append(molecule_dict)
-                    molecules_in_reaction["reactants_index"].append(choose_index)
+                    molecules_in_reaction["reactants_index"].append(molecule_id)
                 elif state_fragment == "final_state":
                     molecules_in_reaction["products"].append(molecule_dict)
-                    molecules_in_reaction["products_index"].append(choose_index)
+                    molecules_in_reaction["products_index"].append(molecule_id)
 
                 molecule = Molecule.from_dict(molecule_dict)
 
@@ -223,90 +221,47 @@ class HamiltonianDataset(InMemoryDataset):
                     _atom_number = ase_data.atomic_numbers[atom_name.symbol]
                     atom_basis_functions.append(self.basis_info[_atom_number])
 
-                # Store an array for the total irrep of the matrix
-                irreps_list = []
-                # Store an array for irrep of each atom, corresponding to the
-                # number of atomic basis functions
-                irreps_atoms_list = []
                 # Create a flattened list of the atom basis functions as well
                 # with repeats of the number of basis functions for each type of
                 # orbital. Useful to map each row of the matrix to a particular
                 # basis function, irrespective of the atom.
                 flattened_atom_basis_functions = []
                 for atom_basis in atom_basis_functions:
-                    tot_number_of_s_atom = atom_basis.count("s")
-                    tot_number_of_p_atom = atom_basis.count("p")
-                    tot_number_of_d_atom = atom_basis.count("d")
-                    tot_number_of_f_atom = atom_basis.count("f")
-                    irreps_atoms = f"{tot_number_of_s_atom}x0e + {tot_number_of_p_atom}x1o + {tot_number_of_d_atom}x2e + {tot_number_of_f_atom}x3o"
-                    irreps_atoms_list.append(irreps_atoms)
                     for basis_function in atom_basis:
-                        irreps_list.append(self.l_to_n_basis[basis_function])
                         # Store the flattened version of the atom basis functions (including repeats)
                         list_flat_rep = [basis_function] * self.BASIS_CONVERTER[
                             basis_function
                         ]
                         flattened_atom_basis_functions.extend(list_flat_rep)
 
-                # Store the irreps for each molecule
-                molecule_info_collected["irrep_atoms"][choose_index] = irreps_atoms_list
                 # Store the flattened atom basis functions
                 molecule_info_collected["atom_basis_functions"][
-                    choose_index
+                    molecule_id
                 ] = flattened_atom_basis_functions
-
-                # Get the indices of the basis functions
-                tot_number_of_s = irreps_list.count(0)
-                tot_number_of_p = irreps_list.count(1)
-                tot_number_of_d = irreps_list.count(2)
-                tot_number_of_f = irreps_list.count(3)
-
-                logger.info(f"Number of s: {tot_number_of_s}")
-                logger.info(f"Number of p: {tot_number_of_p}")
-                logger.info(f"Number of d: {tot_number_of_d}")
-                logger.info(f"Number of f: {tot_number_of_f}")
-                logger.info(
-                    f"Total number of computed: {tot_number_of_s + tot_number_of_p + tot_number_of_d + tot_number_of_f}"
-                )
-                logger.info(f"Irreps required: {len(irreps_list)}")
-
-                # Make sure that the total number of basis functions can be
-                # split into just s, p and d basis functions
-                assert (
-                    tot_number_of_s
-                    + tot_number_of_p
-                    + tot_number_of_d
-                    + tot_number_of_f
-                    == len(irreps_list)
-                )
 
                 # Get the number of basis functions for each atom
                 number_basis_functions = self._string_basis_to_number(
                     atom_basis_functions
                 )
-                logger.debug(f"Number of basis functions: {number_basis_functions}")
 
-                # Sum up all the basis functions
+                # Sum up all the basis functions, will be used to define
+                # all the tensors below.
                 total_basis = np.sum([np.sum(a) for a in number_basis_functions])
                 logger.debug(f"Total basis functions: {total_basis}")
+                molecule_info_collected["total_basis"][molecule_id] = total_basis
 
                 # Get the indices of the basis functions
                 indices_of_basis = self.get_indices_of_basis(number_basis_functions)
                 molecule_info_collected["indices_of_basis"][
-                    choose_index
+                    molecule_id
                 ] = indices_of_basis
 
                 # Get the diagonal elements consisting of each atom
                 indices_atom_basis = self.get_indices_atom_basis(indices_of_basis)
                 logger.debug(f"Indices of atom basis functions: {indices_atom_basis}")
                 molecule_info_collected["indices_atom_basis"][
-                    choose_index
+                    molecule_id
                 ] = indices_atom_basis
-
-                # Finally, store the total irrep
-                irrep = f"{tot_number_of_s}x0e + {tot_number_of_p}x1o + {tot_number_of_d}x2e + {tot_number_of_f}x3o"
-                molecule_info_collected["irrep"][choose_index] = irrep
-                logger.info(f"Irrep: {irrep}")
 
                 # --- Get feauture level information ---
                 logger.info(
@@ -317,8 +272,9 @@ class HamiltonianDataset(InMemoryDataset):
                 # which consist of the intra-atomic basis functions. The
                 # off-diagonal elements are for interactions between
                 # the inter-atomic basis functions.
-                node_H = torch.zeros(total_basis, total_basis, 2, dtype=torch.float)
-                edge_H = torch.zeros(total_basis, total_basis, 2, dtype=torch.float)
+                node_H = torch.zeros(total_basis, total_basis, 2, dtype=DTYPE)
+                edge_H = torch.zeros(total_basis, total_basis, 2, dtype=DTYPE)
+
                 for spin_index, spin in enumerate(["alpha", "beta"]):
                     # Get the Hamiltonian for each spin
                     if spin == "beta":
@@ -343,7 +299,7 @@ class HamiltonianDataset(InMemoryDataset):
                         ]
 
                     # Make sure the Hamiltonian is a tensor
-                    hamiltonian = torch.tensor(hamiltonian, dtype=torch.float)
+                    hamiltonian = torch.tensor(hamiltonian, dtype=DTYPE)
                     logger.info(f"Hamiltonian shape: {hamiltonian.shape}")
                     # Make sure that the total number of basis functions equals the shape of the Hamiltonian
                     assert total_basis == hamiltonian.shape[0] == hamiltonian.shape[1]
@@ -357,123 +313,21 @@ class HamiltonianDataset(InMemoryDataset):
 
                 # Store both the node and edge attributes in the dictionary
                 # which are essentially just different parts of the Hamiltonian.
-                molecule_info_collected["x"][choose_index] = node_H
-                molecule_info_collected["edge_attr"][choose_index] = edge_H
+                molecule_info_collected["x"][molecule_id] = node_H
+                molecule_info_collected["edge_attr"][molecule_id] = edge_H
 
                 # --- Get the output information and store that in the node
                 y = self.input_data[reaction_id][molecule_id]["transition_state_energy"]
 
-            # Generate a separate graph for each reactant and product.
-            # There are several possibilities to generate such a graph
-            # so depending on the option selected, the relative ordering
-            # of the dict may change, this is expected behaviour.
-            if self.graph_generation_method == "separate":
-                # Generate an internally fully connected graph between
-                # each atom in a specific molecule. Separate molecules
-                # are not linked to each other.
-
-                # Keep a tab on the index of the molecule
-                starting_index = 0
-
-                # There is no separation between reactants and products
-                # with this method, but since they are stored in separate
-                # entries in the dictionary, this is not a problem.
-                for states in ["reactants", "products"]:
-                    molecules_list = molecules_in_reaction[states]
-                    choose_indices = molecules_in_reaction[states + "_index"]
-
-                    for k, choose_index in enumerate(choose_indices):
-                        # Choose the corresponding molecule
-                        molecule = Molecule.from_dict(molecules_list[k])
-
-                        # Construct a graph from the molecule object, each node
-                        # of the graph is connected with every other node.
-                        edge_index, _, delta_starting_index = separate_graph(
-                            molecule,
-                            starting_index=starting_index,
-                        )
-
-                        # Get the positions of the molecule (these are cartesian coordinates)
-                        pos = [list(a.coords) for a in molecule]
-
-                        molecule_info_collected["pos"][choose_index] = pos
-
-                        # if edge_index is empty, then it is monoatomic and hence
-                        # the edges must be connected to themselves.
-                        if len(edge_index) == 0:
-                            edge_index = [[starting_index], [starting_index]]
-                        # Move the starting index so that the next molecule comes after
-                        # this molecule.
-                        starting_index += delta_starting_index
-                        molecule_info_collected["edge_index"][choose_index] = edge_index
-
-            elif self.graph_generation_method == "sn2":
-                # In this generation scheme, the reactant and product are
-                # have separate graphs which are connected to each other
-                # the positions of each fragments have to altered
-
-                # Keep a tab on the index of the molecule
-                starting_index = 0
-
-                # This dictionary creates a mapping between the edges
-                # list, which is a cumulative list of all the edges
-                # and the molecule from which they came from.
-                edge_molecule_mapping = {}
-                # This dictionary creates a mapping between the edges
-                # list and the internal index of the molecule.
-                edge_internal_mol_mapping = {}
-
-                # There is no separation between reactants and products
-                # with this method, but since they are stored in separate
-                # entries in the dictionary, this is not a problem.
-                for states in ["reactants", "products"]:
-                    molecules_list = molecules_in_reaction[states]
-                    # Convert each molecule_list to a molecule
-                    molecules_list = [
-                        Molecule.from_dict(molecule) for molecule in molecules_list
-                    ]
-                    choose_indices = molecules_in_reaction[states + "_index"]
-                    # Create a dict between molecule_list and choose_indices
-                    molecule_dict = {}
-                    for k, choose_index in enumerate(choose_indices):
-                        molecule_dict[choose_index] = molecules_list[k]
-
-                    # Reorder the molecular positions
-                    molecules_list = sn2_positions(molecules_list)
-
-                    # Generate the graph based on the sn2 method
-                    (
-                        edge_index,
-                        _,
-                        delta_starting_index,
-                        edge_molecule_mapping_,
-                        edge_internal_mol_mapping_,
-                    ) = sn2_graph(
-                        molecule_dict,
-                        starting_index=starting_index,
-                    )
-                    edge_molecule_mapping.update(edge_molecule_mapping_)
-                    edge_internal_mol_mapping.update(edge_internal_mol_mapping_)
-
-                    starting_index += delta_starting_index
-
-                    for k, choose_index in enumerate(choose_indices):
-
-                        # Choose the corresponding molecule
-                        molecule = molecules_list[k]
-
-                        # Get the positions of the molecule (these are cartesian coordinates)
-                        pos = [list(a.coords) for a in molecule]
-                        molecule_info_collected["pos"][choose_index] = pos
-
-                        # Store the edge_index for only one of the molecules
-                        # because they will be the same
-                        if k == 0:
-                            molecule_info_collected["edge_index"][
-                                choose_index
-                            ] = edge_index
-                        else:
-                            molecule_info_collected["edge_index"][choose_index] = None
+            # Store information about the graph based on the generation method.
+            (
+                edge_molecule_mapping,
+                edge_internal_mol_mapping,
+            ) = generate_graphs_by_method(
+                graph_generation_method=self.graph_generation_method,
+                molecules_in_reaction=molecules_in_reaction,
+                molecule_info_collected=molecule_info_collected,
+            )
 
             datapoint = DataPoint(
                 pos=molecule_info_collected["pos"],
@@ -481,8 +335,6 @@ class HamiltonianDataset(InMemoryDataset):
                 edge_attr=molecule_info_collected["edge_attr"],
                 x=molecule_info_collected["x"],
                 y=y,
-                irrep=molecule_info_collected["irrep"],
-                irrep_atoms=molecule_info_collected["irrep_atoms"],
                 indices_of_basis=molecule_info_collected["indices_of_basis"],
                 atom_basis_functions=molecule_info_collected["atom_basis_functions"],
                 indices_atom_basis=molecule_info_collected["indices_atom_basis"],
@@ -490,45 +342,13 @@ class HamiltonianDataset(InMemoryDataset):
                 edge_internal_mol_mapping=edge_internal_mol_mapping,
             )
 
-            # Validate the datapoint structure.
-            self._validate_datapoint(datapoint)
-
             logging.info("Datapoint:")
             logging.info(datapoint)
-            logging.info("-------")
 
             # Store the datapoint in a list
             datapoint_list.append(datapoint)
 
         return datapoint_list
-
-    def _validate_datapoint(cls, datapoint: DataPoint) -> None:
-        """Check if everything is validated for the datapoint."""
-        x = datapoint.x
-        # x should be a dictionary composed of square tensors.
-        n_react = 0
-        n_prod = 0
-        for react_index in x:
-            assert (
-                x[react_index].shape[0] == x[react_index].shape[1]
-            ), "x should be a square tensor."
-            assert x[react_index].shape[-1] == 2, "Spin dimension should be 2"
-
-            if react_index < 0:
-                n_react += len(x[react_index])
-            elif react_index > 0:
-                n_prod += len(x[react_index])
-            else:
-                raise ValueError(
-                    "Reactant index should be negative and product index should be positive."
-                )
-
-        assert (
-            n_react == n_prod
-        ), "Number of reactant atoms should be equal to number of product atoms."
-
-        # Make sure that the y-data is a scalar
-        assert datapoint.y.shape == torch.Size([]), "y should be a scalar."
 
     def split_matrix_node_edge(cls, matrix, indices_of_basis):
         """Split the matrix into node and edge features."""

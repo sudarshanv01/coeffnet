@@ -112,6 +112,7 @@ def sn2_reaction_input():
             fock_matrix_B = (fock_matrix_B + fock_matrix_B.T) / 2
             fock_matrix_Y = np.random.rand(basis_functions_Y, basis_functions_Y)
             fock_matrix_Y = (fock_matrix_Y + fock_matrix_Y.T) / 2
+
             # Store the fock matrix in the input data.
             input_data[label_reaction][-2]["alpha_fock_matrix"] = fock_matrix_A.tolist()
             input_data[label_reaction][-2]["beta_fock_matrix"] = fock_matrix_A.tolist()
@@ -121,6 +122,16 @@ def sn2_reaction_input():
             input_data[label_reaction][1]["beta_fock_matrix"] = fock_matrix_B.tolist()
             input_data[label_reaction][2]["alpha_fock_matrix"] = fock_matrix_Y.tolist()
             input_data[label_reaction][2]["beta_fock_matrix"] = fock_matrix_Y.tolist()
+
+            # Make up a set of random charges for each atom centre
+            charges_A = np.random.rand(len(species_A))
+            charges_X = np.random.rand(len(species_X))
+            charges_B = np.random.rand(len(species_B))
+            charges_Y = np.random.rand(len(species_Y))
+            input_data[label_reaction][-2]["atom_charge"] = charges_A.tolist()
+            input_data[label_reaction][-1]["atom_charge"] = charges_X.tolist()
+            input_data[label_reaction][1]["atom_charge"] = charges_B.tolist()
+            input_data[label_reaction][2]["atom_charge"] = charges_Y.tolist()
 
     # The input file for the tests.
     testing_path = get_testing_path()
