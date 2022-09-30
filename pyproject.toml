@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "minimal_basis"
-version = "0.0.1"
+version = "0.0.2"
 authors = [
   { name="Sudarshan Vijay", email="svijay@lbl.gov" },
 ]
@@ -16,3 +16,11 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config"]
+xfail_strict = true
+filterwarnings = ["error"]
+log_cli_level = "warning"
+testpaths = ["tests"]

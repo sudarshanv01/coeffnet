@@ -31,7 +31,7 @@ class HamiltonianDataset(InMemoryDataset):
     def __init__(
         self,
         filename: Union[str, Path],
-        basis_file: Dict[str, int],
+        basis_file: Union[str, Path],
         graph_generation_method: str = "separate",
     ):
         self.filename = filename

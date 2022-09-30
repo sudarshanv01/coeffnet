@@ -15,9 +15,9 @@ from pymatgen.core.structure import Molecule
 import networkx as nx
 import matplotlib.pyplot as plt
 
-from data import DataPoint
+from minimal_basis.data import DataPoint
 
-from utils import separate_graph, sn2_graph, sn2_positions
+from minimal_basis.utils import separate_graph, sn2_graph, sn2_positions
 
 
 class ChargeDataset(InMemoryDataset):
