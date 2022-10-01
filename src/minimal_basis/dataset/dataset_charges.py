@@ -8,15 +8,16 @@ from ase import data as ase_data
 
 import numpy as np
 
-from torch_geometric.data import InMemoryDataset
-
 from pymatgen.core.structure import Molecule
 
-import networkx as nx
-import matplotlib.pyplot as plt
+import torch
+
+from torch_geometric.data import InMemoryDataset
 
 from minimal_basis.data import DataPoint
 from minimal_basis.dataset.utils import generate_graphs_by_method
+
+logger = logging.getLogger(__name__)
 
 
 class ChargeDataset(InMemoryDataset):
@@ -25,16 +26,39 @@ class ChargeDataset(InMemoryDataset):
     MOLECULE_INFORMATION = ["positions", "graphs"]
     FEATURE_INFORMATION = ["charges"]
 
-    def __init__(self, filename: str, graph_generation_method: str = "sn2"):
+    def __init__(
+        self,
+        root: str,
+        transform: str = None,
+        pre_transform: bool = None,
+        pre_filter: bool = None,
+        filename: str = None,
+        graph_generation_method: str = "sn2",
+    ):
         """Dataset for charges (a single float) as node features."""
+
         self.filename = filename
         self.graph_generation_method = graph_generation_method
         self.logging = logging.getLogger(__name__)
 
-        super().__init__()
+        super().__init__(
+            root=root,
+            transform=transform,
+            pre_transform=pre_transform,
+            pre_filter=pre_filter,
+        )
 
-    def load_data(self):
+    @property
+    def raw_file_names(self):
+        return "input.json"
+
+    @property
+    def processed_file_names(self):
+        return "data.pt"
+
+    def download(self):
         """Load data from json file."""
+        logger.info("Loading data from json file.")
         with open(self.filename) as f:
             self.input_data = json.load(f)
         self.logging.info("Successfully loaded json file with data.")
@@ -43,7 +67,7 @@ class ChargeDataset(InMemoryDataset):
         """Get the length of the dataset."""
         return len(self.input_data)
 
-    def get_data(self):
+    def process(self):
         """Get the data from the json file."""
 
         # This function must return a list of Data objects
@@ -117,4 +141,14 @@ class ChargeDataset(InMemoryDataset):
             # Store the datapoint in a list
             datapoint_list.append(datapoint)
 
-        return datapoint_list
+        self.data = datapoint_list
+        # Save the dataset
+        torch.save(self.data, self.processed_paths[0])
+
+    def __repr__(self):
+        """Print the dataset."""
+        return "{}({})".format(self.__class__.__name__, len(self))
+
+    def get(self, idx: int):
+        """Get the data from the dataset."""
+        return self.data[idx]

@@ -38,46 +38,47 @@ class DataPoint(Data):
 
         if pos is not None:
             tensor_pos = []
+            for state_index in sorted(pos):
+                if pos[state_index] is not None:
+                    tensor_pos.extend(pos[state_index])
+            tensor_pos = torch.as_tensor(tensor_pos, dtype=DTYPE)
+            num_nodes = tensor_pos.shape[0]
         else:
             tensor_pos = None
+            num_nodes = 0
+
         if x is not None:
             tensor_x = {}
+            for state_index in sorted(x):
+                tensor_x[state_index] = torch.as_tensor(x[state_index], dtype=DTYPE)
         else:
             tensor_x = None
+
         if edge_index is not None:
             tensor_edge_index = [[], []]
+            for state_index in sorted(edge_index):
+                if edge_index[state_index] is not None:
+                    edge_scr, edge_dest = edge_index[state_index]
+                    tensor_edge_index[0].extend(edge_scr)
+                    tensor_edge_index[1].extend(edge_dest)
         else:
             tensor_edge_index = None
+
         if edge_attr is not None:
             tensor_edge_attr = {}
-        else:
-            tensor_edge_attr = None
-
-        # This for loop assumes that the keys of pos, edge_index, and x are the same.
-        # The sort function makes sure that the order of the molecules in the reaction
-        # (from reactant to product) are always maintained.
-        for state_index in sorted(pos):
-            if pos[state_index] is not None:
-                tensor_pos.extend(pos[state_index])
-
-            if edge_index[state_index] is not None:
-                edge_scr, edge_dest = edge_index[state_index]
-                tensor_edge_index[0].extend(edge_scr)
-                tensor_edge_index[1].extend(edge_dest)
-
-            if x is not None:
-                # Apply the same treatment to the x.
-                tensor_x[state_index] = torch.as_tensor(x[state_index], dtype=DTYPE)
-
-            if edge_attr is not None:
+            for state_index in sorted(edge_attr):
                 # Apply the same treatment to the edge_attr.
                 tensor_edge_attr[state_index] = torch.as_tensor(
                     edge_attr[state_index],
                     dtype=DTYPE,
                 )
+        else:
+            tensor_edge_attr = None
 
         if isinstance(y, torch.Tensor):
             tensor_y = y
+        elif y == None:
+            tensor_y = None
         else:
             tensor_y = torch.as_tensor(y, dtype=DTYPE)
 
@@ -94,15 +95,6 @@ class DataPoint(Data):
         # Convert tensor_edge_index to a tensor
         if tensor_edge_index is not None:
             tensor_edge_index = torch.as_tensor(tensor_edge_index, dtype=DTYPE_INT)
-
-        # Number of nodes the the total length of positions
-        if tensor_pos is not None:
-            tensor_pos = torch.as_tensor(tensor_pos, dtype=DTYPE)
-
-        if tensor_pos is not None:
-            num_nodes = tensor_pos.shape[0]
-        else:
-            num_nodes = 0
 
         super().__init__(
             num_nodes=num_nodes,

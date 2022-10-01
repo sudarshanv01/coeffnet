@@ -13,8 +13,6 @@ from e3nn.math import soft_one_hot_linspace
 
 from minimal_basis.dataset.dataset_hamiltonian import HamiltonianDataset
 
-import matplotlib.pyplot as plt
-
 
 class HamiltonianModel(MessagePassing):
     """Create a neural network model to predict
