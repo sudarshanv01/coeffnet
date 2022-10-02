@@ -62,7 +62,7 @@ class ChargeModel(MessagePassing):
             out += self.bias
 
             # Save the output
-            output[i] = out.sum()
+            output[i] = torch.abs(out.sum())
 
         return output
 
