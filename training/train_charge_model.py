@@ -33,7 +33,7 @@ if __name__ == "__main__":
     folder_string = "charge_" + today.strftime("%Y%m%d_%H%M%S")
 
     # Read in the dataset inputs.
-    JSON_FILE = "input_files/output_QMrxn20_debug.json"
+    JSON_FILE = "input_files/output_QMrxn20_calc.json"
     CHECKPOINT_FOLDER = "charge_checkpoints"
     PLOT_FOLDER = f"plots/{folder_string}"
     GRAPH_GENERTION_METHOD = "sn2"

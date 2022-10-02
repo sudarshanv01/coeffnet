@@ -13,7 +13,7 @@ if __name__ == "__main__":
 
     LOGFILES_FOLDER = "log_files"
     logging.basicConfig(
-        filename=os.path.join(LOGFILES_FOLDER, "model.log"),
+        filename=os.path.join(LOGFILES_FOLDER, "hamiltonian_model.log"),
         filemode="w",
         level=logging.INFO,
     )
@@ -27,12 +27,12 @@ if __name__ == "__main__":
 
     # Prefix tag to the output folders
     today = datetime.datetime.now()
-    folder_string = today.strftime("%Y%m%d_%H%M%S")
+    folder_string = "hamiltonian_" + today.strftime("%Y%m%d_%H%M%S")
 
     # Read in the dataset inputs.
-    JSON_FILE = "input_files/output_QMrxn20_debug.json"
+    JSON_FILE = "input_files/output_QMrxn20_calc.json"
     BASIS_FILE = "input_files/sto-3g.json"
-    CHECKPOINT_FOLDER = "checkpoints"
+    CHECKPOINT_FOLDER = "hamiltonian_checkpoints"
     PLOT_FOLDER = f"plots/{folder_string}"
     GRAPH_GENERTION_METHOD = "sn2"
 
