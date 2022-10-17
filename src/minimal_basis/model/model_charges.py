@@ -5,6 +5,8 @@ logger = logging.getLogger(__name__)
 
 import torch
 from torch import nn
+from torch.nn import Sequential as Seq, Linear, ReLU, Softmax
+
 from torch_geometric.utils import add_self_loops, degree
 from torch_geometric.nn import MessagePassing
 
@@ -14,57 +16,61 @@ class ChargeModel(MessagePassing):
         """Create a graph convolution neural network model
         to predict the activation barrier using the charges
         on the atoms."""
-        super().__init__(aggr="add")
+        super().__init__(aggr="add", node_dim=-1)
 
         # Construct the neural network
+        # Note that for the first linear layer we have to
+        # keep the in_channels as an input because the number of
+        # channels is not fixed (different molecules can have different atoms).
         self.lin = lambda in_channels: nn.Linear(in_channels, out_channels, bias=False)
         self.bias = nn.Parameter(torch.Tensor(out_channels))
 
     def forward(self, dataset):
         """Forward pass of the Neural Network."""
 
-        output = torch.zeros(dataset.len())
+        # Get slices of data
+        slices = dataset.slices
 
-        for i, datapoint in enumerate(dataset.data):
-            # Iterate over each graph.
+        # Get the data itself
+        data = dataset.data
 
-            x = datapoint.x
-            edge_index = datapoint.edge_index
+        # Splice up the different data sections to get the
+        # different parts of the data.
+        all_x = torch.tensor_split(data.x, slices["x"][1:-1])
+        all_edge_index = torch.tensor_split(data.edge_index, slices["x"][1:-1], dim=-1)
+        all_pos = torch.tensor_split(data.pos, slices["pos"][1:-1], dim=-1)
 
-            collated_x = torch.zeros(datapoint.num_nodes)
-            overall_index = 0
-            for j, react_index in enumerate(x):
-                x_molecule = x[react_index]
-                collated_x[
-                    overall_index : overall_index + x_molecule.shape[0]
-                ] = x_molecule
-                overall_index += x_molecule.shape[0]
+        # Loop over all the data points
+        all_y_pred = torch.zeros(len(all_x))
 
-            collated_x = collated_x.view(-1, 1)
+        for i, (x, edge_index, pos) in enumerate(zip(all_x, all_edge_index, all_pos)):
 
-            # Add self-loops to the graph
-            edge_index, _ = add_self_loops(edge_index, num_nodes=collated_x.size(1))
-
-            # Linear transformation of the node features
-            lin = self.lin(collated_x.size(1))
-            collated_x = lin(collated_x)
-
-            # Complete normalization
+            # Add self-loops to the graph.
+            edge_index, _ = add_self_loops(edge_index, num_nodes=x.size(0))
             row, col = edge_index
-            deg = degree(col, collated_x.size(0), dtype=collated_x.dtype)
+
+            # Construct the first linear layer
+            lin = self.lin(x.shape[0])
+
+            # Linear transformation to the node features.
+            x = lin(x)
+
+            # Compute the degree.
+            deg = degree(col, num_nodes=x.size(0), dtype=x.dtype)
             deg_inv_sqrt = deg.pow(-0.5)
+            deg_inv_sqrt[deg_inv_sqrt == float("inf")] = 0
             norm = deg_inv_sqrt[row] * deg_inv_sqrt[col]
 
-            # Propagate the charges
-            out = self.propagate(edge_index, x=collated_x, norm=norm)
+            # Propogate the message
+            out = self.propagate(edge_index, x=x, norm=norm)
 
-            # Add the bias
-            out += self.bias
+            # Apply a final bias layer
+            out = out + self.bias
 
-            # Save the output
-            output[i] = out.sum()
+            # Sum up all the contributions to the activation barrier
+            all_y_pred[i] = out.sum()
 
-        return output
+        return all_y_pred
 
     def message(self, x_j, norm):
         """Message function for the graph convolution."""

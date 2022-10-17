@@ -15,15 +15,27 @@ from minimal_basis.data._dtype import (
 
 
 class DataPoint(Data):
-    """Base class for creating a reaction data point. This class
-    is common to any scheme where the reaction is desired to be the
-    datapoint. Because it is a reaction we are describing, every
-    input is a dictionary.
+    """Base class for creating a reaction Data object.
 
-    The key of the dictionary corresponds to the ordering of the
-    molecular fragments in the reaction. If the sign of the key
-    is negative, the fragment is a reactant. If the sign is positive,
-    the fragment is a product.
+    The main idea is to take the information from the elements
+    from the reaction and store them in tensors, keeping track
+    of which elements belong to which molecule and which state.
+
+    Parameters
+    ----------
+    pos : Dict[str, npt.ArrayLike]
+        The positions of the atoms in a molecule. The keys represent
+        the state index and the values are the positions of the atoms
+        in the molecule in that state.
+    edge_index : Dict[str, npt.ArrayLike]
+        The index of the edge between two atoms.
+    x : Dict[str, npt.ArrayLike]
+        The features of the atoms in a molecule.
+    edge_attr : Dict[str, npt.ArrayLike]
+        The features of the edges between atoms.
+    y : npt.ArrayLike
+        The activation energy of the reaction.
+
     """
 
     def __init__(
@@ -37,21 +49,32 @@ class DataPoint(Data):
     ):
 
         if pos is not None:
+            # Convert the positions to a tensor.
             tensor_pos = []
             for state_index in sorted(pos):
                 if pos[state_index] is not None:
                     tensor_pos.extend(pos[state_index])
+
             tensor_pos = torch.as_tensor(tensor_pos, dtype=DTYPE)
+
+            # The total number of nodes are the number of atoms in the
+            # molecule for each state.
             num_nodes = tensor_pos.shape[0]
+
         else:
+            # If there are no positions supplied, then there are no nodes
+            # and here the number of nodes is set to zero.
             tensor_pos = None
             num_nodes = 0
 
         if x is not None:
-            tensor_x = {}
+            # The features of the nodes are stored in a tensor.
+            tensor_x = []
             for state_index in sorted(x):
-                tensor_x[state_index] = torch.as_tensor(x[state_index], dtype=DTYPE)
+                tensor_x.extend(x[state_index])
+            tensor_x = torch.as_tensor(tensor_x, dtype=DTYPE)
         else:
+            # If there are no features supplied
             tensor_x = None
 
         if edge_index is not None:
@@ -61,17 +84,17 @@ class DataPoint(Data):
                     edge_scr, edge_dest = edge_index[state_index]
                     tensor_edge_index[0].extend(edge_scr)
                     tensor_edge_index[1].extend(edge_dest)
+            # Convert tensor_edge_index to a tensor
+            tensor_edge_index = torch.as_tensor(tensor_edge_index, dtype=DTYPE_INT)
         else:
             tensor_edge_index = None
 
         if edge_attr is not None:
-            tensor_edge_attr = {}
+            tensor_edge_attr = []
             for state_index in sorted(edge_attr):
                 # Apply the same treatment to the edge_attr.
-                tensor_edge_attr[state_index] = torch.as_tensor(
-                    edge_attr[state_index],
-                    dtype=DTYPE,
-                )
+                tensor_edge_attr[state_index].append(edge_attr[state_index])
+            tensor_edge_attr = torch.as_tensor(tensor_edge_attr, dtype=DTYPE)
         else:
             tensor_edge_attr = None
 
@@ -91,10 +114,6 @@ class DataPoint(Data):
                     f" `{type(v)}`."
                 )
             tensor_kwargs[k] = v
-
-        # Convert tensor_edge_index to a tensor
-        if tensor_edge_index is not None:
-            tensor_edge_index = torch.as_tensor(tensor_edge_index, dtype=DTYPE_INT)
 
         super().__init__(
             num_nodes=num_nodes,

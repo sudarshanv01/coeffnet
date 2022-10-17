@@ -30,7 +30,7 @@ def test_charge_dataset_sn2_graph(sn2_reaction_input):
 
 
 def test_charge_datapoint_sn2_graph(sn2_reaction_input):
-    """Check the charge dataPoint."""
+    """Check the charge datapoint."""
     filename = sn2_reaction_input
 
     # Create the Hamiltonian dataset.
@@ -41,26 +41,17 @@ def test_charge_datapoint_sn2_graph(sn2_reaction_input):
         graph_generation_method=GRAPH_GENERTION_METHOD,
     )
 
+    # Initiate the process of creating the dataset.
     dataset.process()
 
-    for datapoint in dataset.data:
-        x = datapoint.x
-        # x should be a dictionary composed of square tensors.
-        n_react = 0
-        n_prod = 0
-        for react_index in x:
-            if int(react_index) < 0:
-                n_react += len(x[react_index])
-            elif int(react_index) > 0:
-                n_prod += len(x[react_index])
-            assert react_index != 0, "Index should not be 0."
+    # All the datasets are concatenated with each other.
+    datapoint = dataset.data
 
-        assert (
-            n_react == n_prod
-        ), "Number of reactant atoms should be equal to number of product atoms."
-
-        # Make sure that the y-data is a scalar
-        assert datapoint.y.shape == torch.Size([]), "y should be a scalar."
+    # Make sure that datapoint contains all the information.
+    assert datapoint.num_nodes is not None
+    assert datapoint.edge_index is not None
+    assert datapoint.y is not None
+    assert datapoint.pos is not None
 
 
 def test_charge_model_sn2_graph(sn2_reaction_input):
@@ -77,7 +68,7 @@ def test_charge_model_sn2_graph(sn2_reaction_input):
     dataset.process()
 
     # Instantiate the model.
-    model = ChargeModel(out_channels=1)
+    model = ChargeModel(out_channels=40)
 
     # Make sure the forward pass works.
     output = model(dataset)

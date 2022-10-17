@@ -1,4 +1,5 @@
 import os
+from pickletools import pyset
 import random
 from collections import defaultdict
 
@@ -6,11 +7,11 @@ import pytest
 
 import numpy as np
 
-from monty.serialization import dumpfn
+from monty.serialization import loadfn, dumpfn
 from pymatgen.core.structure import Molecule
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def sn2_reaction_input():
     """Prepare SN2 reaction input."""
 
@@ -152,6 +153,32 @@ def sn2_reaction_input():
     dumpfn(input_data, input_json_file)
 
     return input_json_file
+
+
+def get_benchmark_y_data():
+    """Get the benchmark data for the SN2 reaction.
+
+    Returns:
+        benchmark_y_data (dict): The benchmark data for the SN2 reaction.
+
+    """
+    # The benchmark data for the tests.
+    testing_path = get_testing_path()
+    benchmark_y_data_file = os.path.join(
+        testing_path, "inputs", "sn2_test_data", "input.json"
+    )
+
+    # Load the benchmark data.
+    benchmark_y_data = loadfn(benchmark_y_data_file)
+
+    all_transition_state = []
+
+    for reaction in benchmark_y_data:
+        all_transition_state.append(
+            benchmark_y_data[reaction]["-2"]["transition_state_energy"]
+        )
+
+    return set(all_transition_state)
 
 
 def get_basis_file_info(basis_set: str = "sto-3g"):

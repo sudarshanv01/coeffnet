@@ -90,17 +90,17 @@ class ChargeDataset(InMemoryDataset):
                 # --- Get state (global) level information ---
                 # Get the state of the molecule, i.e., does it
                 # belong to the initial or final state of the reaction?
-                self.logging.info(
+                self.logging.debug(
                     f"--- Global level information: {self.GLOBAL_INFORMATION}"
                 )
                 state_fragment = self.input_data[reaction_id][molecule_id][
                     "state_fragments"
                 ]
-                self.logging.info("State of molecule: {}".format(state_fragment))
+                self.logging.debug("State of molecule: {}".format(state_fragment))
 
                 # --- Get molecule level information ---
                 # Get the molecule object
-                self.logging.info(
+                self.logging.debug(
                     f"--- Molecule level information: {self.MOLECULE_INFORMATION}"
                 )
                 molecule_dict = self.input_data[reaction_id][molecule_id]["molecule"]
@@ -141,9 +141,13 @@ class ChargeDataset(InMemoryDataset):
             # Store the datapoint in a list
             datapoint_list.append(datapoint)
 
-        self.data = datapoint_list
+        # Store the list of datapoints in the dataset
+        data, slices = self.collate(datapoint_list)
+        self.data = data
+        self.slices = slices
+
         # Save the dataset
-        torch.save(self.data, self.processed_paths[0])
+        torch.save((data, slices), self.processed_paths[0])
 
     def __repr__(self):
         """Print the dataset."""
