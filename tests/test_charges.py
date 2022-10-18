@@ -68,7 +68,7 @@ def test_charge_model_sn2_graph(sn2_reaction_input):
     dataset.process()
 
     # Instantiate the model.
-    model = ChargeModel(out_channels=40)
+    model = ChargeModel()
 
     # Make sure the forward pass works.
     output = model(dataset)
