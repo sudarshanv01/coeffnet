@@ -5,16 +5,19 @@ logger = logging.getLogger(__name__)
 
 import torch
 from torch import nn
-from torch.nn import Sequential as Seq, Linear, ReLU, Softmax
+import torch.nn.functional as F
 
 from torch_geometric.utils import add_self_loops, degree
 from torch_geometric.nn import MessagePassing
 
 
 class GCNConv(MessagePassing):
-    def __init__(self, in_channels: int, out_channels: int):
+    def __init__(self, in_channels: int, out_channels: int, **kwargs):
         """Message passing graph convolutional network."""
         super().__init__(aggr="add", node_dim=-1)
+
+        # Get the device from the kwargs
+        self.device = kwargs.get("device", "cpu")
 
         # Construct the neural network
         # Note that for the first linear layer we have to
@@ -46,7 +49,7 @@ class GCNConv(MessagePassing):
         out = out + self.bias
 
         # Make out into the right dimension by summing
-        out = out.sum(dim=0)
+        out = out.mean(dim=0)
 
         return out
 
@@ -56,20 +59,33 @@ class GCNConv(MessagePassing):
 
 
 class ChargeModel(nn.Module):
-    def __init__(self):
+    def __init__(self, **kwargs):
         """Create a graph convolution neural network model
         to predict the activation barrier using the charges
         on the atoms."""
         super().__init__()
 
-        self.hidden_channel_1 = 64
-        self.hidden_channel_2 = 64
-        self.out_channels = 64
+        # Check if a device is specified
+        self.device = kwargs.get("device", "cpu")
+
+        self.hidden_channel_1 = kwargs.get("hidden_channel_1", 64)
+        self.hidden_channel_2 = kwargs.get("hidden_channel_2", 64)
+        self.out_channels = kwargs.get("out_channels", 64)
 
         # Create a series of graph convolutional layers
-        self.conv1 = lambda in_channels: GCNConv(in_channels, self.hidden_channel_1)
-        self.conv2 = GCNConv(self.hidden_channel_1, self.hidden_channel_2)
-        self.conv3 = GCNConv(self.hidden_channel_2, self.out_channels)
+        self.conv1 = lambda in_channels: GCNConv(
+            in_channels, self.hidden_channel_1, device=self.device
+        )
+        self.conv2 = GCNConv(
+            self.hidden_channel_1, self.hidden_channel_2, device=self.device
+        )
+        self.conv3 = GCNConv(
+            self.hidden_channel_2, self.out_channels, device=self.device
+        )
+
+        # Transfer the model to the GPU
+        self.conv2.to(self.device)
+        self.conv3.to(self.device)
 
     def forward(self, dataset):
         """Forward pass of the Neural Network."""
@@ -91,11 +107,23 @@ class ChargeModel(nn.Module):
 
         for i, (x, edge_index, pos) in enumerate(zip(all_x, all_edge_index, all_pos)):
 
+            # Move the data to the GPU
+            edge_index = edge_index.to(self.device)
+
             # Get the number of atoms in the molecule
             num_atoms = x.size(0)
 
-            out_conv1 = self.conv1(num_atoms)(x, edge_index)
+            conv1 = self.conv1(num_atoms)
+            out_conv1 = conv1(x, edge_index)
+            # Apply non-linearity
+            out_conv1 = torch.sigmoid(out_conv1)
+            # Apply dropout
+            # out_conv1 = F.dropout(out_conv1, p=0.5, training=self.training)
             out_conv2 = self.conv2(out_conv1, edge_index)
+            # Apply non-linearity
+            out_conv2 = torch.sigmoid(out_conv2)
+
+            # Linear layer to get the output
             out_conv3 = self.conv3(out_conv2, edge_index)
 
             # Get the predicted activation barrier

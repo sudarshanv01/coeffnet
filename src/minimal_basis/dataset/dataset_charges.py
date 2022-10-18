@@ -63,10 +63,6 @@ class ChargeDataset(InMemoryDataset):
             self.input_data = json.load(f)
         self.logging.info("Successfully loaded json file with data.")
 
-    def len(self):
-        """Get the length of the dataset."""
-        return len(self.input_data)
-
     def process(self):
         """Get the data from the json file."""
 
@@ -148,11 +144,3 @@ class ChargeDataset(InMemoryDataset):
 
         # Save the dataset
         torch.save((data, slices), self.processed_paths[0])
-
-    def __repr__(self):
-        """Print the dataset."""
-        return "{}({})".format(self.__class__.__name__, len(self))
-
-    def get(self, idx: int):
-        """Get the data from the dataset."""
-        return self.data[idx]
