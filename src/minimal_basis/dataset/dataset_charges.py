@@ -1,4 +1,4 @@
-import json
+import copy
 from typing import Dict, Union, List, Tuple
 import logging
 
@@ -13,6 +13,8 @@ from pymatgen.core.structure import Molecule
 import torch
 
 from torch_geometric.data import InMemoryDataset
+
+from monty.serialization import loadfn
 
 from minimal_basis.data import DataPoint
 from minimal_basis.dataset.utils import generate_graphs_by_method
@@ -59,8 +61,7 @@ class ChargeDataset(InMemoryDataset):
     def download(self):
         """Load data from json file."""
         logger.info("Loading data from json file.")
-        with open(self.filename) as f:
-            self.input_data = json.load(f)
+        self.input_data = loadfn(self.filename)
         self.logging.info("Successfully loaded json file with data.")
 
     def process(self):
@@ -70,7 +71,9 @@ class ChargeDataset(InMemoryDataset):
         # Each reaction corresponds to a Data object
         datapoint_list = []
 
-        for reaction_id in self.input_data:
+        for reaction_idx, input_data_ in enumerate(self.input_data):
+
+            input_data = copy.deepcopy(input_data_)
 
             # Collect the molecular level information
             molecule_info_collected = defaultdict(dict)
@@ -79,7 +82,16 @@ class ChargeDataset(InMemoryDataset):
             # that the graph creation process is flexible
             molecules_in_reaction = defaultdict(list)
 
-            for molecule_id in self.input_data[reaction_id]:
+            # The label for this reaction
+            label = input_data.pop("label")
+
+            # --- Get the output information and store that in the node
+            y = input_data.pop("transition_state_energy")
+
+            # --- Get the global information
+            global_information = input_data.pop("reaction_energy")
+
+            for molecule_id in input_data:
                 # Prepare the information for each molecule, this forms
                 # part of the graph that is making up the DataPoint.
 
@@ -89,9 +101,7 @@ class ChargeDataset(InMemoryDataset):
                 self.logging.debug(
                     f"--- Global level information: {self.GLOBAL_INFORMATION}"
                 )
-                state_fragment = self.input_data[reaction_id][molecule_id][
-                    "state_fragments"
-                ]
+                state_fragment = input_data[molecule_id]["state_fragments"]
                 self.logging.debug("State of molecule: {}".format(state_fragment))
 
                 # --- Get molecule level information ---
@@ -99,21 +109,17 @@ class ChargeDataset(InMemoryDataset):
                 self.logging.debug(
                     f"--- Molecule level information: {self.MOLECULE_INFORMATION}"
                 )
-                molecule_dict = self.input_data[reaction_id][molecule_id]["molecule"]
+                molecule_dict = input_data[molecule_id]["molecule"]
                 if state_fragment == "initial_state":
                     molecules_in_reaction["reactants"].append(molecule_dict)
                     molecules_in_reaction["reactants_index"].append(molecule_id)
                 elif state_fragment == "final_state":
                     molecules_in_reaction["products"].append(molecule_dict)
                     molecules_in_reaction["products_index"].append(molecule_id)
-                molecule = Molecule.from_dict(molecule_dict)
 
                 # Get the NBO charges (which will be used as node features)
-                atom_charge = self.input_data[reaction_id][molecule_id]["atom_charge"]
+                atom_charge = input_data[molecule_id]["atom_charge"]
                 molecule_info_collected["x"][molecule_id] = atom_charge
-
-                # --- Get the output information and store that in the node
-                y = self.input_data[reaction_id][molecule_id]["transition_state_energy"]
 
             # Store information about the graph based on the generation method.
             generate_graphs_by_method(
@@ -128,6 +134,7 @@ class ChargeDataset(InMemoryDataset):
                 edge_index=molecule_info_collected["edge_index"],
                 x=molecule_info_collected["x"],
                 y=y,
+                global_info=global_information,
             )
 
             logging.info("Datapoint:")

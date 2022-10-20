@@ -1,12 +1,9 @@
 import os
 import logging
-import datetime
+
+import argparse
 
 import torch
-import torch.nn.functional as F
-
-import torch_geometric
-from torch_geometric.transforms import RandomLinkSplit
 from torch_geometric.loader import DataLoader
 
 from minimal_basis.utils import avail_checkpoint, visualize_results
@@ -16,10 +13,9 @@ from minimal_basis.model.model_charges import ChargeModel
 from utils import (
     get_test_data_path,
     read_inputs_yaml,
-    create_plot_folder,
-    create_folders,
-    check_no_of_gpus,
 )
+
+import torch.nn.functional as F
 
 LOGFILES_FOLDER = "log_files"
 logging.basicConfig(
@@ -29,78 +25,65 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--debug",
+    action="store_true",
+    help="If set, the calculation is a DEBUG calculation.",
+)
+parser.add_argument(
+    "--hidden_channels",
+    type=int,
+    default=64,
+    help="Number of hidden channels in the neural network.",
+)
+args = parser.parse_args()
+
 
 if __name__ == "__main__":
-    """Test a convolutional Neural Network based on the charge model."""
+    """Test a Graph Convolutional Neural Network based on the charge model."""
 
-    # DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    DEVICE = torch.device("cpu")
+    if args.debug:
+        DEVICE = torch.device("cpu")
+    else:
+        DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     logging.info(f"Device: {DEVICE}")
 
-    folder_string, PLOT_FOLDER = create_plot_folder()
-
     inputs = read_inputs_yaml(os.path.join("input_files", "charge_model.yaml"))
-    CHECKPOINT_FOLDER = inputs["checkpoint_folder"]
-    create_folders(CHECKPOINT_FOLDER)
-    checkpoint_file = avail_checkpoint(CHECKPOINT_FOLDER)
-
     GRAPH_GENERATION_METHOD = inputs["graph_generation_method"]
-    INPUT_JSON_FILENAME = inputs["input_json_filename"]
+    if args.debug:
+        train_json_filename = inputs["debug_train_json"]
+    else:
+        train_json_filename = inputs["train_json"]
+
     BATCH_SIZE = inputs["batch_size"]
 
-    # Create the Charge dataset
-    dataset = ChargeDataset(
+    # Create the training and test datasets
+    train_dataset = ChargeDataset(
         root=get_test_data_path(),
-        filename=INPUT_JSON_FILENAME,
+        filename=train_json_filename,
         graph_generation_method=GRAPH_GENERATION_METHOD,
     )
-    dataset.process()
-    dataset.shuffle()
+    train_dataset.process()
 
-    # Instantiate the model.
-    model = ChargeModel()
-    model.to(DEVICE)
-    check_no_of_gpus()
+    # Create a dataloader for the train_dataset
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
 
-    if checkpoint_file is not None:
-        model.load_state_dict(torch.load(checkpoint_file))
-        logger.info(f"Loaded checkpoint file: {checkpoint_file}")
-        model.eval()
-    else:
-        logger.info("No checkpoint file found, starting from scratch")
+    # Create the optimizer
+    model = ChargeModel(
+        in_channels=train_dataset.num_features,
+        hidden_channels=args.hidden_channels,
+        out_channels=1,
+    )
+    model = model.to(DEVICE)
+    # Create the optimizer
+    optim = torch.optim.Adam(model.parameters(), lr=1e-3)
 
-    # Decide the optimizer details
-    optim = torch.optim.Adam(model.parameters(), lr=1e-2)
-
-    # Write header of log file
-    with open(os.path.join(LOGFILES_FOLDER, f"training_{folder_string}.log"), "w") as f:
-        f.write("Epoch\t Loss\t AccuracyTrain\t AccuracyVal\n")
-
-    # Begin training the model.
-    model.train()
-
-    for epoch in range(20):
-
+    # Create the model
+    for train_batch in train_loader:
+        data = train_batch.to(DEVICE)
         optim.zero_grad()
-
-        pred = model(dataset)
-        loss = (pred - dataset.data.y).pow(2).mean()
-
+        predicted_y = model(data)
+        loss = F.mse_loss(predicted_y, data.y)
         loss.backward()
-
-        with open(
-            os.path.join(LOGFILES_FOLDER, f"training_{folder_string}.log"), "a"
-        ) as f:
-            f.write(f"{epoch:5d} \t {loss:<10.1f} \t {loss:<10.1f}\n")
-
-            # Save the model params.
-            logger.debug(f"Saving model parameters for step {epoch}")
-            for param_tensor in model.state_dict():
-                logger.debug(param_tensor)
-                logger.debug(model.state_dict()[param_tensor].size())
-            for name, param in model.named_parameters():
-                logger.debug(name)
-                logger.debug(param.grad)
-            torch.save(model.state_dict(), f"{CHECKPOINT_FOLDER}/step_{epoch:03d}.pt")
-
         optim.step()

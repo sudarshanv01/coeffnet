@@ -80,10 +80,6 @@ def generate_graphs_by_method(
         # entries in the dictionary, this is not a problem.
         for state in states:
             molecules_list = molecules_in_reaction[state]
-            # Convert each molecule_list to a molecule
-            molecules_list = [
-                Molecule.from_dict(molecule) for molecule in molecules_list
-            ]
             choose_indices = molecules_in_reaction[state + "_index"]
             # Create a dict between molecule_list and choose_indices
             molecule_dict = {}

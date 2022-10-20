@@ -71,7 +71,11 @@ class DataPoint(Data):
             # The features of the nodes are stored in a tensor.
             tensor_x = []
             for state_index in sorted(x):
-                tensor_x.extend(x[state_index])
+                if isinstance(x[state_index], list):
+                    tensor_x.extend(x[state_index])
+                elif isinstance(x[state_index], dict):
+                    for feature in sorted(x[state_index]):
+                        tensor_x.append(x[state_index][feature])
             tensor_x = torch.as_tensor(tensor_x, dtype=DTYPE)
         else:
             # If there are no features supplied
