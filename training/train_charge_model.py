@@ -8,7 +8,6 @@ import argparse
 import torch
 from torch_geometric.loader import DataLoader
 
-from minimal_basis.utils import avail_checkpoint, visualize_results
 from minimal_basis.dataset.dataset_charges import ChargeDataset
 from minimal_basis.model.model_charges import ChargeModel
 
@@ -28,6 +27,7 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
+os.environ["WANDB_MODE"] = "offline"
 
 parser = argparse.ArgumentParser()
 parser.add_argument(

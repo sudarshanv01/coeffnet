@@ -8,7 +8,7 @@ from conftest import get_test_data_path
 from torch_geometric.loader import DataLoader
 
 from minimal_basis.dataset.dataset_charges import ChargeDataset
-from minimal_basis.model.model_charges import ChargeModel
+from minimal_basis.model.model_charges import EdgeModel
 
 
 def test_charge_dataset_sn2_graph(sn2_reaction_input):
@@ -52,25 +52,3 @@ def test_charge_datapoint_sn2_graph(sn2_reaction_input):
     assert datapoint.edge_index is not None
     assert datapoint.y is not None
     assert datapoint.pos is not None
-
-
-def test_charge_model_sn2_graph(sn2_reaction_input):
-    """Check that the model for the SN2 graph works."""
-    filename = sn2_reaction_input
-
-    # Create the Hamiltonian dataset.
-    GRAPH_GENERTION_METHOD = "sn2"
-    dataset = ChargeDataset(
-        root=get_test_data_path(),
-        filename=filename,
-        graph_generation_method=GRAPH_GENERTION_METHOD,
-    )
-    dataset.process()
-
-    # Instantiate the model.
-    model = ChargeModel()
-
-    # Make sure the forward pass works.
-    output = model(dataset)
-
-    assert output.shape == torch.Size([dataset.len()]), "Output should be a vector."
