@@ -19,6 +19,14 @@ from monty.serialization import loadfn
 from minimal_basis.data import DataPoint
 from minimal_basis.dataset.utils import generate_graphs_by_method
 
+from minimal_basis.data._dtype import (
+    DTYPE,
+    DTYPE_INT,
+    DTYPE_BOOL,
+    TORCH_FLOATS,
+    TORCH_INTS,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -128,13 +136,36 @@ class ChargeDataset(InMemoryDataset):
                 molecule_info_collected=molecule_info_collected,
             )
 
+            edge_index = molecule_info_collected["edge_index"]
+            tensor_edge_index = [[], []]
+            for state_index in sorted(edge_index):
+                if edge_index[state_index] is not None:
+                    edge_scr, edge_dest = edge_index[state_index]
+                    tensor_edge_index[0].extend(edge_scr)
+                    tensor_edge_index[1].extend(edge_dest)
+
+            # Convert tensor_edge_index to a tensor
+            tensor_edge_index = torch.as_tensor(tensor_edge_index, dtype=DTYPE_INT)
+            rows, cols = tensor_edge_index
+
+            # Convert the positions to a tensor.
+            tensor_pos = []
+            for state_index in sorted(molecule_info_collected["pos"]):
+                if molecule_info_collected["pos"][state_index] is not None:
+                    tensor_pos.extend(molecule_info_collected["pos"][state_index])
+            tensor_pos = torch.as_tensor(tensor_pos, dtype=DTYPE)
+
+            # Make a list of distances between the atoms that are in edge index
+            edge_attr = torch.linalg.norm(tensor_pos[rows] - tensor_pos[cols], dim=1)
+
             # Store the datapoint object
             datapoint = DataPoint(
-                pos=molecule_info_collected["pos"],
+                pos=tensor_pos,
                 edge_index=molecule_info_collected["edge_index"],
                 x=molecule_info_collected["x"],
                 y=y,
-                global_info=global_information,
+                global_attr=global_information,
+                edge_attr=edge_attr,
             )
 
             logging.info("Datapoint:")

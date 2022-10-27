@@ -30,7 +30,7 @@ class EdgeModel(torch.nn.Module):
             Lin(hidden_channels, num_targets),
         )
 
-    def forward(self, ek, vrk, vsk, u):
+    def forward(self, ek, vrk, vsk, u, batch):
         """Forward pass of the edge model.
 
         Args:
@@ -39,5 +39,5 @@ class EdgeModel(torch.nn.Module):
             vsk: Edge target node features of shape (num_edges, num_node_features)
             u: Global features of shape (num_graphs, num_global_features)
         """
-        out = torch.cat([ek, vrk, vsk, u], 1)
+        out = torch.cat([ek, vrk, vsk, u[batch]], 1)
         return self.edge_mlp(out)

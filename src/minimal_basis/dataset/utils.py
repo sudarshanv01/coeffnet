@@ -81,13 +81,12 @@ def generate_graphs_by_method(
         for state in states:
             molecules_list = molecules_in_reaction[state]
             choose_indices = molecules_in_reaction[state + "_index"]
+            molecules_list = sn2_positions(molecules_list)
+
             # Create a dict between molecule_list and choose_indices
             molecule_dict = {}
             for k, choose_index in enumerate(choose_indices):
                 molecule_dict[choose_index] = molecules_list[k]
-
-            # Reorder the molecular positions
-            molecules_list = sn2_positions(molecules_list)
 
             # Generate the graph based on the sn2 method
             (

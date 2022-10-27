@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Union
 
 import numpy.typing as npt
 
@@ -40,22 +40,25 @@ class DataPoint(Data):
 
     def __init__(
         self,
-        pos: Dict[str, npt.ArrayLike] = None,
-        edge_index: Dict[str, npt.ArrayLike] = None,
+        pos: Union[Dict[str, npt.ArrayLike], torch.Tensor] = None,
+        edge_index: Union[Dict[str, npt.ArrayLike], torch.Tensor] = None,
         x: Dict[str, npt.ArrayLike] = None,
-        edge_attr: Dict[str, npt.ArrayLike] = None,
+        edge_attr: Union[Dict[str, npt.ArrayLike], torch.Tensor] = None,
         y: npt.ArrayLike = None,
         **kwargs,
     ):
 
         if pos is not None:
-            # Convert the positions to a tensor.
-            tensor_pos = []
-            for state_index in sorted(pos):
-                if pos[state_index] is not None:
-                    tensor_pos.extend(pos[state_index])
+            if isinstance(pos, dict):
+                # Convert the positions to a tensor.
+                tensor_pos = []
+                for state_index in sorted(pos):
+                    if pos[state_index] is not None:
+                        tensor_pos.extend(pos[state_index])
 
-            tensor_pos = torch.as_tensor(tensor_pos, dtype=DTYPE)
+                tensor_pos = torch.as_tensor(tensor_pos, dtype=DTYPE)
+            elif isinstance(pos, torch.Tensor):
+                tensor_pos = pos
 
             # The total number of nodes are the number of atoms in the
             # molecule for each state.
@@ -82,23 +85,29 @@ class DataPoint(Data):
             tensor_x = None
 
         if edge_index is not None:
-            tensor_edge_index = [[], []]
-            for state_index in sorted(edge_index):
-                if edge_index[state_index] is not None:
-                    edge_scr, edge_dest = edge_index[state_index]
-                    tensor_edge_index[0].extend(edge_scr)
-                    tensor_edge_index[1].extend(edge_dest)
-            # Convert tensor_edge_index to a tensor
-            tensor_edge_index = torch.as_tensor(tensor_edge_index, dtype=DTYPE_INT)
+            if isinstance(edge_index, dict):
+                tensor_edge_index = [[], []]
+                for state_index in sorted(edge_index):
+                    if edge_index[state_index] is not None:
+                        edge_scr, edge_dest = edge_index[state_index]
+                        tensor_edge_index[0].extend(edge_scr)
+                        tensor_edge_index[1].extend(edge_dest)
+                # Convert tensor_edge_index to a tensor
+                tensor_edge_index = torch.as_tensor(tensor_edge_index, dtype=DTYPE_INT)
+            elif isinstance(edge_index, torch.Tensor):
+                tensor_edge_index = edge_index
         else:
             tensor_edge_index = None
 
         if edge_attr is not None:
-            tensor_edge_attr = []
-            for state_index in sorted(edge_attr):
-                # Apply the same treatment to the edge_attr.
-                tensor_edge_attr[state_index].append(edge_attr[state_index])
-            tensor_edge_attr = torch.as_tensor(tensor_edge_attr, dtype=DTYPE)
+            if isinstance(edge_attr, dict):
+                tensor_edge_attr = []
+                for state_index in sorted(edge_attr):
+                    # Apply the same treatment to the edge_attr.
+                    tensor_edge_attr[state_index].append(edge_attr[state_index])
+                tensor_edge_attr = torch.as_tensor(tensor_edge_attr, dtype=DTYPE)
+            elif isinstance(edge_attr, torch.Tensor):
+                tensor_edge_attr = edge_attr
         else:
             tensor_edge_attr = None
 

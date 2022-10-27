@@ -44,12 +44,16 @@ def separate_graph(
 
 
 def sn2_positions(
-    molecule_list: List[Molecule], distance_to_translate=10
+    molecule_list: List[Molecule], distance_to_translate: float = 1
 ) -> List[Molecule]:
-    """Generate the positions which will be put into the SN2 graph.
-    The idea is to put the incoming (or outgoing) species suitably far
-    away from the backbone."""
+    """For any two molecules, translate the second molecule by a far enough distance
+    so that the two molecules do not overlap.
 
+    Args:
+        molecule_list: List of molecules to be position appropriately
+        distance_to_translate: Distance to translate the incoming/outgoing
+
+    """
     assert len(molecule_list) == 2, "Only two molecules are allowed in the SN2 graph."
 
     # Determine which species is the incoming/outgoing one and which is
@@ -66,8 +70,16 @@ def sn2_positions(
     backbone_centered = backbone.get_centered_molecule()
     attacking_centered = attacking.get_centered_molecule()
 
+    # Find the enclosing sphere of the backbone
+    backbone_radius = np.max(np.linalg.norm(backbone.cart_coords, axis=1))
+    # Find the enclosing sphere of the attacking species
+    attacking_radius = np.max(np.linalg.norm(attacking.cart_coords, axis=1))
+
+    # Move the attacking species far enough away from the backbone
+    tot_distance = backbone_radius + attacking_radius + distance_to_translate
+
     # Move the attacking_centered molecule 10A away from the backbone
-    attacking_centered.translate_sites(vector=[distance_to_translate, 0, 0])
+    attacking_centered.translate_sites(vector=[tot_distance, 0, 0])
 
     return [backbone_centered, attacking_centered]
 
