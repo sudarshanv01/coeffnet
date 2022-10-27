@@ -9,7 +9,6 @@ from torch.nn import Sequential as Seq, Linear as Lin, ReLU
 from torch_scatter import scatter_mean
 from torch_geometric.nn import MetaLayer
 
-from torch_geometric.nn import GCNConv
 from torch_scatter import scatter_mean
 
 
