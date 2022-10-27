@@ -106,3 +106,58 @@ class GlobalModel(torch.nn.Module):
     def forward(self, x, edge_index, edge_attr, u, batch):
         out = torch.cat([u, scatter_mean(x, batch, dim=0)], dim=1)
         return self.global_mlp(out)
+
+
+class Graph2GraphModel(torch.nn.Module):
+    def __init__(
+        self,
+        num_node_features: int,
+        num_edge_features: int,
+        num_global_features: int,
+        hidden_channels: int,
+        num_updates: int,
+    ):
+        super().__init__()
+
+        self.num_updates = num_updates
+
+        # Define the model layers.
+        self.edge_model = EdgeModel(
+            hidden_channels=hidden_channels,
+            num_node_features=num_node_features,
+            num_edge_features=num_edge_features,
+            num_global_features=num_global_features,
+            num_targets=num_edge_features,
+        )
+
+        self.node_model = NodeModel(
+            hidden_channels=hidden_channels,
+            num_node_features=num_node_features,
+            num_edge_features=num_edge_features,
+            num_global_features=num_global_features,
+            num_targets=num_node_features,
+        )
+
+        self.global_model = GlobalModel(
+            hidden_channels=hidden_channels,
+            num_global_features=num_global_features,
+            num_node_features=num_node_features,
+            num_targets=num_global_features,
+        )
+
+        # Define the model update function.
+        self.meta_layer = MetaLayer(
+            edge_model=self.edge_model,
+            node_model=self.node_model,
+            global_model=self.global_model,
+        )
+
+    def forward(self, x_, edge_index, edge_attr_, u_, batch_):
+        # Perform a single GNN update.
+        x, edge_attr, u = self.meta_layer(x_, edge_index, edge_attr_, u_, batch_)
+
+        # Perform additional GNN updates if needed.
+        for i in range(self.num_updates):
+            x, edge_attr, u = self.meta_layer(x, edge_index, edge_attr, u, batch_)
+
+        return x, edge_attr, u

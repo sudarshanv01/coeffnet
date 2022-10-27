@@ -8,7 +8,12 @@ from conftest import get_test_data_path
 from torch_geometric.loader import DataLoader
 
 from minimal_basis.dataset.dataset_charges import ChargeDataset
-from minimal_basis.model.model_charges import EdgeModel, NodeModel, GlobalModel
+from minimal_basis.model.model_charges import (
+    EdgeModel,
+    NodeModel,
+    GlobalModel,
+    Graph2GraphModel,
+)
 
 
 def test_charge_dataset_sn2_graph(sn2_reaction_input):
@@ -188,3 +193,62 @@ def test_global_update_model_sn2_graph(sn2_reaction_input):
 
         assert output.shape[0] == u.shape[0]
         assert output.shape[1] == 10
+
+
+def test_graph2graph_model_sn2_graph(sn2_reaction_input):
+    """Check if the edge update of the model is correct."""
+
+    filename = sn2_reaction_input
+    GRAPH_GENERTION_METHOD = "sn2"
+    dataset = ChargeDataset(
+        root=get_test_data_path(),
+        filename=filename,
+        graph_generation_method=GRAPH_GENERTION_METHOD,
+    )
+
+    # Initiate the process of creating the dataset.
+    dataset.process()
+
+    # Make a DataLoader object
+    loader = DataLoader(dataset, batch_size=2, shuffle=False)
+
+    for datapoint in loader:
+
+        # Infer the number of nodes and edges attributes
+        x = datapoint.x
+        x = x.view(-1, 1)
+        ek = datapoint.edge_attr
+        ek = ek.view(-1, 1)
+        u = datapoint.global_attr
+        u = u.view(-1, 1)
+
+        num_node_features = x.shape[1]
+        num_edge_features = ek.shape[1]
+        num_global_features = u.shape[1]
+
+        graph2graph_model = Graph2GraphModel(
+            hidden_channels=32,
+            num_node_features=num_node_features,
+            num_edge_features=num_edge_features,
+            num_global_features=num_global_features,
+            num_updates=3,
+        )
+
+        output = graph2graph_model(x, datapoint.edge_index, ek, u, datapoint.batch)
+
+        x_updated, ek_updated, u_updated = output
+
+        # Check the shapes of the updated features. The shape of the updated
+        # node features should be the same as the original node features.
+        assert x_updated.shape[0] == x.shape[0]
+        assert x_updated.shape[1] == x.shape[1]
+
+        # The shape of the updated edge features should be the same as the
+        # original edge features.
+        assert ek_updated.shape[0] == ek.shape[0]
+        assert ek_updated.shape[1] == ek.shape[1]
+
+        # The shape of the updated global features should be the same as the
+        # original global features.
+        assert u_updated.shape[0] == u.shape[0]
+        assert u_updated.shape[1] == u.shape[1]
