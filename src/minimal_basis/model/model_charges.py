@@ -160,3 +160,21 @@ class Graph2GraphModel(torch.nn.Module):
             x, edge_attr, u = self.meta_layer(x, edge_index, edge_attr, u, batch_)
 
         return x, edge_attr, u
+
+
+class Graph2PropertyModel(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x, edge_index, edge_attr, u, batch):
+        """Forward pass of the graph-to-property model. Takes in
+        the attributes of the final graph and returns a single
+        property prediction.
+        Args:
+            x: Node features of shape (num_nodes, num_node_features)
+            edge_index: Edge indices of shape (2, num_edges)
+            edge_attr: Edge features of shape (num_edges, num_edge_features)
+            u: Global features of shape (num_graphs, num_global_features)
+        """
+        # Make a prediction based on the final graph.
+        return u
