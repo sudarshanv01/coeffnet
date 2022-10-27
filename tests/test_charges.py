@@ -8,7 +8,7 @@ from conftest import get_test_data_path
 from torch_geometric.loader import DataLoader
 
 from minimal_basis.dataset.dataset_charges import ChargeDataset
-from minimal_basis.model.model_charges import EdgeModel, NodeModel
+from minimal_basis.model.model_charges import EdgeModel, NodeModel, GlobalModel
 
 
 def test_charge_dataset_sn2_graph(sn2_reaction_input):
@@ -144,4 +144,47 @@ def test_node_update_model_sn2_graph(sn2_reaction_input):
         output = node_model(x, datapoint.edge_index, ek, u, datapoint.batch)
 
         assert output.shape[0] == x.shape[0]
+        assert output.shape[1] == 10
+
+
+def test_global_update_model_sn2_graph(sn2_reaction_input):
+    """Check if the edge update of the model is correct."""
+
+    filename = sn2_reaction_input
+    GRAPH_GENERTION_METHOD = "sn2"
+    dataset = ChargeDataset(
+        root=get_test_data_path(),
+        filename=filename,
+        graph_generation_method=GRAPH_GENERTION_METHOD,
+    )
+
+    # Initiate the process of creating the dataset.
+    dataset.process()
+
+    # Make a DataLoader object
+    loader = DataLoader(dataset, batch_size=2, shuffle=False)
+
+    for datapoint in loader:
+
+        # Infer the number of nodes and edges attributes
+        x = datapoint.x
+        x = x.view(-1, 1)
+        ek = datapoint.edge_attr
+        ek = ek.view(-1, 1)
+        u = datapoint.global_attr
+        u = u.view(-1, 1)
+
+        num_node_features = x.shape[1]
+        num_global_features = u.shape[1]
+
+        global_model = GlobalModel(
+            hidden_channels=32,
+            num_global_features=num_global_features,
+            num_node_features=num_node_features,
+            num_targets=10,
+        )
+
+        output = global_model(x, datapoint.edge_index, ek, u, datapoint.batch)
+
+        assert output.shape[0] == u.shape[0]
         assert output.shape[1] == 10

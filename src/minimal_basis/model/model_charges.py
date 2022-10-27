@@ -85,3 +85,24 @@ class NodeModel(torch.nn.Module):
         out = torch.cat([x, out, u[batch]], dim=1)
 
         return self.node_mlp_2(out)
+
+
+class GlobalModel(torch.nn.Module):
+    def __init__(
+        self,
+        hidden_channels: int,
+        num_global_features: int,
+        num_node_features: int,
+        num_targets: int,
+    ):
+        super().__init__()
+        in_channels = num_global_features + num_node_features
+        self.global_mlp = Seq(
+            Lin(in_channels, hidden_channels),
+            ReLU(),
+            Lin(hidden_channels, num_targets),
+        )
+
+    def forward(self, x, edge_index, edge_attr, u, batch):
+        out = torch.cat([u, scatter_mean(x, batch, dim=0)], dim=1)
+        return self.global_mlp(out)
