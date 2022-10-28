@@ -1,5 +1,4 @@
 import os
-from pickletools import pyset
 import random
 from collections import defaultdict
 
@@ -11,8 +10,8 @@ from monty.serialization import loadfn, dumpfn
 from pymatgen.core.structure import Molecule
 
 
-@pytest.fixture(scope="session")
-def sn2_reaction_input():
+@pytest.fixture()
+def sn2_reaction_input(tmp_path):
     """Prepare SN2 reaction input."""
 
     BASIS_FUNCTION_ATOM = {
@@ -139,20 +138,23 @@ def sn2_reaction_input():
             charges_B = np.random.rand(len(species_B))
             charges_Y = np.random.rand(len(species_Y))
 
-            input_data[-2]["atom_charge"] = charges_A.tolist()
-            input_data[-1]["atom_charge"] = charges_X.tolist()
-            input_data[1]["atom_charge"] = charges_B.tolist()
-            input_data[2]["atom_charge"] = charges_Y.tolist()
+            # Make the list charge_A into a dict
+            charges_A = {i: charges_A[i] for i in range(len(charges_A))}
+            charges_X = {i: charges_X[i] for i in range(len(charges_X))}
+            charges_B = {i: charges_B[i] for i in range(len(charges_B))}
+            charges_Y = {i: charges_Y[i] for i in range(len(charges_Y))}
+
+            input_data[-2]["atom_charge"] = charges_A
+            input_data[-1]["atom_charge"] = charges_X
+            input_data[1]["atom_charge"] = charges_B
+            input_data[2]["atom_charge"] = charges_Y
 
             all_data.append(input_data)
 
         return all_data
 
     # The input file for the tests.
-    testing_path = get_testing_path()
-    input_json_file = os.path.join(
-        testing_path, "inputs", "sn2_test_data", "input.json"
-    )
+    input_json_file = os.path.join(tmp_path, "inputs", "sn2_test_data", "input.json")
     # Create the base directory for the input file.
     os.makedirs(os.path.dirname(input_json_file), exist_ok=True)
 
@@ -168,50 +170,9 @@ def sn2_reaction_input():
     return input_json_file
 
 
-def get_benchmark_y_data():
-    """Get the benchmark data for the SN2 reaction.
-
-    Returns:
-        benchmark_y_data (dict): The benchmark data for the SN2 reaction.
-
-    """
-    # The benchmark data for the tests.
-    testing_path = get_testing_path()
-    benchmark_y_data_file = os.path.join(
-        testing_path, "inputs", "sn2_test_data", "input.json"
-    )
-
-    # Load the benchmark data.
-    benchmark_y_data = loadfn(benchmark_y_data_file)
-
-    all_transition_state = []
-
-    for reaction in benchmark_y_data:
-        all_transition_state.append(
-            benchmark_y_data[reaction]["-2"]["transition_state_energy"]
-        )
-
-    return set(all_transition_state)
-
-
 def get_basis_file_info(basis_set: str = "sto-3g"):
     """Get the absolute path of the requested basis file."""
     relative_filepath = os.path.join("inputs", f"{basis_set}.json")
     confpath = os.path.dirname(os.path.abspath(__file__))
     absolute_filepath = os.path.join(confpath, relative_filepath)
     return absolute_filepath
-
-
-def get_testing_path():
-    """The tests folder in the conftest file."""
-    confpath = os.path.dirname(os.path.abspath(__file__))
-    return confpath
-
-
-def get_test_data_path():
-    """The tests folder in the conftest file."""
-    confpath = os.path.dirname(os.path.abspath(__file__))
-    test_data_path = os.path.join(confpath, "test_data")
-    if not os.path.exists(test_data_path):
-        os.makedirs(test_data_path, exist_ok=True)
-    return test_data_path

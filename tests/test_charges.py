@@ -1,9 +1,4 @@
-import os
-
-import torch
-
-from conftest import sn2_reaction_input, get_basis_file_info
-from conftest import get_test_data_path
+from conftest import sn2_reaction_input
 
 from torch_geometric.loader import DataLoader
 
@@ -17,12 +12,12 @@ from minimal_basis.model.model_charges import (
 )
 
 
-def test_charge_dataset_sn2_graph(sn2_reaction_input):
+def test_charge_dataset_sn2_graph(sn2_reaction_input, tmp_path):
     """Test the charge dataset."""
     filename = sn2_reaction_input
     GRAPH_GENERTION_METHOD = "sn2"
     dataset = ChargeDataset(
-        root=get_test_data_path(),
+        root=tmp_path,
         filename=filename,
         graph_generation_method=GRAPH_GENERTION_METHOD,
     )
@@ -32,12 +27,12 @@ def test_charge_dataset_sn2_graph(sn2_reaction_input):
     assert dataset.data is not None
 
 
-def test_charge_datapoint_sn2_graph(sn2_reaction_input):
+def test_charge_datapoint_sn2_graph(sn2_reaction_input, tmp_path):
     """Check the charge datapoint."""
     filename = sn2_reaction_input
     GRAPH_GENERTION_METHOD = "sn2"
     dataset = ChargeDataset(
-        root=get_test_data_path(),
+        root=tmp_path,
         filename=filename,
         graph_generation_method=GRAPH_GENERTION_METHOD,
     )
@@ -55,13 +50,13 @@ def test_charge_datapoint_sn2_graph(sn2_reaction_input):
     assert datapoint.pos is not None
 
 
-def test_edge_update_model_sn2_graph(sn2_reaction_input):
+def test_edge_update_model_sn2_graph(sn2_reaction_input, tmp_path):
     """Check if the edge update of the model is correct."""
 
     filename = sn2_reaction_input
     GRAPH_GENERTION_METHOD = "sn2"
     dataset = ChargeDataset(
-        root=get_test_data_path(),
+        root=tmp_path,
         filename=filename,
         graph_generation_method=GRAPH_GENERTION_METHOD,
     )
@@ -108,13 +103,13 @@ def test_edge_update_model_sn2_graph(sn2_reaction_input):
         assert output.shape[1] == 10
 
 
-def test_node_update_model_sn2_graph(sn2_reaction_input):
+def test_node_update_model_sn2_graph(sn2_reaction_input, tmp_path):
     """Check if the edge update of the model is correct."""
 
     filename = sn2_reaction_input
     GRAPH_GENERTION_METHOD = "sn2"
     dataset = ChargeDataset(
-        root=get_test_data_path(),
+        root=tmp_path,
         filename=filename,
         graph_generation_method=GRAPH_GENERTION_METHOD,
     )
@@ -153,13 +148,13 @@ def test_node_update_model_sn2_graph(sn2_reaction_input):
         assert output.shape[1] == 10
 
 
-def test_global_update_model_sn2_graph(sn2_reaction_input):
+def test_global_update_model_sn2_graph(sn2_reaction_input, tmp_path):
     """Check if the edge update of the model is correct."""
 
     filename = sn2_reaction_input
     GRAPH_GENERTION_METHOD = "sn2"
     dataset = ChargeDataset(
-        root=get_test_data_path(),
+        root=tmp_path,
         filename=filename,
         graph_generation_method=GRAPH_GENERTION_METHOD,
     )
@@ -196,13 +191,13 @@ def test_global_update_model_sn2_graph(sn2_reaction_input):
         assert output.shape[1] == 10
 
 
-def test_graph2graph_model_sn2_graph(sn2_reaction_input):
+def test_graph2graph_model_sn2_graph(sn2_reaction_input, tmp_path):
     """Check if the edge update of the model is correct."""
 
     filename = sn2_reaction_input
     GRAPH_GENERTION_METHOD = "sn2"
     dataset = ChargeDataset(
-        root=get_test_data_path(),
+        root=tmp_path,
         filename=filename,
         graph_generation_method=GRAPH_GENERTION_METHOD,
     )
@@ -255,13 +250,13 @@ def test_graph2graph_model_sn2_graph(sn2_reaction_input):
         assert u_updated.shape[1] == u.shape[1]
 
 
-def test_graph2property_model_sn2_graph(sn2_reaction_input):
+def test_graph2property_model_sn2_graph(sn2_reaction_input, tmp_path):
     """Check if the edge update of the model is correct."""
 
     filename = sn2_reaction_input
     GRAPH_GENERTION_METHOD = "sn2"
     dataset = ChargeDataset(
-        root=get_test_data_path(),
+        root=tmp_path,
         filename=filename,
         graph_generation_method=GRAPH_GENERTION_METHOD,
     )
