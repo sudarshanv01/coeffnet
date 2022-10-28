@@ -11,7 +11,7 @@ from torch_geometric.loader import DataLoader
 from minimal_basis.dataset.dataset_charges import ChargeDataset
 from minimal_basis.model.model_charges import ChargeModel
 
-import wandb
+# import wandb
 
 from utils import (
     get_test_data_path,
@@ -41,9 +41,15 @@ parser.add_argument(
     default=64,
     help="Number of hidden channels in the neural network.",
 )
+parser.add_argument(
+    "--num_layers",
+    type=int,
+    default=4,
+    help="Number of layers in the neural network.",
+)
 args = parser.parse_args()
 
-wandb.init(project="minimal-basis-training", entity="sudarshanvj")
+# wandb.init(project="minimal-basis-training", entity="sudarshanvj")
 
 
 def train():
@@ -73,7 +79,6 @@ def train():
 
 
 if __name__ == "__main__":
-    """Test a Graph Convolutional Neural Network based on the charge model."""
 
     if args.debug:
         DEVICE = torch.device("cpu")
@@ -88,11 +93,11 @@ if __name__ == "__main__":
     learning_rate = inputs["learning_rate"]
     epochs = inputs["epochs"]
 
-    wandb.config = {
-        "learning_rate": learning_rate,
-        "epochs": epochs,
-        "batch_size": batch_size,
-    }
+    # wandb.config = {
+    #     "learning_rate": learning_rate,
+    #     "epochs": epochs,
+    #     "batch_size": batch_size,
+    # }
 
     if args.debug:
         train_json_filename = inputs["debug_train_json"]
@@ -110,14 +115,23 @@ if __name__ == "__main__":
     # Create a dataloader for the train_dataset
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
+    # Figure out the number of features
+    num_node_features = train_dataset.num_node_features
+    num_edge_features = train_dataset.num_edge_features
+    num_global_features = 1
+    print(f"Number of node features: {num_node_features}")
+    print(f"Number of edge features: {num_edge_features}")
+
     # Create the optimizer
     model = ChargeModel(
-        in_channels=train_dataset.num_features,
+        num_node_features=num_node_features,
+        num_edge_features=num_edge_features,
+        num_global_features=num_global_features,
         hidden_channels=args.hidden_channels,
-        out_channels=1,
+        num_updates=args.num_layers,
     )
     model = model.to(DEVICE)
-    wandb.watch(model)
+    # wandb.watch(model)
 
     # Create the optimizer
     optim = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -127,4 +141,4 @@ if __name__ == "__main__":
         loss = train()
         print(f"Epoch: {epoch}, Loss: {loss}")
 
-        wandb.log({"loss": loss})
+        # wandb.log({"loss": loss})

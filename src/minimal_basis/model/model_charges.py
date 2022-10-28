@@ -178,3 +178,42 @@ class Graph2PropertyModel(torch.nn.Module):
         """
         # Make a prediction based on the final graph.
         return u
+
+
+class ChargeModel(torch.nn.Module):
+    def __init__(
+        self,
+        num_node_features: int,
+        num_edge_features: int,
+        num_global_features: int,
+        hidden_channels: int,
+        num_updates: int,
+    ):
+        super().__init__()
+
+        self.graph2graph = Graph2GraphModel(
+            num_node_features=num_node_features,
+            num_edge_features=num_edge_features,
+            num_global_features=num_global_features,
+            hidden_channels=hidden_channels,
+            num_updates=num_updates,
+        )
+
+        self.graph2property = Graph2PropertyModel()
+
+    def forward(self, data):
+        x, edge_index, edge_attr, u, batch = (
+            data.x,
+            data.edge_index,
+            data.edge_attr,
+            data.global_attr,
+            data.batch,
+        )
+
+        x = x.view(-1, 1)
+        edge_attr = edge_attr.view(-1, 1)
+        u = u.view(-1, 1)
+
+        x, edge_attr, u = self.graph2graph(x, edge_index, edge_attr, u, batch)
+
+        return self.graph2property(x, edge_index, edge_attr, u, batch)
