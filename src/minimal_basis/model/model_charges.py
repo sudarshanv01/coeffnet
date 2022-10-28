@@ -216,4 +216,6 @@ class ChargeModel(torch.nn.Module):
 
         x, edge_attr, u = self.graph2graph(x, edge_index, edge_attr, u, batch)
 
-        return self.graph2property(x, edge_index, edge_attr, u, batch)
+        out = self.graph2property(x, edge_index, edge_attr, u, batch)
+
+        return out.view(len(out))
