@@ -1,0 +1,12 @@
+---
+train_json: "input_files/train_QMrxn20.json"
+test_json: "input_files/test_QMrxn20.json"
+validate_json: "input_files/validate_QMrxn20.json"
+debug_train_json: "input_files/train_debug_QMrxn20.json"
+debug_test_json: "input_files/test_debug_QMrxn20.json"
+debug_validate_json: "input_files/validate_debug_QMrxn20.json"
+graph_generation_method: "sn2"
+batch_size: 10
+learning_rate: 0.001
+epochs: 250
+basis_file: "input_files/sto-3g.json"
