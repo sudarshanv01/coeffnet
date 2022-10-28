@@ -11,15 +11,11 @@ import numpy as np
 
 from ase import data as ase_data
 
-from pymatgen.core.structure import Molecule
-
 import torch
 
 from torch_geometric.data import InMemoryDataset
 
 from monty.serialization import loadfn
-
-from e3nn import o3
 
 from minimal_basis.data import DataPoint
 from minimal_basis.dataset.utils import generate_graphs_by_method
@@ -73,7 +69,7 @@ class HamiltonianDataset(InMemoryDataset):
 
     @property
     def processed_file_names(self):
-        return ["hamiltonian_data.pt", "basis_data.pt"]
+        return "hamiltonian_data.pt"
 
     def download(self):
         """Load the json file with the Hamiltonian and basis information."""
@@ -114,78 +110,16 @@ class HamiltonianDataset(InMemoryDataset):
             ]
             self.basis_info[int(atom_number)] = angular_momentum_all
 
-    def get_indices_of_basis(
-        cls, atom_basis_functions: List[List[str]]
-    ) -> List[List[int]]:
-        """Generate a list containing the start and stop index of the
-        basis function corresponding to each orbital."""
-        # Create a list of index based on the atom wise basis functions
-        # We will generate a list of lists, where the format is:
-        # [ [ [start_index, stop_index], [start_index, stop_index], ... ], ... ]
-        # - Atom in the molecule
-        # - Orbital in the atom
-        # - Start and stop index of the basis function
-        list_of_indices = []
+    def _get_atomic_number(cls, symbol):
+        """Get the atomic number of an element based on the symbol."""
+        return ase_data.atomic_numbers[symbol]
 
-        # Start labelling index at 0
-        overall_index = 0
-
-        # Iterate over the atom_basis_functions and make sure that the
-        # basis functions chosen are stored in a separate list for each
-        # atom.
-        for basis_list in atom_basis_functions:
-            start_stop = []
-            # Iterate over the basis elements in the basis list
-            # And find the start and stop index of the basis function
-            for basis_element in basis_list:
-                overall_index += basis_element
-                start_stop.append([overall_index - basis_element, overall_index])
-            list_of_indices.append(start_stop)
-
-        return list_of_indices
-
-    def get_indices_atom_basis(
-        cls, indices_of_basis: List[List[int]]
-    ) -> List[List[int]]:
-        """Get the starting and ending index of each atom. This list
-        serves as a sort of `atomic-basis` representation of the
-        Hamiltonian matrix."""
-        indices_atom_basis = []
-        for basis_list in indices_of_basis:
-            flattened_basis_list = [item for sublist in basis_list for item in sublist]
-            # Assumes that the basis index are in order
-            # TODO: Check if there is a better way to do this
-            indices_atom_basis.append(
-                [flattened_basis_list[0], flattened_basis_list[-1]]
-            )
-        return indices_atom_basis
-
-    def _string_basis_to_number(self, string_basis_list: List[str]) -> List[int]:
-        """Convert a list of lists containing string elements to
-        the corresponding number of basis functions."""
-        # Convert the string basis to the number of basis functions
-        number_basis_list = []
-        for string_basis in string_basis_list:
-            number_of_elements = [
-                self.BASIS_CONVERTER[element] for element in string_basis
-            ]
-            number_basis_list.append(number_of_elements)
-        return number_basis_list
-
-    def process(self) -> List[DataPoint]:
-        """Gets data from JSON file and store it in a list of DataPoint objects.
-        Conventions:
-        -----------
-        1. Sign of `molecule_id` is used to check the state of the molecule
-           molecules that have a negative `molecule_id` belong to a either
-           the reactants or products and vice versa.
-        2. `indices_basis` refers to a list of lists containing the
-           start and stop index of the basis function corresponding to
-           each orbital. That is, it is basis used in the calculations.
-        3. `indices_atom_basis` refers to a list of lists containing the
-           start and stop index of the basis function corresponding to
-           each atom. That is, it is the atomic-basis representation of
-           the Hamiltonian matrix.
+    def process(self):
+        """Store the following information.
+        1. (node features) Flattened list of the Hamiltonian matrix of diagonal-block elements.
+        2. (edge features) Flattened list of the Hamiltonian matrix of off-diagonal-block elements.
+        3. (mol_index) List of indices of the start and stop of each molecule.
+        4. (basis_index) List of indices of the start and stop for each basis function within an atom.
         """
 
         # Populate this list with datapoints
@@ -207,9 +141,14 @@ class HamiltonianDataset(InMemoryDataset):
 
             # --- Get the output information and store that in the node
             y = input_data.pop("transition_state_energy")
+            y = torch.tensor([y], dtype=DTYPE)
 
             # --- Get the global information
             global_information = input_data.pop("reaction_energy")
+            global_information = torch.tensor([global_information], dtype=DTYPE)
+
+            # Store the basis index
+            all_basis_idx = []
 
             for molecule_id in input_data:
 
@@ -223,60 +162,67 @@ class HamiltonianDataset(InMemoryDataset):
                     molecules_in_reaction["products"].append(molecule)
                     molecules_in_reaction["products_index"].append(molecule_id)
 
-                # Get the atom basis functions
-                atom_basis_functions = []
+                # Get the index of the basis within the atom for each molecule
+                # Iterate over the atoms in the molecule and store the indices of the
+                # s, p and d basis functions
+                basis_s = []
+                basis_p = []
+                basis_d = []
+                tot_basis_idx = 0
                 for atom_name in molecule.species:
-                    _atom_number = ase_data.atomic_numbers[atom_name.symbol]
-                    atom_basis_functions.append(self.basis_info[_atom_number])
-                # Get the number of basis functions for each atom
-                number_basis_functions = self._string_basis_to_number(
-                    atom_basis_functions
-                )
-                # Sum up all the basis functions, will be used to define
-                # all the tensors below.
-                total_basis = np.sum([np.sum(a) for a in number_basis_functions])
-                logger.debug(f"Total basis functions: {total_basis}")
+                    # Get the basis functions for this atom
+                    atomic_number = self._get_atomic_number(atom_name.symbol)
+                    basis_functions = self.basis_info[atomic_number]
+                    # Get the atom specific list
+                    basis_s_ = []
+                    basis_p_ = []
+                    basis_d_ = []
+                    for basis_function in basis_functions:
+                        if basis_function == "s":
+                            range_idx = list(range(tot_basis_idx, tot_basis_idx + 1))
+                            basis_s_.append(range_idx)
+                            tot_basis_idx += 1
+                        elif basis_function == "p":
+                            range_idx = list(range(tot_basis_idx, tot_basis_idx + 3))
+                            basis_p_.append(range_idx)
+                            tot_basis_idx += 3
+                        elif basis_function == "d":
+                            range_idx = list(range(tot_basis_idx, tot_basis_idx + 5))
+                            basis_d_.append(range_idx)
+                            tot_basis_idx += 5
 
-                # Get the indices of the basis functions
-                indices_of_basis = self.get_indices_of_basis(number_basis_functions)
-                molecule_info_collected["indices_basis"][molecule_id] = indices_of_basis
+                    basis_s.append(basis_s_)
+                    basis_p.append(basis_p_)
+                    basis_d.append(basis_d_)
 
-                # Get the diagonal elements consisting of each atom
-                indices_atom_basis = self.get_indices_atom_basis(indices_of_basis)
-                logger.debug(f"Indices of atom basis functions: {indices_atom_basis}")
-                molecule_info_collected["indices_atom_basis"][
-                    molecule_id
-                ] = indices_atom_basis
-
-                # Get the Hamiltonian and partition it into diagonal and off-diagonal
-                # elements. Diagonal elements may be blocks of s-s, s-p, ...
-                # which consist of the intra-atomic basis functions. The
-                # off-diagonal elements are for interactions between
-                # the inter-atomic basis functions.
-                node_H = torch.zeros(total_basis, total_basis, 2, dtype=DTYPE)
-                edge_H = torch.zeros(total_basis, total_basis, 2, dtype=DTYPE)
-
+                hamiltonian = np.zeros((tot_basis_idx, tot_basis_idx, 2))
                 for spin_index, spin in enumerate(["alpha", "beta"]):
-                    # Get the Hamiltonian for each spin
                     if spin == "beta":
                         if input_data[molecule_id]["beta_fock_matrix"] == None:
                             # There is no computed beta spin, i.e. alpha and beta are the same
-                            hamiltonian = input_data[molecule_id]["alpha_fock_matrix"]
+                            hamiltonian[..., 0] = input_data[molecule_id][
+                                "alpha_fock_matrix"
+                            ]
                         else:
-                            hamiltonian = input_data[molecule_id][spin + "_fock_matrix"]
+                            hamiltonian[..., 0] = input_data[molecule_id][
+                                spin + "_fock_matrix"
+                            ]
                     else:
                         # Must always have an alpha spin
-                        hamiltonian = input_data[molecule_id][spin + "_fock_matrix"]
-                    # Make sure the Hamiltonian is a tensor
-                    hamiltonian = torch.tensor(hamiltonian, dtype=DTYPE)
-                    logger.debug(f"Hamiltonian shape: {hamiltonian.shape}")
+                        hamiltonian[..., 1] = input_data[molecule_id][
+                            spin + "_fock_matrix"
+                        ]
 
-                    # Split the matrix into node and edge features, for each spin separately
-                    node_H_spin, edge_H_spin = self.split_matrix_node_edge(
-                        hamiltonian, indices_atom_basis
-                    )
-                    node_H[..., spin_index] = node_H_spin
-                    edge_H[..., spin_index] = edge_H_spin
+                # Split the Hamilonian into node and edge features
+                all_basis_idx_ = [basis_s, basis_p, basis_d]
+                all_basis_idx.append(all_basis_idx_)
+
+                node_features, edge_features = self._split_hamiltonian(
+                    hamiltonian, *all_basis_idx_
+                )
+
+                molecule_info_collected["node_features"][molecule_id] = node_features
+                molecule_info_collected["edge_features"][molecule_id] = edge_features
 
             (
                 edge_molecule_mapping,
@@ -287,16 +233,19 @@ class HamiltonianDataset(InMemoryDataset):
                 molecule_info_collected=molecule_info_collected,
             )
 
+            # Make the node and edge features the same matrix size by padding
+            # the smaller matrix with zeros
+            node_features = self.pad_features(molecule_info_collected["node_features"])
+            edge_features = self.pad_features(molecule_info_collected["edge_features"])
+
             datapoint = DataPoint(
                 pos=molecule_info_collected["pos"],
                 edge_index=molecule_info_collected["edge_index"],
-                edge_attr=molecule_info_collected["edge_attr"],
-                x=molecule_info_collected["x"],
+                edge_attr=edge_features,
+                x=node_features,
                 y=y,
-                indices_of_basis=molecule_info_collected["indices_basis"],
-                indices_atom_basis=molecule_info_collected["indices_atom_basis"],
-                edge_molecule_mapping=edge_molecule_mapping,
-                edge_internal_mol_mapping=edge_internal_mol_mapping,
+                global_attr=global_information,
+                all_basis_idx=all_basis_idx,
             )
 
             logging.debug("Datapoint:")
@@ -305,24 +254,66 @@ class HamiltonianDataset(InMemoryDataset):
             # Store the datapoint in a list
             datapoint_list.append(datapoint)
 
-        return datapoint_list
+        # Store the list of datapoints in the dataset
+        data, slices = self.collate(datapoint_list)
+        self.data = data
+        self.slices = slices
 
-    def split_matrix_node_edge(cls, matrix, indices_of_basis):
+        self.data = datapoint_list
+
+        # Save the dataset
+        torch.save(self.data, self.processed_paths[0])
+
+    def pad_features(cls, features):
+        """Make all features the same size by padding the smallest
+        matrices with zeros."""
+
+        shape_ = 0
+        for molecule_id in features:
+            shape = np.array(features[molecule_id]).shape
+            if shape[0] > shape_:
+                shape_ = shape[0]
+
+        updated_features = {}
+        for molecule_id in features:
+            shape = np.array(features[molecule_id]).shape
+            if shape[0] < shape_:
+                pad = shape_ - shape[0]
+                original_matrix = np.array(features[molecule_id])
+                padded_matrix = np.pad(
+                    original_matrix,
+                    ((0, pad), (0, pad), (0, 0)),
+                    "constant",
+                    constant_values=0,
+                )
+                updated_features[molecule_id] = padded_matrix
+            else:
+                updated_features[molecule_id] = features[molecule_id]
+
+        return updated_features
+
+    def _split_hamiltonian(cls, matrix_, *args):
         """Split the matrix into node and edge features."""
-        # Matrix is a tensor of shape (n,n) where n is the total
-        # number of basis functions. We need to separate the diagonal
-        # blocks (elements that belong to one atom) and the off-diagonal
-        # elements that belong to two-centre interactions.
-        elemental_matrix = torch.zeros(matrix.shape[0], matrix.shape[1])
-        coupling_matrix = torch.zeros(matrix.shape[0], matrix.shape[1])
+
+        h_matrix = np.array(matrix_)
+
+        idx_basis = []
+        for arg in args:
+            idx_basis += arg
+
+        flatten_basis = []
+        for idx_basis_ in idx_basis:
+            flatten_basis += idx_basis_
+
+        elemental_matrix = np.zeros(h_matrix.shape)
+        coupling_matrix = np.zeros(h_matrix.shape)
 
         # Populate the elemental matrix first by splicing
-        for basis_elements_list in indices_of_basis:
-            basis_elements = range(basis_elements_list[0], basis_elements_list[1])
-            for y in basis_elements:
-                elemental_matrix[basis_elements, y] = matrix[basis_elements, y]
+        for idx in flatten_basis:
+            sp_idx = np.s_[idx[0] : idx[-1] + 1, idx[0] : idx[-1] + 1, ...]
+            elemental_matrix[sp_idx] = h_matrix[sp_idx]
 
         # Populate the coupling matrix by subtracting the total matrix from the elemental matrix
-        coupling_matrix = matrix - elemental_matrix
+        coupling_matrix = h_matrix - elemental_matrix
 
         return elemental_matrix, coupling_matrix

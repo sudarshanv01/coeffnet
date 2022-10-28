@@ -1,6 +1,7 @@
 from typing import List, Dict, Union
 
 import numpy.typing as npt
+import numpy as np
 
 import torch
 from torch_geometric.data import Data
@@ -20,6 +21,9 @@ class DataPoint(Data):
     The main idea is to take the information from the elements
     from the reaction and store them in tensors, keeping track
     of which elements belong to which molecule and which state.
+
+    Note that if a Dict is suppled to any input, it will sort
+    the dictionary through its keys before converting it to a tensor.
 
     Parameters
     ----------
@@ -63,7 +67,6 @@ class DataPoint(Data):
             # The total number of nodes are the number of atoms in the
             # molecule for each state.
             num_nodes = tensor_pos.shape[0]
-
         else:
             # If there are no positions supplied, then there are no nodes
             # and here the number of nodes is set to zero.
@@ -71,15 +74,24 @@ class DataPoint(Data):
             num_nodes = 0
 
         if x is not None:
-            # The features of the nodes are stored in a tensor.
-            tensor_x = []
-            for state_index in sorted(x):
-                if isinstance(x[state_index], list):
-                    tensor_x.extend(x[state_index])
-                elif isinstance(x[state_index], dict):
-                    for feature in sorted(x[state_index]):
-                        tensor_x.append(x[state_index][feature])
-            tensor_x = torch.as_tensor(tensor_x, dtype=DTYPE)
+            if isinstance(x, dict):
+                # The features of the nodes are stored in a tensor.
+                tensor_x = []
+                for state_index in sorted(x):
+                    if isinstance(x[state_index], np.ndarray):
+                        tensor_x.extend(x[state_index].tolist())
+                    elif isinstance(x[state_index], list):
+                        tensor_x.extend(x[state_index])
+                    elif isinstance(x[state_index], dict):
+                        for feature in sorted(x[state_index]):
+                            tensor_x.append(x[state_index][feature])
+                    else:
+                        raise TypeError(
+                            f"The type of the feature {feature} is not supported."
+                        )
+                tensor_x = torch.as_tensor(tensor_x, dtype=DTYPE)
+            elif isinstance(x, torch.Tensor):
+                tensor_x = x
         else:
             # If there are no features supplied
             tensor_x = None
@@ -104,7 +116,14 @@ class DataPoint(Data):
                 tensor_edge_attr = []
                 for state_index in sorted(edge_attr):
                     # Apply the same treatment to the edge_attr.
-                    tensor_edge_attr[state_index].append(edge_attr[state_index])
+                    if isinstance(edge_attr[state_index], np.ndarray):
+                        tensor_edge_attr.extend(edge_attr[state_index].tolist())
+                    elif isinstance(edge_attr[state_index], list):
+                        tensor_edge_attr.append(edge_attr[state_index])
+                    else:
+                        raise TypeError(
+                            f"The type of the edge_attr {edge_attr} is not supported."
+                        )
                 tensor_edge_attr = torch.as_tensor(tensor_edge_attr, dtype=DTYPE)
             elif isinstance(edge_attr, torch.Tensor):
                 tensor_edge_attr = edge_attr
