@@ -11,7 +11,6 @@ from torch_geometric.loader import DataLoader
 from minimal_basis.dataset.dataset_charges import ChargeDataset
 from minimal_basis.model.model_charges import ChargeModel
 
-import wandb
 
 from utils import (
     get_test_data_path,
@@ -27,7 +26,7 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
-os.environ["WANDB_MODE"] = "offline"
+# os.environ["WANDB_MODE"] = "offline"
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -49,7 +48,11 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-wandb.init(project="minimal-basis-training", entity="sudarshanvj")
+
+if not args.debug:
+    import wandb
+
+    wandb.init(project="minimal-basis-training", entity="sudarshanvj")
 
 
 def train():
@@ -93,11 +96,12 @@ if __name__ == "__main__":
     learning_rate = inputs["learning_rate"]
     epochs = inputs["epochs"]
 
-    wandb.config = {
-        "learning_rate": learning_rate,
-        "epochs": epochs,
-        "batch_size": batch_size,
-    }
+    if not args.debug:
+        wandb.config = {
+            "learning_rate": learning_rate,
+            "epochs": epochs,
+            "batch_size": batch_size,
+        }
 
     if args.debug:
         train_json_filename = inputs["debug_train_json"]
@@ -131,7 +135,8 @@ if __name__ == "__main__":
         num_updates=args.num_layers,
     )
     model = model.to(DEVICE)
-    wandb.watch(model)
+    if not args.debug:
+        wandb.watch(model)
 
     # Create the optimizer
     optim = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -141,4 +146,5 @@ if __name__ == "__main__":
         loss = train()
         print(f"Epoch: {epoch}, Loss: {loss}")
 
-        wandb.log({"loss": loss})
+        if not args.debug:
+            wandb.log({"loss": loss})

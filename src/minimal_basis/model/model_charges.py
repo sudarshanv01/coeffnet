@@ -210,8 +210,8 @@ class ChargeModel(torch.nn.Module):
             data.batch,
         )
 
-        x = x.view(-1, 1)
-        edge_attr = edge_attr.view(-1, 1)
+        x = x.view(-1, data.num_node_features)
+        edge_attr = edge_attr.view(-1, data.num_edge_features)
         u = u.view(-1, 1)
 
         x, edge_attr, u = self.graph2graph(x, edge_index, edge_attr, u, batch)

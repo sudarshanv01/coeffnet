@@ -1,7 +1,6 @@
 import os
 import logging
 import argparse
-from platform import node
 
 import torch
 
@@ -97,10 +96,11 @@ if __name__ == "__main__":
             )
             # Draw node labels
             node_attrs = nx.get_node_attributes(graph.subgraph(nx_graph), "x")
+            node_labels = {k: [round(a, 2) for a in v] for k, v in node_attrs.items()}
             nx.draw_networkx_labels(
                 graph.subgraph(nx_graph),
                 pos=nx.spring_layout(graph.subgraph(nx_graph), seed=42),
-                labels={k: round(v, 2) for k, v in node_attrs.items()},
+                labels=node_labels,
                 ax=ax[j],
             )
             # Draw edge labels

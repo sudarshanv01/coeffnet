@@ -129,9 +129,9 @@ def test_node_update_model_sn2_graph(sn2_reaction_input):
 
         # Infer the number of nodes and edges attributes
         x = datapoint.x
-        x = x.view(-1, 1)
+        x = x.view(-1, datapoint.num_node_features)
         ek = datapoint.edge_attr
-        ek = ek.view(-1, 1)
+        ek = ek.view(-1, datapoint.num_edge_features)
         u = datapoint.global_attr
         u = u.view(-1, 1)
 
@@ -174,9 +174,9 @@ def test_global_update_model_sn2_graph(sn2_reaction_input):
 
         # Infer the number of nodes and edges attributes
         x = datapoint.x
-        x = x.view(-1, 1)
+        x = x.view(-1, datapoint.num_node_features)
         ek = datapoint.edge_attr
-        ek = ek.view(-1, 1)
+        ek = ek.view(-1, datapoint.num_edge_features)
         u = datapoint.global_attr
         u = u.view(-1, 1)
 
@@ -217,9 +217,9 @@ def test_graph2graph_model_sn2_graph(sn2_reaction_input):
 
         # Infer the number of nodes and edges attributes
         x = datapoint.x
-        x = x.view(-1, 1)
+        x = x.view(-1, datapoint.num_node_features)
         ek = datapoint.edge_attr
-        ek = ek.view(-1, 1)
+        ek = ek.view(-1, datapoint.num_edge_features)
         u = datapoint.global_attr
         u = u.view(-1, 1)
 

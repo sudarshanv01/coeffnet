@@ -117,17 +117,35 @@ class ChargeDataset(InMemoryDataset):
                 self.logging.debug(
                     f"--- Molecule level information: {self.MOLECULE_INFORMATION}"
                 )
-                molecule_dict = input_data[molecule_id]["molecule"]
+                molecule = input_data[molecule_id]["molecule"]
                 if state_fragment == "initial_state":
-                    molecules_in_reaction["reactants"].append(molecule_dict)
+                    molecules_in_reaction["reactants"].append(molecule)
                     molecules_in_reaction["reactants_index"].append(molecule_id)
                 elif state_fragment == "final_state":
-                    molecules_in_reaction["products"].append(molecule_dict)
+                    molecules_in_reaction["products"].append(molecule)
                     molecules_in_reaction["products_index"].append(molecule_id)
 
                 # Get the NBO charges (which will be used as node features)
-                atom_charge = input_data[molecule_id]["atom_charge"]
-                molecule_info_collected["x"][molecule_id] = atom_charge
+                atom_charge_dict = input_data[molecule_id]["atom_charge"]
+                # Make atom charges a list
+                atom_charge = [
+                    atom_charge_dict[atom_idx] for atom_idx in atom_charge_dict
+                ]
+                # Get the atomic number of the atom
+                atomic_numbers = [
+                    ase_data.atomic_numbers[str(atom)] for atom in molecule.species
+                ]
+                # Make everything a float
+                atom_charge = [float(charge) for charge in atom_charge]
+                atomic_numbers = [float(number) for number in atomic_numbers]
+
+                # Input features will be a list containing the atomic number and the
+                # NBO charge as a list.
+                input_node_features = [
+                    [atomic_number, charge]
+                    for atomic_number, charge in zip(atomic_numbers, atom_charge)
+                ]
+                molecule_info_collected["x"][molecule_id] = input_node_features
 
             # Store information about the graph based on the generation method.
             generate_graphs_by_method(
