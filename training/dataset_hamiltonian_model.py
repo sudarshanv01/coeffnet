@@ -73,14 +73,14 @@ if __name__ == "__main__":
         basis_file=inputs["basis_file"],
     )
     train_dataset.process()
-    # print(train_dataset)
+    print(train_dataset)
     # print(f"Number of training barriers: {len(train_dataset.data.y)}")
 
     # Create the dataloader
     train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
 
     for batch in train_loader:
-        print(len(batch))
+        print(batch)
 
     if args.inspect_data:
         inspect_data(train_dataset.data.y, "barrier_data")

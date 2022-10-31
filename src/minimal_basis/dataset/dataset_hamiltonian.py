@@ -17,6 +17,8 @@ from torch_geometric.data import InMemoryDataset
 
 from monty.serialization import loadfn
 
+import itertools
+
 from minimal_basis.data import DataPoint
 from minimal_basis.dataset.utils import generate_graphs_by_method
 from minimal_basis.data._dtype import DTYPE
@@ -41,6 +43,9 @@ class HamiltonianDataset(InMemoryDataset):
     # Store the l for each basis function
     l_to_n_basis = {"s": 0, "p": 1, "d": 2, "f": 3, "g": 4, "h": 5}
     n_to_l_basis = {0: "s", 1: "p", 2: "d", 3: "f", 4: "g", 5: "h"}
+
+    # minimal_basis_size is the number of basis functions in the minimal basis
+    minimal_basis_size = 9
 
     def __init__(
         self,
@@ -168,6 +173,9 @@ class HamiltonianDataset(InMemoryDataset):
                 basis_s = []
                 basis_p = []
                 basis_d = []
+                # Store the grouping of the basis index of each atom in the molecule
+                basis_atom = []
+
                 tot_basis_idx = 0
                 for atom_name in molecule.species:
                     # Get the basis functions for this atom
@@ -177,6 +185,10 @@ class HamiltonianDataset(InMemoryDataset):
                     basis_s_ = []
                     basis_p_ = []
                     basis_d_ = []
+
+                    # Store the initial basis functions
+                    counter_tot_basis_idx = tot_basis_idx
+
                     for basis_function in basis_functions:
                         if basis_function == "s":
                             range_idx = list(range(tot_basis_idx, tot_basis_idx + 1))
@@ -191,6 +203,10 @@ class HamiltonianDataset(InMemoryDataset):
                             basis_d_.append(range_idx)
                             tot_basis_idx += 5
 
+                    # Store the basis index for this atom
+                    basis_atom.append(list(range(counter_tot_basis_idx, tot_basis_idx)))
+
+                    # Store the s,p and d basis functions for this atom
                     basis_s.append(basis_s_)
                     basis_p.append(basis_p_)
                     basis_d.append(basis_d_)
@@ -217,12 +233,31 @@ class HamiltonianDataset(InMemoryDataset):
                 all_basis_idx_ = [basis_s, basis_p, basis_d]
                 all_basis_idx.append(all_basis_idx_)
 
-                node_features, edge_features = self._split_hamiltonian(
+                intra_atomic, coupling = self._split_hamiltonian(
                     hamiltonian, *all_basis_idx_
                 )
 
-                molecule_info_collected["node_features"][molecule_id] = node_features
-                molecule_info_collected["edge_features"][molecule_id] = edge_features
+                # Generate minimal basis representations of the intra_atomic
+                # matrices by choosing the maximum value for the diagonal value
+                # of each element in the matrix
+                intra_atomic_mb = self.get_intra_atomic_mb(
+                    intra_atomic, basis_atom, *all_basis_idx_
+                )
+                # Flatten the dimensions of the intra_atomic_mb aside from the first dimension
+                intra_atomic_mb = intra_atomic_mb.reshape(intra_atomic_mb.shape[0], -1)
+
+                molecule_info_collected["node_features"][
+                    molecule_id
+                ] = intra_atomic_mb.tolist()
+
+                # Store the coupling information, which will be processed together
+                # with all atoms in the molecule
+                molecule_info_collected["edge_features"][molecule_id] = coupling
+
+                # Store the s,p and d basis functions for this atom
+                molecule_info_collected["basis_index"][molecule_id] = all_basis_idx_
+                # Store the atom basis index grouping
+                molecule_info_collected["atom_basis_index"][molecule_id] = basis_atom
 
             (
                 edge_molecule_mapping,
@@ -233,20 +268,28 @@ class HamiltonianDataset(InMemoryDataset):
                 molecule_info_collected=molecule_info_collected,
             )
 
-            # Make the node and edge features the same matrix size by padding
-            # the smaller matrix with zeros
-            node_features = self.pad_features(molecule_info_collected["node_features"])
-            edge_features = self.pad_features(molecule_info_collected["edge_features"])
-
+            edge_index = molecule_info_collected["edge_index"]
             datapoint = DataPoint(
                 pos=molecule_info_collected["pos"],
-                edge_index=molecule_info_collected["edge_index"],
-                edge_attr=edge_features,
-                x=node_features,
+                edge_index=edge_index,
+                x=molecule_info_collected["node_features"],
                 y=y,
                 global_attr=global_information,
                 all_basis_idx=all_basis_idx,
             )
+
+            # Generate the minimal basis representation of the edge attributes
+            edge_features_mb = self.get_edge_features_mb(
+                molecule_info_collected["edge_features"],
+                datapoint.edge_index.detach().numpy(),
+                edge_molecule_mapping,
+                edge_internal_mol_mapping,
+                molecule_info_collected["basis_index"],
+            )
+
+            # Flatten the dimensions of the edge_features_mb aside from the first dimension
+            edge_features_mb = edge_features_mb.reshape(edge_features_mb.shape[0], -1)
+            datapoint.edge_attr = edge_features_mb
 
             logging.debug("Datapoint:")
             logging.debug(datapoint)
@@ -259,38 +302,226 @@ class HamiltonianDataset(InMemoryDataset):
         self.data = data
         self.slices = slices
 
-        self.data = datapoint_list
-
         # Save the dataset
         torch.save(self.data, self.processed_paths[0])
 
-    def pad_features(cls, features):
-        """Make all features the same size by padding the smallest
-        matrices with zeros."""
+    def get_edge_features_mb(
+        self,
+        edge_features,
+        edge_index,
+        edge_molecule_mapping,
+        edge_internal_mol_mapping,
+        basis_index,
+    ):
 
-        shape_ = 0
-        for molecule_id in features:
-            shape = np.array(features[molecule_id]).shape
-            if shape[0] > shape_:
-                shape_ = shape[0]
+        # Determine the edge index for all molecules participating in the reaction.
+        row, col = edge_index
 
-        updated_features = {}
-        for molecule_id in features:
-            shape = np.array(features[molecule_id]).shape
-            if shape[0] < shape_:
-                pad = shape_ - shape[0]
-                original_matrix = np.array(features[molecule_id])
-                padded_matrix = np.pad(
-                    original_matrix,
-                    ((0, pad), (0, pad), (0, 0)),
-                    "constant",
-                    constant_values=0,
+        # The edge attributes will be generated for each edge in the graph
+        edge_features_mb = np.zeros(
+            (len(row), self.minimal_basis_size, self.minimal_basis_size, 2)
+        )
+
+        # Simultaneously loop over all edges
+        for vsk_, vrk_ in zip(row, col):
+
+            # Get the molecule index of the edge
+            mol_idx_vsk = edge_molecule_mapping[vsk_]
+            mol_idx_vrk = edge_molecule_mapping[vrk_]
+
+            # Both the edge indices must be in the same molecule
+            # otherwise there is no coupling elements between them
+            if mol_idx_vsk != mol_idx_vrk:
+                continue
+
+            # Get the edge_feature of the molecule in question
+            edge_feature = edge_features[mol_idx_vsk]
+
+            # Get the internal edge index of the edge
+            vsk_internal = edge_internal_mol_mapping[vsk_]
+            vrk_internal = edge_internal_mol_mapping[vrk_]
+
+            # Split the basis_index into s, p and d contributions
+            basis_s, basis_p, basis_d = basis_index[mol_idx_vrk]
+
+            # Get the basis index of the s, p and d atoms
+            basis_s_vsk = basis_s[vsk_internal]
+            basis_p_vsk = basis_p[vsk_internal]
+            basis_d_vsk = basis_d[vsk_internal]
+
+            basis_vsk = [basis_s_vsk, basis_p_vsk, basis_d_vsk]
+            basis_vsk_type = ["s", "p", "d"]
+
+            basis_s_vrk = basis_s[vrk_internal]
+            basis_p_vrk = basis_p[vrk_internal]
+            basis_d_vrk = basis_d[vrk_internal]
+
+            basis_vrk = [basis_s_vrk, basis_p_vrk, basis_d_vrk]
+            basis_vrk_type = ["s", "p", "d"]
+
+            # Iterate over every s, p and d basis function
+            # between vsk and vrk and populate the minimal basis
+            # representation of the edge features
+            edge_features_mb_ = np.zeros(
+                (self.minimal_basis_size, self.minimal_basis_size, 2)
+            )
+
+            # Iterate over the s, p and d basis functions
+            for basis_vsk_type_, basis_vrk_type_ in itertools.product(
+                basis_vsk_type, basis_vrk_type
+            ):
+                basis_idx_vsk = basis_vsk_type.index(basis_vsk_type_)
+                basis_idx_vrk = basis_vrk_type.index(basis_vrk_type_)
+
+                indices_to_populate = self.get_indices_to_populate(
+                    basis_vsk_type[basis_idx_vsk], basis_vrk_type[basis_idx_vrk]
                 )
-                updated_features[molecule_id] = padded_matrix
-            else:
-                updated_features[molecule_id] = features[molecule_id]
 
-        return updated_features
+                for basis_idx_vsk_ in basis_vsk[basis_idx_vsk]:
+                    for basis_idx_vrk_ in basis_vrk[basis_idx_vrk]:
+
+                        idx_chosen_edge = np.s_[
+                            basis_idx_vsk_[0] : basis_idx_vsk_[-1] + 1,
+                            basis_idx_vrk_[0] : basis_idx_vrk_[-1] + 1,
+                            ...,
+                        ]
+                        chosen_edge_feature = edge_feature[idx_chosen_edge]
+
+                        index_x, index_y = indices_to_populate
+                        idx_chosen_mb = np.s_[
+                            index_x[0] : index_x[-1] + 1,
+                            index_y[0] : index_y[-1] + 1,
+                            ...,
+                        ]
+                        edge_features_mb_[idx_chosen_mb] = chosen_edge_feature
+
+            # Make edge_features_mb_ symmetric
+            edge_features_mb_ = (
+                edge_features_mb_ + edge_features_mb_.transpose(1, 0, 2)
+            ) / 2
+            edge_features_mb[vsk_, :, :, :] = edge_features_mb_
+
+        return edge_features_mb
+
+    def get_indices_to_populate(self, basis_type_vsk, basis_type_vrk):
+        """Generate the indices to populate."""
+        if basis_type_vsk == "s" and basis_type_vrk == "s":
+            indices_to_populate = [[0], [0]]
+        elif basis_type_vsk == "s" and basis_type_vrk == "p":
+            indices_to_populate = [[0], [1, 2, 3]]
+        elif basis_type_vsk == "s" and basis_type_vrk == "d":
+            indices_to_populate = [[0], [4, 5, 6, 7, 8]]
+        elif basis_type_vsk == "p" and basis_type_vrk == "p":
+            indices_to_populate = [[1, 2, 3], [1, 2, 3]]
+        elif basis_type_vsk == "p" and basis_type_vrk == "d":
+            indices_to_populate = [[1, 2, 3], [4, 5, 6, 7, 8]]
+        elif basis_type_vsk == "d" and basis_type_vrk == "d":
+            indices_to_populate = [[4, 5, 6, 7, 8], [4, 5, 6, 7, 8]]
+        elif basis_type_vsk == "d" and basis_type_vrk == "p":
+            indices_to_populate = [[4, 5, 6, 7, 8], [1, 2, 3]]
+        elif basis_type_vsk == "p" and basis_type_vrk == "s":
+            indices_to_populate = [[1, 2, 3], [0]]
+        elif basis_type_vsk == "d" and basis_type_vrk == "s":
+            indices_to_populate = [[4, 5, 6, 7, 8], [0]]
+        else:
+            raise ValueError("Unknown basis type")
+
+        return indices_to_populate
+
+    def get_intra_atomic_mb(self, intra_atomic, basis_atom, basis_s, basis_p, basis_d):
+        """Generate the minimal basis representation of the intra_atomic matrix by
+        choosing the maximum value for the diagonal value of each element in the
+        matrix.
+
+        Parameters
+        ----------
+        intra_atomic : np.ndarray
+            The intra atomic matrix.
+        basis_atom : list
+            The grouping of the basis index of each atom in the molecule.
+        basis_s : list
+            The s basis functions for each atom in the molecule.
+        basis_p : list
+            The p basis functions for each atom in the molecule.
+        basis_d : list
+            The d basis functions for each atom in the molecule.
+
+        Returns
+        -------
+        intra_atomic_mb : np.ndarray
+            The minimal basis representation of the intra_atomic matrix.
+        """
+
+        num_atoms = len(basis_atom)
+        intra_atomic_mb = np.zeros(
+            (num_atoms, self.minimal_basis_size, self.minimal_basis_size, 2)
+        )
+
+        for atom_idx, atom_basis in enumerate(basis_atom):
+
+            # Get the basis functions for this atom
+            basis_s_atom_idx = basis_s[atom_idx]
+            basis_p_atom_idx = basis_p[atom_idx]
+            basis_d_atom_idx = basis_d[atom_idx]
+
+            # Get the minimal_basis s-matrix
+            atom_basis_s = np.zeros((1, 1, 2))
+            for idx_, basis_s_atom_idx_ in enumerate(basis_s_atom_idx):
+                atom_basis_s_ = intra_atomic[basis_s_atom_idx_, :][:, basis_s_atom_idx_]
+                if idx_ == 0:
+                    # First iteration, set the values
+                    atom_basis_s = atom_basis_s_
+                    continue
+
+                spin_up_max = np.max(np.diag(atom_basis_s_[..., 0]))
+                spin_down_max = np.max(np.diag(atom_basis_s_[..., 1]))
+
+                if spin_up_max > np.max(np.diag(atom_basis_s[..., 0])):
+                    atom_basis_s[..., 0] = atom_basis_s_[..., 0]
+                if spin_down_max > np.max(np.diag(atom_basis_s[..., 1])):
+                    atom_basis_s[..., 1] = atom_basis_s_[..., 1]
+            # Add the s-matrix to the minimal basis matrix
+            intra_atomic_mb[atom_idx, 0, 0, :] = atom_basis_s
+
+            # Get the minimal_basis p-matrix
+            atom_basis_p = np.zeros((3, 3, 2))
+            for idx_, basis_p_atom_idx_ in enumerate(basis_p_atom_idx):
+                atom_basis_p_ = intra_atomic[basis_p_atom_idx_, :][:, basis_p_atom_idx_]
+                if idx_ == 0:
+                    # First iteration, set the values
+                    atom_basis_p = atom_basis_p_
+                    continue
+
+                spin_up_max = np.max(np.diag(atom_basis_p_[..., 0]))
+                spin_down_max = np.max(np.diag(atom_basis_p_[..., 1]))
+
+                if spin_up_max > np.max(np.diag(atom_basis_p[..., 0])):
+                    atom_basis_p[..., 0] = atom_basis_p_[..., 0]
+                if spin_down_max > np.max(np.diag(atom_basis_p[..., 1])):
+                    atom_basis_p[..., 1] = atom_basis_p_[..., 1]
+            # Add the p-matrix to the minimal basis matrix
+            intra_atomic_mb[atom_idx, 1:4, 1:4, :] = atom_basis_p
+
+            # Get the minimal_basis d-matrix
+            atom_basis_d = np.zeros((5, 5, 2))
+            for idx_, basis_d_atom_idx_ in enumerate(basis_d_atom_idx):
+                atom_basis_d_ = intra_atomic[basis_d_atom_idx_, :][:, basis_d_atom_idx_]
+                if idx_ == 0:
+                    # First iteration, set the values
+                    atom_basis_d = atom_basis_d_
+                    continue
+
+                spin_up_max = np.max(np.diag(atom_basis_d_[..., 0]))
+                spin_down_max = np.max(np.diag(atom_basis_d_[..., 1]))
+
+                if spin_up_max > np.max(np.diag(atom_basis_d[..., 0])):
+                    atom_basis_d[..., 0] = atom_basis_d_[..., 0]
+                if spin_down_max > np.max(np.diag(atom_basis_d[..., 1])):
+                    atom_basis_d[..., 1] = atom_basis_d_[..., 1]
+            # Add the d-matrix to the minimal basis matrix
+            intra_atomic_mb[atom_idx, 4:9, 4:9, :] = atom_basis_d
+
+        return intra_atomic_mb
 
     def _split_hamiltonian(cls, matrix_, *args):
         """Split the matrix into node and edge features."""
