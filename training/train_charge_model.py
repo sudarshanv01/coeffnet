@@ -26,7 +26,6 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
-# os.environ["WANDB_MODE"] = "offline"
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
