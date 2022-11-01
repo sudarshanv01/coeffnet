@@ -112,5 +112,5 @@ if __name__ == "__main__":
                 ax=ax[j],
             )
 
-        fig.savefig(f"output/graph_{idx}.png", dpi=300)
+        fig.savefig(f"output/charge_graph_{idx}.png", dpi=300)
         plt.close(fig)

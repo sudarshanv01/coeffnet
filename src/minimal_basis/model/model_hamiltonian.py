@@ -6,10 +6,13 @@ import torch
 import torch.nn.functional as F
 from torch.nn import Sequential as Seq, Linear as Lin, ReLU
 
-from torch_scatter import scatter_mean
 from torch_geometric.nn import MetaLayer
 
-from torch_scatter import scatter_mean
+from torch_scatter import scatter_mean, scatter
+
+import e3nn
+from e3nn import o3
+from e3nn.math import soft_one_hot_linspace
 
 
 class EdgeModel(torch.nn.Module):
@@ -40,6 +43,67 @@ class EdgeModel(torch.nn.Module):
         """
         out = torch.cat([ek, vrk, vsk, u[batch]], 1)
         return self.edge_mlp(out)
+
+
+class EquivariantNodeConv(torch.nn.Module):
+    def __init__(self, irreps_in, irreps_out, num_basis):
+
+        super().__init__()
+
+        # Create the spherical harmonics
+        self.irreps_sh = o3.Irreps.spherical_harmonics(lmax=2)
+
+        # Create the tensor products needed for the equivariant convolution
+        self.tp = o3.FullyConnectedTensorProduct(
+            irreps_in, self.irreps_sh, irreps_out, shared_weights=False
+        )
+
+        # Create a fully connected layer
+        self.fc = e3nn.nn.FullyConnectedNet(
+            [num_basis, 16, self.tp.weight_numel], torch.relu
+        )
+
+        self.num_basis = num_basis
+
+    def forward(self, f_in, edge_index, pos, max_radius, num_nodes):
+        """Forward pass of Equivariant convolution."""
+
+        row, col = edge_index
+
+        # Create the edge vector based on the positions of the nodes
+        edge_vec = pos[row] - pos[col]
+
+        # Infer the number of neighbors for each node
+        num_neighbors = len(row) / num_nodes
+
+        # Start by creating the spherical harmonics
+        sh = o3.spherical_harmonics(
+            self.irreps_sh, edge_vec, normalize=True, normalization="component"
+        )
+
+        # Embedding for the edge length
+        edge_length_embedding = soft_one_hot_linspace(
+            edge_vec.norm(dim=1),
+            start=0.0,
+            end=max_radius,
+            number=self.num_basis,
+            basis="smooth_finite",
+            cutoff=True,
+        )
+        edge_length_embedding = edge_length_embedding.mul(self.num_basis**0.5)
+
+        # Weights come from the fully connected layer
+        weights = self.fc(edge_length_embedding)
+
+        # Apply the tensor product
+        summand = self.tp(f_in[row], sh, weights)
+
+        # Get the output
+        f_out = scatter(summand, col, dim=0, dim_size=num_nodes)
+
+        f_out = f_out.div(num_neighbors**0.5)
+
+        return f_out
 
 
 class NodeModel(torch.nn.Module):

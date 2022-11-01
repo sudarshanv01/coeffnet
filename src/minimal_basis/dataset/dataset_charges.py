@@ -95,9 +95,11 @@ class ChargeDataset(InMemoryDataset):
 
             # --- Get the output information and store that in the node
             y = input_data.pop("transition_state_energy")
+            y = torch.tensor([y], dtype=DTYPE)
 
             # --- Get the global information
             global_information = input_data.pop("reaction_energy")
+            global_information = torch.tensor([global_information], dtype=DTYPE)
 
             for molecule_id in input_data:
                 # Prepare the information for each molecule, this forms
