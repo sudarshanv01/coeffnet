@@ -289,7 +289,8 @@ class HamiltonianDataset(InMemoryDataset):
 
             # Flatten the dimensions of the edge_features_mb aside from the first dimension
             edge_features_mb = edge_features_mb.reshape(edge_features_mb.shape[0], -1)
-            datapoint.edge_attr = edge_features_mb
+            # Make edge features a torch tensor from an np array
+            datapoint.edge_attr = torch.tensor(edge_features_mb, dtype=torch.float)
 
             logging.debug("Datapoint:")
             logging.debug(datapoint)

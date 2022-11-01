@@ -1,146 +1,151 @@
 import os
 import logging
-import datetime
+
+import numpy as np
+
+import argparse
 
 import torch
+from torch_geometric.loader import DataLoader
 
-from minimal_basis.utils import avail_checkpoint, visualize_results
 from minimal_basis.dataset.dataset_hamiltonian import HamiltonianDataset
 from minimal_basis.model.model_hamiltonian import HamiltonianModel
 
-if __name__ == "__main__":
-    """Test a convolutional Neural Network"""
 
-    LOGFILES_FOLDER = "log_files"
-    logging.basicConfig(
-        filename=os.path.join(LOGFILES_FOLDER, "hamiltonian_model.log"),
-        filemode="w",
-        level=logging.INFO,
-    )
-    logger = logging.getLogger(__name__)
+from utils import (
+    get_test_data_path,
+    read_inputs_yaml,
+)
 
-    # Determine split rations
-    train_ratio, val_ratio, test_ratio = 0.8, 0.1, 0.1
+import torch.nn.functional as F
 
-    DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    logging.info(f"Device: {DEVICE}")
+LOGFILES_FOLDER = "log_files"
+logging.basicConfig(
+    filename=os.path.join(LOGFILES_FOLDER, "hamiltonian_model.log"),
+    filemode="w",
+    level=logging.INFO,
+)
+logger = logging.getLogger(__name__)
+# os.environ["WANDB_MODE"] = "offline"
 
-    # Prefix tag to the output folders
-    today = datetime.datetime.now()
-    folder_string = "hamiltonian_" + today.strftime("%Y%m%d_%H%M%S")
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--debug",
+    action="store_true",
+    help="If set, the calculation is a DEBUG calculation.",
+)
+parser.add_argument(
+    "--hidden_channels",
+    type=int,
+    default=64,
+    help="Number of hidden channels in the neural network.",
+)
+parser.add_argument(
+    "--num_layers",
+    type=int,
+    default=4,
+    help="Number of layers in the neural network.",
+)
+args = parser.parse_args()
 
-    # Read in the dataset inputs.
-    JSON_FILE = "input_files/output_QMrxn20_calc.json"
-    BASIS_FILE = "input_files/sto-3g.json"
-    CHECKPOINT_FOLDER = "hamiltonian_checkpoints"
-    PLOT_FOLDER = f"plots/{folder_string}"
-    GRAPH_GENERTION_METHOD = "sn2"
 
-    # Create the folder if it does not exist.
-    if not os.path.exists(CHECKPOINT_FOLDER):
-        os.makedirs(CHECKPOINT_FOLDER)
-    if not os.path.exists(PLOT_FOLDER):
-        os.makedirs(PLOT_FOLDER)
+if not args.debug:
+    import wandb
 
-    # Get details of the checkpoint
-    checkpoint_file = avail_checkpoint(CHECKPOINT_FOLDER)
+    wandb.init(project="minimal-basis-training", entity="sudarshanvj")
 
-    data_point = HamiltonianDataset(
-        JSON_FILE, BASIS_FILE, graph_generation_method=GRAPH_GENERTION_METHOD
-    )
-    data_point.load_data()
-    data_point.parse_basis_data()
-    datapoint = data_point.get_data()
 
-    # Split the data into training, validation and test sets.
-    num_train, num_val = int(train_ratio * len(datapoint)), int(
-        val_ratio * len(datapoint)
-    )
-    num_test = len(datapoint) - num_train - num_val
-    train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(
-        datapoint,
-        [num_train, num_val, num_test],
-        generator=torch.Generator().manual_seed(42),
-    )
+def train():
+    """Train the model."""
 
-    # Instantiate the model.
-    model = HamiltonianModel(DEVICE)
-    if torch.cuda.device_count() > 1:
-        logging.info("Using multiple GPUs")
-        raise NotImplementedError("Multiple GPUs not yet implemented")
-    if checkpoint_file is not None:
-        model.load_state_dict(torch.load(checkpoint_file))
-        logger.info(f"Loaded checkpoint file: {checkpoint_file}")
-        model.eval()
-    else:
-        logger.info("No checkpoint file found, starting from scratch")
-    model = model.to(DEVICE)
+    model.train()
 
-    # Get the training y
-    train_y = []
-    for data in train_dataset:
-        train_y.append(data.y)
-    train_y = torch.tensor(train_y, dtype=torch.float)
+    # Store all the loses
+    losses = 0.0
 
-    # Get the validation y
-    val_y = []
-    for data in val_dataset:
-        val_y.append(data.y)
-    val_y = torch.tensor(val_y, dtype=torch.float)
-
-    # Get the test y
-    test_y = []
-    for data in test_dataset:
-        test_y.append(data.y)
-    test_y = torch.tensor(test_y, dtype=torch.float)
-
-    logging.info(f"Training set size: {len(train_dataset)}")
-    logging.info(f"Validation set size: {len(val_dataset)}")
-    logging.info(f"Test set size: {len(test_dataset)}")
-
-    # Training the model.
-    optim = torch.optim.Adam(model.parameters(), lr=1e-3)
-
-    # Write header of log file
-    with open(os.path.join(LOGFILES_FOLDER, f"training_{folder_string}.log"), "w") as f:
-        f.write("Epoch\t Loss\t AccuracyTrain\t AccuracyVal\n")
-
-    for step in range(500):
-
+    for train_batch in train_loader:
+        data = train_batch.to(DEVICE)
         optim.zero_grad()
-        pred = model(train_dataset)
-        loss = (pred - train_y).pow(2).sum()
-
+        predicted_y = model(data)
+        loss = F.mse_loss(predicted_y, data.y)
         loss.backward()
 
-        accuracy_train = (pred - train_y).abs().sum() / len(train_y)
+        # Add up the loss
+        losses += loss.item() * train_batch.num_graphs
 
-        # Check the validation dataset
-        predict_val_y = model(val_dataset)
-        accuracy_validation = (predict_val_y - val_y).abs().sum() / len(val_y)
-
-        with open(
-            os.path.join(LOGFILES_FOLDER, f"training_{folder_string}.log"), "a"
-        ) as f:
-            f.write(
-                f"{step:5d} \t {loss:<10.1f} \t {accuracy_train:5.1f}\t {accuracy_validation:5.1f}\n"
-            )
-
-        if step % 10 == 0:
-
-            # Plot the errors for each step.
-            visualize_results(
-                pred, train_y, predict_val_y, val_y, PLOT_FOLDER, epoch=step, loss=loss
-            )
-
-            # Save the model params.
-            logger.debug(f"Saving model parameters for step {step}")
-            for param_tensor in model.state_dict():
-                logger.debug(param_tensor)
-                logger.debug(model.state_dict()[param_tensor].size())
-            for name, param in model.named_parameters():
-                logger.debug(name)
-                logger.debug(param.grad)
-            torch.save(model.state_dict(), f"{CHECKPOINT_FOLDER}/step_{step:03d}.pt")
-
+        # Take an optimizer step
         optim.step()
+
+    rmse = np.sqrt(losses / len(train_loader))
+
+    return rmse
+
+
+if __name__ == "__main__":
+
+    if args.debug:
+        DEVICE = torch.device("cpu")
+    else:
+        DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    logging.info(f"Device: {DEVICE}")
+
+    # --- Inputs
+    inputs = read_inputs_yaml(os.path.join("input_files", "hamiltonian_model.yaml"))
+    graph_generation_method = inputs["graph_generation_method"]
+    batch_size = inputs["batch_size"]
+    learning_rate = inputs["learning_rate"]
+    epochs = inputs["epochs"]
+
+    if not args.debug:
+        wandb.config = {
+            "learning_rate": learning_rate,
+            "epochs": epochs,
+            "batch_size": batch_size,
+        }
+
+    if args.debug:
+        train_json_filename = inputs["debug_train_json"]
+    else:
+        train_json_filename = inputs["train_json"]
+
+    # Create the training and test datasets
+    train_dataset = HamiltonianDataset(
+        root=get_test_data_path(),
+        filename=train_json_filename,
+        graph_generation_method=graph_generation_method,
+        basis_file=inputs["basis_file"],
+    )
+    train_dataset.process()
+
+    # Create a dataloader for the train_dataset
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
+    # Figure out the number of features
+    num_node_features = train_dataset.num_node_features
+    num_edge_features = train_dataset.num_edge_features
+    num_global_features = 1
+    print(f"Number of node features: {num_node_features}")
+    print(f"Number of edge features: {num_edge_features}")
+
+    # Create the optimizer
+    model = HamiltonianModel(
+        num_node_features=num_node_features,
+        num_edge_features=num_edge_features,
+        num_global_features=num_global_features,
+        hidden_channels=args.hidden_channels,
+        num_updates=args.num_layers,
+    )
+    model = model.to(DEVICE)
+    if not args.debug:
+        wandb.watch(model)
+
+    # Create the optimizer
+    optim = torch.optim.Adam(model.parameters(), lr=learning_rate)
+
+    for epoch in range(1, epochs):
+        # Train the model
+        loss = train()
+        print(f"Epoch: {epoch}, Loss: {loss}")
+
+        if not args.debug:
+            wandb.log({"loss": loss})
