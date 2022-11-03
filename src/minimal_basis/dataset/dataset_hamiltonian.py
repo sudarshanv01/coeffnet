@@ -29,10 +29,6 @@ logger = logging.getLogger(__name__)
 class HamiltonianDataset(InMemoryDataset):
     """Dataset for the Hamiltonian for all species in a reaction."""
 
-    GLOBAL_INFORMATION = ["state_fragment"]
-    MOLECULE_INFORMATION = ["positions", "graphs"]
-    FEATURE_INFORMATION = ["hamiltonian"]
-
     # Store the converter to convert the basis functions
     BASIS_CONVERTER = {
         "s": 1,

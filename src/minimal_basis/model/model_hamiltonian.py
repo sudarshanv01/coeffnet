@@ -46,21 +46,41 @@ class EdgeModel(torch.nn.Module):
 
 
 class EquivariantNodeConv(torch.nn.Module):
-    def __init__(self, irreps_in, irreps_out, num_basis):
 
+    # The minimal basis representation will always
+    # be 1s + 3p + 5d functions.
+    minimal_basis_size = 9
+
+    def __init__(self, irreps_out_per_basis, hidden_layers, num_basis):
         super().__init__()
 
         # Create the spherical harmonics
         self.irreps_sh = o3.Irreps.spherical_harmonics(lmax=2)
 
         # Create the tensor products needed for the equivariant convolution
-        self.tp = o3.FullyConnectedTensorProduct(
-            irreps_in, self.irreps_sh, irreps_out, shared_weights=False
+        irreps_s = o3.Irreps("1x0e")
+        irreps_p = o3.Irreps("3x1o")
+        irreps_d = o3.Irreps("5x2e")
+
+        self.tp_s = o3.FullyConnectedTensorProduct(
+            irreps_s, self.irreps_sh, irreps_out_per_basis, shared_weights=False
+        )
+        self.tp_p = o3.FullyConnectedTensorProduct(
+            irreps_p, self.irreps_sh, irreps_out_per_basis, shared_weights=False
+        )
+        self.tp_d = o3.FullyConnectedTensorProduct(
+            irreps_d, self.irreps_sh, irreps_out_per_basis, shared_weights=False
         )
 
         # Create a fully connected layer
-        self.fc = e3nn.nn.FullyConnectedNet(
-            [num_basis, 16, self.tp.weight_numel], torch.relu
+        self.fc_s = e3nn.nn.FullyConnectedNet(
+            [num_basis, hidden_layers, self.tp_s.weight_numel], torch.relu
+        )
+        self.fc_p = e3nn.nn.FullyConnectedNet(
+            [num_basis, hidden_layers, self.tp_p.weight_numel], torch.relu
+        )
+        self.fc_d = e3nn.nn.FullyConnectedNet(
+            [num_basis, hidden_layers, self.tp_d.weight_numel], torch.relu
         )
 
         self.num_basis = num_basis
@@ -70,6 +90,7 @@ class EquivariantNodeConv(torch.nn.Module):
 
         row, col = edge_index
 
+        # --- Create weights based on the distance between nodes ---
         # Create the edge vector based on the positions of the nodes
         edge_vec = pos[row] - pos[col]
 
@@ -93,12 +114,35 @@ class EquivariantNodeConv(torch.nn.Module):
         edge_length_embedding = edge_length_embedding.mul(self.num_basis**0.5)
 
         # Weights come from the fully connected layer
-        weights = self.fc(edge_length_embedding)
+        weights_s = self.fc_s(edge_length_embedding)
+        weights_p = self.fc_p(edge_length_embedding)
+        weights_d = self.fc_d(edge_length_embedding)
 
-        # Apply the tensor product
-        summand = self.tp(f_in[row], sh, weights)
+        # --- Compute tensor products between the s, p and d channels ---
+        # First reshape the input_tensor to the right shape, i.e.
+        # (num_nodes, minimal_basis, minimal_basis, 2)
+        f_in_matrix = f_in.reshape(
+            num_nodes, self.minimal_basis_size, self.minimal_basis_size, 2
+        )
 
-        # Get the output
+        f_in_s = f_in_matrix[:, 0:1, 0:1, :]
+        f_in_p = f_in_matrix[:, 1:4, 1:4, :]
+        f_in_d = f_in_matrix[:, 4:9, 4:9, :]
+
+        f_in_s_flatten = f_in_s.reshape(num_nodes, -1, 2)
+        f_in_p_flatten = f_in_p.reshape(num_nodes, -1, 2)
+        f_in_d_flatten = f_in_d.reshape(num_nodes, -1, 2)
+
+        out_s = self.tp_s(f_in_s_flatten[..., 0][row], sh, weights_s)
+        out_s += self.tp_s(f_in_s_flatten[..., 1][row], sh, weights_s)
+        out_p = self.tp_p(f_in_p_flatten[..., 0][row], sh, weights_p)
+        out_p += self.tp_p(f_in_p_flatten[..., 1][row], sh, weights_p)
+        out_d = self.tp_d(f_in_d_flatten[..., 0][row], sh, weights_d)
+        out_d += self.tp_d(f_in_d_flatten[..., 1][row], sh, weights_d)
+
+        summand = torch.cat([out_s, out_p, out_d], dim=1)
+
+        # # Get the output
         f_out = scatter(summand, col, dim=0, dim_size=num_nodes)
 
         f_out = f_out.div(num_neighbors**0.5)
