@@ -45,7 +45,7 @@ class EdgeModel(torch.nn.Module):
         return self.edge_mlp(out)
 
 
-class EquivariantNodeConv(torch.nn.Module):
+class EquivariantConv(torch.nn.Module):
 
     # The minimal basis representation will always
     # be 1s + 3p + 5d functions.
@@ -122,16 +122,16 @@ class EquivariantNodeConv(torch.nn.Module):
         # First reshape the input_tensor to the right shape, i.e.
         # (num_nodes, minimal_basis, minimal_basis, 2)
         f_in_matrix = f_in.reshape(
-            num_nodes, self.minimal_basis_size, self.minimal_basis_size, 2
+            -1, self.minimal_basis_size, self.minimal_basis_size, 2
         )
 
         f_in_s = f_in_matrix[:, 0:1, 0:1, :]
         f_in_p = f_in_matrix[:, 1:4, 1:4, :]
         f_in_d = f_in_matrix[:, 4:9, 4:9, :]
 
-        f_in_s_flatten = f_in_s.reshape(num_nodes, -1, 2)
-        f_in_p_flatten = f_in_p.reshape(num_nodes, -1, 2)
-        f_in_d_flatten = f_in_d.reshape(num_nodes, -1, 2)
+        f_in_s_flatten = f_in_s.reshape(f_in_matrix.shape[0], -1, 2)
+        f_in_p_flatten = f_in_p.reshape(f_in_matrix.shape[0], -1, 2)
+        f_in_d_flatten = f_in_d.reshape(f_in_matrix.shape[0], -1, 2)
 
         out_s = self.tp_s(f_in_s_flatten[..., 0][row], sh, weights_s)
         out_s += self.tp_s(f_in_s_flatten[..., 1][row], sh, weights_s)
@@ -142,7 +142,7 @@ class EquivariantNodeConv(torch.nn.Module):
 
         summand = torch.cat([out_s, out_p, out_d], dim=1)
 
-        # # Get the output
+        # Get the output
         f_out = scatter(summand, col, dim=0, dim_size=num_nodes)
 
         f_out = f_out.div(num_neighbors**0.5)
