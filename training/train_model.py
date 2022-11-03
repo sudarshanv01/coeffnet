@@ -19,10 +19,12 @@ from minimal_basis.model.model_hamiltonian import HamiltonianModel
 
 import ray
 from ray import tune
-from ray.air import session
+from ray.air import session, RunConfig
 from ray.air.checkpoint import Checkpoint
 from ray.tune.schedulers import ASHAScheduler
+from ray.tune.integration.wandb import wandb_mixin
 
+import wandb
 
 from utils import (
     get_test_data_path,
@@ -34,7 +36,11 @@ def load_data(data_dir="input_files", model="charge"):
     """Load the data for the model."""
 
     # Load the input file
-    inputs = read_inputs_yaml(os.path.join(data_dir, f"{model}_model.yaml"))
+    # get the absolute path to the input file
+    input_file = os.path.join(
+        os.path.dirname(__file__), data_dir, f"{model}_model.yaml"
+    )
+    inputs = read_inputs_yaml(input_file)
 
     # Graph generation method
     graph_generation_method = inputs["graph_generation_method"]
@@ -80,10 +86,11 @@ def load_data(data_dir="input_files", model="charge"):
     )
 
 
+@wandb_mixin
 def train_model(config):
     """Train the model."""
 
-    train_dataset, test_dataset, dataset_info = load_data()
+    train_dataset, test_dataset, dataset_info = load_data("input_files", args.model)
 
     # Create a dataloader for the train_dataset
     train_loader = DataLoader(
@@ -130,12 +137,11 @@ def train_model(config):
     for epoch in range(1, config["epochs"]):
         # Train the model
         train_loss = train(model, train_loader, optim, device)
-
-        if not args.debug:
-            wandb.log({"loss": train_loss})
+        wandb.log({"train_loss": train_loss})
 
     # Validation loss
     val_loss = validation(model, test_loader, device)
+    wandb.log({"val_loss": val_loss})
 
     # Save the model
     os.makedirs(args.output_dir, exist_ok=True)
@@ -212,6 +218,9 @@ def main(num_samples=10, max_num_epochs=100, gpus_per_trial=1):
 
     scheduler = ASHAScheduler(max_t=max_num_epochs, grace_period=1, reduction_factor=2)
 
+    # Add wandb to the config
+    config["wandb"] = {"api_key_file": api_key_file, "project": args.wandb_project}
+
     tuner = tune.Tuner(
         tune.with_resources(
             tune.with_parameters(train_model),
@@ -224,6 +233,7 @@ def main(num_samples=10, max_num_epochs=100, gpus_per_trial=1):
             num_samples=num_samples,
         ),
         param_space=config,
+        run_config=RunConfig(local_dir="./results", name="test_experiment"),
     )
     results = tuner.fit()
 
@@ -232,9 +242,7 @@ def main(num_samples=10, max_num_epochs=100, gpus_per_trial=1):
     print("Best trial config: {}".format(best_result.config))
     print("Best trial final validation loss: {}".format(best_result.metrics["loss"]))
     print(
-        "Best trial final validation accuracy: {}".format(
-            best_result.metrics["accuracy"]
-        )
+        "Best trial final validation accuracy: {}".format(best_result.metrics["loss"])
     )
 
 
@@ -250,7 +258,7 @@ def parse_cli():
     parser.add_argument(
         "--wandb_project",
         type=str,
-        default="minimal-basis-training",
+        default="charge",
         help="Name of the wandb project.",
     )
     parser.add_argument(
@@ -281,6 +289,8 @@ if __name__ == "__main__":
     if args.test_setup:
         quit()
 
+    api_key_file = "~/.wandb_api_key"
+
     LOGFILES_FOLDER = "log_files"
     logging.basicConfig(
         filename=os.path.join(LOGFILES_FOLDER, f"{args.wandb_project}_model.log"),
@@ -289,11 +299,6 @@ if __name__ == "__main__":
     )
     logger = logging.getLogger(__name__)
 
-    if not args.debug:
-        import wandb
-
-        wandb.init(project=args.wandb_project, entity="sudarshanvj")
-
     num_global_features = 1
 
-    main(num_samples=2, max_num_epochs=2, gpus_per_trial=0)
+    main(num_samples=2, max_num_epochs=500, gpus_per_trial=1)
