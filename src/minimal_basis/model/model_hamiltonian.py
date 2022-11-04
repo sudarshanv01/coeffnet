@@ -294,19 +294,19 @@ class EquiGraph2GraphModel(torch.nn.Module):
             hidden_channels=hidden_channels,
             num_node_features=num_features_tp,
             num_edge_features=num_features_tp,
-            num_global_features=hidden_layers,
+            num_global_features=num_targets,
             num_targets=num_features_tp,
         )
         self.node_model = NodeModel(
             hidden_channels=hidden_channels,
             num_node_features=num_features_tp,
             num_edge_features=num_features_tp,
-            num_global_features=hidden_layers,
+            num_global_features=num_targets,
             num_targets=num_features_tp,
         )
         self.global_model = GlobalModel(
             hidden_layers,
-            hidden_layers,
+            num_targets,
             num_features_tp,
             num_targets,
         )

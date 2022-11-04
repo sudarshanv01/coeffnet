@@ -9,8 +9,9 @@ import torch
 from torch_geometric.loader import DataLoader
 
 from minimal_basis.dataset.dataset_hamiltonian import HamiltonianDataset
-from minimal_basis.model.model_hamiltonian import HamiltonianModel
+from minimal_basis.model.model_hamiltonian import HamiltonianModel, EquiHamiltonianModel
 
+from e3nn import o3
 
 from utils import (
     get_test_data_path,
@@ -26,7 +27,6 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
-# os.environ["WANDB_MODE"] = "offline"
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -35,10 +35,27 @@ parser.add_argument(
     help="If set, the calculation is a DEBUG calculation.",
 )
 parser.add_argument(
+    "--use_equivariant",
+    action="store_true",
+    help="If set, the model will use equivariant layers.",
+)
+parser.add_argument(
     "--hidden_channels",
     type=int,
     default=64,
     help="Number of hidden channels in the neural network.",
+)
+parser.add_argument(
+    "--num_basis",
+    type=int,
+    default=10,
+    help="Number of basis functions to use in the model.",
+)
+parser.add_argument(
+    "--num_targets",
+    type=int,
+    default=5,
+    help="Number of targets to predict.",
 )
 parser.add_argument(
     "--num_layers",
@@ -46,7 +63,14 @@ parser.add_argument(
     default=4,
     help="Number of layers in the neural network.",
 )
+parser.add_argument(
+    "--max_radius",
+    type=float,
+    default=10.0,
+)
+
 args = parser.parse_args()
+print(args)
 
 
 if not args.debug:
@@ -128,13 +152,27 @@ if __name__ == "__main__":
     print(f"Number of edge features: {num_edge_features}")
 
     # Create the optimizer
-    model = HamiltonianModel(
-        num_node_features=num_node_features,
-        num_edge_features=num_edge_features,
-        num_global_features=num_global_features,
-        hidden_channels=args.hidden_channels,
-        num_updates=args.num_layers,
-    )
+    if args.use_equivariant:
+        irreps_out = o3.Irreps("1x0e + 3x1o + 5x2e")
+        model = EquiHamiltonianModel(
+            irreps_out_per_basis=irreps_out,
+            hidden_layers=args.hidden_channels,
+            num_basis=args.num_basis,
+            num_global_features=num_global_features,
+            num_targets=args.num_targets,
+            num_updates=args.num_layers,
+            hidden_channels=10,
+            max_radius=args.max_radius,
+        )
+    else:
+        model = HamiltonianModel(
+            num_node_features=num_node_features,
+            num_edge_features=num_edge_features,
+            num_global_features=num_global_features,
+            hidden_channels=args.hidden_channels,
+            num_updates=args.num_layers,
+        )
+
     model = model.to(DEVICE)
     if not args.debug:
         wandb.watch(model)

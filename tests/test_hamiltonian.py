@@ -297,7 +297,7 @@ def test_equivariant_hamiltonian_model(sn2_reaction_input, tmp_path):
     dataset.process()
 
     irreps_out = o3.Irreps("1x0e + 3x1o + 5x2e")
-    max_radius = 10
+    max_radius = 8.0
 
     # Make a DataLoader object
     loader = DataLoader(dataset, batch_size=2, shuffle=False)
@@ -306,12 +306,12 @@ def test_equivariant_hamiltonian_model(sn2_reaction_input, tmp_path):
 
         model = EquiHamiltonianModel(
             irreps_out_per_basis=irreps_out,
-            hidden_layers=10,
+            hidden_layers=7,
             num_basis=10,
             num_global_features=1,
-            num_targets=10,
+            num_targets=5,
             num_updates=4,
-            hidden_channels=10,
+            hidden_channels=20,
             max_radius=max_radius,
         )
 
