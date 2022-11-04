@@ -437,8 +437,9 @@ class Graph2GraphModel(torch.nn.Module):
 
 
 class Graph2PropertyModel(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, global_features: int = 1):
         super().__init__()
+        self.global_features = global_features
 
     def forward(self, x, edge_index, edge_attr, u, batch):
         """Forward pass of the graph-to-property model. Takes in
@@ -450,8 +451,8 @@ class Graph2PropertyModel(torch.nn.Module):
             edge_attr: Edge features of shape (num_edges, num_edge_features)
             u: Global features of shape (num_graphs, num_global_features)
         """
-        # Make a prediction based on the final graph.
-        return u
+        # Add all the global features together.
+        return u.sum(dim=1)
 
 
 class HamiltonianModel(torch.nn.Module):
@@ -489,6 +490,56 @@ class HamiltonianModel(torch.nn.Module):
         u = u.view(-1, 1)
 
         x, edge_attr, u = self.graph2graph(x, edge_index, edge_attr, u, batch)
+
+        out = self.graph2property(x, edge_index, edge_attr, u, batch)
+
+        return out.view(len(out))
+
+
+class EquiHamiltonianModel(torch.nn.Module):
+    def __init__(
+        self,
+        irreps_out_per_basis,
+        hidden_layers,
+        num_basis,
+        num_targets,
+        num_updates,
+        hidden_channels,
+        num_global_features,
+        max_radius,
+    ):
+        super().__init__()
+
+        self.graph2graph = EquiGraph2GraphModel(
+            irreps_out_per_basis=irreps_out_per_basis,
+            hidden_layers=hidden_layers,
+            num_basis=num_basis,
+            num_targets=num_targets,
+            num_updates=num_updates,
+            hidden_channels=hidden_channels,
+            num_global_features=num_global_features,
+        )
+
+        self.graph2property = Graph2PropertyModel(global_features=num_global_features)
+
+        self.max_radius = max_radius
+
+    def forward(self, data):
+        x, edge_index, edge_attr, u, batch, pos, num_nodes = (
+            data.x,
+            data.edge_index,
+            data.edge_attr,
+            data.global_attr,
+            data.batch,
+            data.pos,
+            data.num_nodes,
+        )
+
+        u = u.view(-1, 1)
+
+        x, edge_attr, u = self.graph2graph(
+            x, edge_index, edge_attr, u, batch, pos, self.max_radius, num_nodes
+        )
 
         out = self.graph2property(x, edge_index, edge_attr, u, batch)
 

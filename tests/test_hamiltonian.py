@@ -15,6 +15,7 @@ from minimal_basis.model.model_hamiltonian import (
     EdgeEquiModel,
     NodeEquiModel,
     EquiGraph2GraphModel,
+    EquiHamiltonianModel,
 )
 
 from e3nn.util.test import assert_equivariant, assert_auto_jitable
@@ -276,3 +277,47 @@ def test_equi_graph2graph_model(sn2_reaction_input, tmp_path):
         assert edge_attr.shape[1] == irreps_out.dim * 3
         assert u.shape[0] == datapoint.global_attr.shape[0]
         assert u.shape[1] == 10  # Same as the number of hidden channels
+
+
+def test_equivariant_hamiltonian_model(sn2_reaction_input, tmp_path):
+    """Test the `EquivariantHamiltonianModel` to make sure inputs and output dimensions are correct."""
+
+    filename = sn2_reaction_input
+    basis_file = get_basis_file_info()
+    GRAPH_GENERTION_METHOD = "sn2"
+
+    dataset = HamiltonianDataset(
+        root=tmp_path,
+        filename=filename,
+        graph_generation_method=GRAPH_GENERTION_METHOD,
+        basis_file=basis_file,
+    )
+
+    # Initiate the process of creating the dataset.
+    dataset.process()
+
+    irreps_out = o3.Irreps("1x0e + 3x1o + 5x2e")
+    max_radius = 10
+
+    # Make a DataLoader object
+    loader = DataLoader(dataset, batch_size=2, shuffle=False)
+
+    for datapoint in loader:
+
+        model = EquiHamiltonianModel(
+            irreps_out_per_basis=irreps_out,
+            hidden_layers=10,
+            num_basis=10,
+            num_global_features=1,
+            num_targets=10,
+            num_updates=4,
+            hidden_channels=10,
+            max_radius=max_radius,
+        )
+
+        u = datapoint.global_attr
+        u = u.view(-1, 1)
+
+        output = model(datapoint)
+
+        assert output.shape[0] == u.shape[0]
