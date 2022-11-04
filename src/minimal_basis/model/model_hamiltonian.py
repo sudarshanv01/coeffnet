@@ -45,6 +45,26 @@ class EdgeModel(torch.nn.Module):
         return self.edge_mlp(out)
 
 
+class NodeEquiModel(torch.nn.Module):
+    def __init__(self, irreps_out_per_basis, hidden_layers, num_basis):
+        super().__init__()
+
+        self.node_mlp = EquivariantConv(irreps_out_per_basis, hidden_layers, num_basis)
+
+    def forward(self, x, edge_index, pos, max_radius, num_nodes):
+        """Forward pass of the edge model."""
+
+        out = self.node_mlp(
+            f_in=x,
+            edge_index=edge_index,
+            pos=pos,
+            max_radius=max_radius,
+            num_nodes=num_nodes,
+            target_dim=num_nodes,
+        )
+        return out
+
+
 class EquivariantConv(torch.nn.Module):
 
     # The minimal basis representation will always
@@ -85,7 +105,7 @@ class EquivariantConv(torch.nn.Module):
 
         self.num_basis = num_basis
 
-    def forward(self, f_in, edge_index, pos, max_radius, num_nodes):
+    def forward(self, f_in, edge_index, pos, max_radius, num_nodes, target_dim):
         """Forward pass of Equivariant convolution."""
 
         row, col = edge_index
@@ -143,7 +163,7 @@ class EquivariantConv(torch.nn.Module):
         summand = torch.cat([out_s, out_p, out_d], dim=1)
 
         # Get the output
-        f_out = scatter(summand, col, dim=0, dim_size=num_nodes)
+        f_out = scatter(summand, col, dim=0, dim_size=target_dim)
 
         f_out = f_out.div(num_neighbors**0.5)
 
@@ -194,6 +214,26 @@ class NodeModel(torch.nn.Module):
         return self.node_mlp_2(out)
 
 
+class EdgeEquiModel(torch.nn.Module):
+    def __init__(self, irreps_out_per_basis, hidden_layers, num_basis):
+        super().__init__()
+
+        self.edge_mlp = EquivariantConv(irreps_out_per_basis, hidden_layers, num_basis)
+
+    def forward(self, edge_attr, edge_index, pos, max_radius, num_nodes):
+        """Forward pass of the edge model."""
+
+        out = self.edge_mlp(
+            f_in=edge_attr,
+            edge_index=edge_index,
+            pos=pos,
+            max_radius=max_radius,
+            num_nodes=num_nodes,
+            target_dim=edge_index.shape[1],
+        )
+        return out
+
+
 class GlobalModel(torch.nn.Module):
     def __init__(
         self,
@@ -213,6 +253,132 @@ class GlobalModel(torch.nn.Module):
     def forward(self, x, edge_index, edge_attr, u, batch):
         out = torch.cat([u, scatter_mean(x, batch, dim=0)], dim=1)
         return self.global_mlp(out)
+
+
+class EquiGraph2GraphModel(torch.nn.Module):
+    def __init__(
+        self,
+        irreps_out_per_basis,
+        hidden_layers,
+        num_basis,
+        num_targets,
+        num_updates,
+        hidden_channels,
+        num_global_features,
+    ):
+        super().__init__()
+
+        # ---- Define the equivariant layers.
+        self.equi_edge_model = EdgeEquiModel(
+            irreps_out_per_basis, hidden_layers, num_basis
+        )
+        self.equi_node_model = NodeEquiModel(
+            irreps_out_per_basis, hidden_layers, num_basis
+        )
+        num_features_tp = irreps_out_per_basis.dim * 3
+        self.equi_global_model = GlobalModel(
+            hidden_layers,
+            num_global_features,
+            num_features_tp,
+            num_targets,
+        )
+        self.equi_meta_layer = MetaLayerEqui(
+            self.equi_node_model,
+            self.equi_edge_model,
+            self.equi_global_model,
+        )
+
+        # ---- Define the invariant layers
+        # Node features for the global model after the tensor product.
+        self.edge_model = EdgeModel(
+            hidden_channels=hidden_channels,
+            num_node_features=num_features_tp,
+            num_edge_features=num_features_tp,
+            num_global_features=hidden_layers,
+            num_targets=num_features_tp,
+        )
+        self.node_model = NodeModel(
+            hidden_channels=hidden_channels,
+            num_node_features=num_features_tp,
+            num_edge_features=num_features_tp,
+            num_global_features=hidden_layers,
+            num_targets=num_features_tp,
+        )
+        self.global_model = GlobalModel(
+            hidden_layers,
+            hidden_layers,
+            num_features_tp,
+            num_targets,
+        )
+        self.meta_layer = MetaLayer(
+            node_model=self.node_model,
+            edge_model=self.edge_model,
+            global_model=self.global_model,
+        )
+
+        self.num_updates = num_updates
+
+    def forward(
+        self, x_, edge_index, edge_attr_, u_, batch_, pos, max_radius, num_nodes
+    ):
+
+        # Perform a single GNN update for the equivariant network.
+        x, edge_attr, u = self.equi_meta_layer(
+            x_, edge_index, edge_attr_, u_, batch_, pos, max_radius, num_nodes
+        )
+
+        # Perform the invariant GNN updates.
+        for i in range(self.num_updates):
+            x, edge_attr, u = self.meta_layer(x, edge_index, edge_attr, u, batch_)
+
+        return x, edge_attr, u
+
+
+class MetaLayerEqui(torch.nn.Module):
+    def __init__(self, node_model=None, edge_model=None, global_model=None):
+        super().__init__()
+
+        self.node_model = node_model
+        self.edge_model = edge_model
+        self.global_model = global_model
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        for item in [self.node_model, self.edge_model, self.global_model]:
+            if hasattr(item, "reset_parameters"):
+                item.reset_parameters()
+
+    def forward(self, x, edge_index, edge_attr, u, batch, pos, max_radius, num_nodes):
+
+        if self.node_model:
+            x = self.node_model(
+                x=x,
+                edge_index=edge_index,
+                pos=pos,
+                max_radius=max_radius,
+                num_nodes=num_nodes,
+            )
+
+        if self.edge_model:
+            edge_attr = self.edge_model(
+                edge_attr=edge_attr,
+                edge_index=edge_index,
+                pos=pos,
+                max_radius=max_radius,
+                num_nodes=num_nodes,
+            )
+
+        if self.global_model:
+            u = self.global_model(
+                x=x,
+                edge_index=edge_index,
+                edge_attr=edge_attr,
+                u=u,
+                batch=batch,
+            )
+
+        return x, edge_attr, u
 
 
 class Graph2GraphModel(torch.nn.Module):
