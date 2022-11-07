@@ -176,8 +176,12 @@ class Graph2PropertyModel(torch.nn.Module):
             edge_attr: Edge features of shape (num_edges, num_edge_features)
             u: Global features of shape (num_graphs, num_global_features)
         """
-        # Make a prediction based on the final graph.
-        return u
+        # Add the sum of the node features to the global features.
+        averaged_node_features = scatter_mean(x, batch, dim=0)
+        out = torch.cat([u, averaged_node_features], dim=1)
+        # Take a mean of all the features of out
+        out = torch.mean(out, dim=1)
+        return out
 
 
 class ChargeModel(torch.nn.Module):

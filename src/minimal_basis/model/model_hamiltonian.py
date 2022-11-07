@@ -451,8 +451,12 @@ class Graph2PropertyModel(torch.nn.Module):
             edge_attr: Edge features of shape (num_edges, num_edge_features)
             u: Global features of shape (num_graphs, num_global_features)
         """
-        # Add all the global features together.
-        return u.sum(dim=1)
+        averaged_node_features = scatter_mean(x, batch, dim=0)
+        out = torch.cat([u, averaged_node_features], dim=1)
+        # Take a mean of all the features of out
+        out = torch.mean(out, dim=1)
+
+        return out
 
 
 class HamiltonianModel(torch.nn.Module):

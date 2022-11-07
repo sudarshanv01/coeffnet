@@ -15,4 +15,5 @@ module load python
 module load cudatoolkit/11.5
 conda activate molml
 
-python train_model.py 
+# python train_model.py --model hamiltonian
+python train_model.py --model charge --output_dir charge_checkpt --debug

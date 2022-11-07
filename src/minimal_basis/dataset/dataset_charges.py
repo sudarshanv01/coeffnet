@@ -187,7 +187,6 @@ class ChargeDataset(InMemoryDataset):
                 global_attr=global_information,
                 edge_attr=edge_attr,
             )
-            print(datapoint)
 
             logging.info("Datapoint:")
             logging.info(datapoint)

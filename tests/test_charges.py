@@ -271,9 +271,9 @@ def test_graph2property_model_sn2_graph(sn2_reaction_input, tmp_path):
 
         # Infer the number of nodes and edges attributes
         x = datapoint.x
-        x = x.view(-1, 1)
+        x = x.view(-1, datapoint.num_node_features)
         ek = datapoint.edge_attr
-        ek = ek.view(-1, 1)
+        ek = ek.view(-1, datapoint.num_edge_features)
         u = datapoint.global_attr
         u = u.view(-1, 1)
 

@@ -195,5 +195,7 @@ if __name__ == "__main__":
 
                 plt.close(fign)
 
-        fig.savefig(f"output/hamiltonian_graph_{idx}.png", dpi=300)
+        if not os.path_exists("output/hamiltonian_model"):
+            os.makedirs("output/hamiltonian_model")
+        fig.savefig(f"output/hamilonian_model/hamiltonian_graph_{idx}.png", dpi=300)
         plt.close(fig)

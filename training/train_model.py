@@ -1,5 +1,6 @@
 """Train any model based on the specifications of the input file."""
 import os
+import json
 import torch
 from typing import Dict, List, Tuple
 from filelock import FileLock
@@ -15,7 +16,7 @@ from torch_geometric.loader import DataLoader
 from minimal_basis.dataset.dataset_charges import ChargeDataset
 from minimal_basis.model.model_charges import ChargeModel
 from minimal_basis.dataset.dataset_hamiltonian import HamiltonianDataset
-from minimal_basis.model.model_hamiltonian import HamiltonianModel
+from minimal_basis.model.model_hamiltonian import HamiltonianModel, EquiHamiltonianModel
 
 import ray
 from ray import tune
@@ -23,6 +24,8 @@ from ray.air import session, RunConfig
 from ray.air.checkpoint import Checkpoint
 from ray.tune.schedulers import ASHAScheduler
 from ray.tune.integration.wandb import wandb_mixin
+
+from e3nn import o3
 
 import wandb
 
@@ -50,13 +53,18 @@ def load_data(data_dir="input_files", model="charge"):
     else:
         train_json_filename = inputs["train_json"]
 
-    test_json_filename = inputs["test_json"]
+    validate_json_filename = inputs["validate_json"]
 
     # Decipher the name of the Dataset based on the model
     if model == "charge":
         DatasetModule = ChargeDataset
+        kwargs = {}
     elif model == "hamiltonian":
         DatasetModule = HamiltonianDataset
+        kwargs = {"basis_file": inputs["basis_file"]}
+    elif model == "equi_hamiltonian":
+        DatasetModule = HamiltonianDataset
+        kwargs = {"basis_file": inputs["basis_file"]}
     else:
         raise ValueError(f"Model {model} not recognized.")
 
@@ -66,19 +74,21 @@ def load_data(data_dir="input_files", model="charge"):
             root=get_test_data_path(),
             filename=train_json_filename,
             graph_generation_method=graph_generation_method,
+            **kwargs,
         )
         train_dataset.process()
 
-        test_dataset = DatasetModule(
+        validate_dataset = DatasetModule(
             root=get_test_data_path(),
-            filename=test_json_filename,
+            filename=validate_json_filename,
             graph_generation_method=graph_generation_method,
+            **kwargs,
         )
-        test_dataset.process()
+        validate_dataset.process()
 
     return (
         train_dataset,
-        test_dataset,
+        validate_dataset,
         {
             "num_node_features": train_dataset.num_node_features,
             "num_edge_features": train_dataset.num_edge_features,
@@ -90,15 +100,13 @@ def load_data(data_dir="input_files", model="charge"):
 def train_model(config):
     """Train the model."""
 
-    train_dataset, test_dataset, dataset_info = load_data("input_files", args.model)
+    train_dataset, validate_dataset, dataset_info = load_data("input_files", args.model)
 
     # Create a dataloader for the train_dataset
     train_loader = DataLoader(
         train_dataset, batch_size=config["batch_size"], shuffle=True
     )
-    test_loader = DataLoader(
-        test_dataset, batch_size=config["batch_size"], shuffle=True
-    )
+    test_loader = DataLoader(validate_dataset, len(validate_dataset), shuffle=True)
 
     if args.model == "charge":
         model = ChargeModel(
@@ -115,6 +123,18 @@ def train_model(config):
             num_global_features=num_global_features,
             hidden_channels=config["hidden_channels"],
             num_updates=config["num_layers"],
+        )
+    elif args.model == "equi_hamiltonian":
+        irreps_out = o3.Irreps("1x0e + 3x1o + 5x2e")
+        model = EquiHamiltonianModel(
+            irreps_out_per_basis=irreps_out,
+            hidden_layers=config["hidden_channels"],
+            num_basis=config["num_basis"],
+            num_global_features=num_global_features,
+            num_targets=config["num_targets"],
+            num_updates=config["num_layers"],
+            hidden_channels=config["hidden_channels"],
+            max_radius=config["max_radius"],
         )
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model.to(device)
@@ -139,9 +159,9 @@ def train_model(config):
         train_loss = train(model, train_loader, optim, device)
         wandb.log({"train_loss": train_loss})
 
-    # Validation loss
-    val_loss = validation(model, test_loader, device)
-    wandb.log({"val_loss": val_loss})
+        # Validation loss
+        val_loss = validation(model, test_loader, device)
+        wandb.log({"val_loss": val_loss})
 
     # Save the model
     os.makedirs(args.output_dir, exist_ok=True)
@@ -209,17 +229,31 @@ def main(num_samples=10, max_num_epochs=100, gpus_per_trial=1):
         }
     else:
         config = {
-            "batch_size": 5,
-            "learning_rate": 1e-3,
-            "hidden_channels": 32,
-            "num_layers": 1,
+            "batch_size": tune.choice([5, 10]),
+            "learning_rate": tune.loguniform(1e-3, 1e-4),
+            "hidden_channels": tune.choice([32, 64]),
+            "num_layers": tune.choice([1, 2]),
             "epochs": max_num_epochs,
         }
+
+    # Add additonal config options for the equi-hamiltonian model
+    if args.model == "equi_hamiltonian":
+        config.update(
+            {
+                "num_basis": tune.choice([10, 20, 30]),
+                "num_targets": tune.choice([5, 10, 20]),
+                "max_radius": tune.choice([5, 10, 20]),
+            }
+        )
 
     scheduler = ASHAScheduler(max_t=max_num_epochs, grace_period=1, reduction_factor=2)
 
     # Add wandb to the config
-    config["wandb"] = {"api_key_file": api_key_file, "project": args.wandb_project}
+    config["wandb"] = {
+        "api_key_file": api_key_file,
+        "project": args.wandb_project,
+        "group": args.model,
+    }
 
     tuner = tune.Tuner(
         tune.with_resources(
@@ -245,6 +279,10 @@ def main(num_samples=10, max_num_epochs=100, gpus_per_trial=1):
         "Best trial final validation accuracy: {}".format(best_result.metrics["loss"])
     )
 
+    # Write out the best performing model as a checkpoint
+    best_config = best_result.config
+    json.dump(best_config, open(f"output/best_config_{args.model}.json", "w"))
+
 
 def parse_cli():
     """Parse the command line arguments."""
@@ -258,7 +296,7 @@ def parse_cli():
     parser.add_argument(
         "--wandb_project",
         type=str,
-        default="charge",
+        default="minimal_basis_ray_tune",
         help="Name of the wandb project.",
     )
     parser.add_argument(
@@ -301,4 +339,4 @@ if __name__ == "__main__":
 
     num_global_features = 1
 
-    main(num_samples=2, max_num_epochs=500, gpus_per_trial=1)
+    main(num_samples=5, max_num_epochs=500, gpus_per_trial=1)
