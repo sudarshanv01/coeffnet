@@ -29,7 +29,7 @@ class EdgeModel(torch.nn.Module):
             Lin(hidden_channels, num_targets),
         )
 
-    def forward(self, ek, vrk, vsk, u, batch):
+    def forward(self, vrk, vsk, ek, u, batch):
         """Forward pass of the edge model.
 
         Args:

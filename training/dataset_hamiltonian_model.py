@@ -51,6 +51,9 @@ def inspect_data(y, filename):
     fig.savefig(f"output/{filename}.png", dpi=300)
 
 
+if not os.path.exists("output/hamiltonian_model"):
+    os.makedirs("output/hamiltonian_model")
+
 if __name__ == "__main__":
     """Test a convolutional Neural Network based on the Hamiltonian model."""
 
@@ -146,7 +149,7 @@ if __name__ == "__main__":
                 # Set equal aspect ratio
                 axn.set_aspect("equal")
                 fign.savefig(
-                    f"output/hamiltonian_datapoint_{idx}_graph_{j}_node_index_{node_idx}.png",
+                    f"output/hamiltonian_model/hamiltonian_datapoint_{idx}_graph_{j}_node_index_{node_idx}.png",
                     dpi=300,
                 )
 
@@ -189,13 +192,11 @@ if __name__ == "__main__":
                 # Set equal aspect ratio
                 axn.set_aspect("equal")
                 fign.savefig(
-                    f"output/hamiltonian_datapoint_{idx}_graph_{j}_edge_index_{edge_idx}.png",
+                    f"output/hamiltonian_model/hamiltonian_datapoint_{idx}_graph_{j}_edge_index_{edge_idx}.png",
                     dpi=300,
                 )
 
                 plt.close(fign)
 
-        if not os.path_exists("output/hamiltonian_model"):
-            os.makedirs("output/hamiltonian_model")
-        fig.savefig(f"output/hamilonian_model/hamiltonian_graph_{idx}.png", dpi=300)
+        fig.savefig(f"output/hamiltonian_model/hamiltonian_graph_{idx}.png", dpi=300)
         plt.close(fig)
