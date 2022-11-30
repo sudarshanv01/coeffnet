@@ -56,3 +56,23 @@ def get_test_data_path():
     if not os.path.exists(test_data_path):
         os.makedirs(test_data_path, exist_ok=True)
     return test_data_path
+
+
+def get_train_data_path():
+    """The trains folder in the conftrain file."""
+    confpath = os.path.dirname(os.path.abspath(__file__))
+    train_data_path = os.path.join(confpath, "datasets_chkpoint", "train_data")
+    if not os.path.exists(train_data_path):
+        os.makedirs(train_data_path, exist_ok=True)
+    return train_data_path
+
+
+def get_validation_data_path():
+    """The validations folder in the confvalidation file."""
+    confpath = os.path.dirname(os.path.abspath(__file__))
+    validation_data_path = os.path.join(
+        confpath, "datasets_chkpoint", "validation_data"
+    )
+    if not os.path.exists(validation_data_path):
+        os.makedirs(validation_data_path, exist_ok=True)
+    return validation_data_path

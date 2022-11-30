@@ -97,8 +97,9 @@ class GenerateParametersClassifier:
 
         return self.lib.exp(-((x - mu) ** 2) / (2 * sigma**2))
 
-    def get_interpolated_ts_positions(self, alpha: float, mu: float = None):
-        """Generate parameters for the classifier."""
+    def get_p_and_pprime(
+        self, alpha: float, mu: float = None
+    ) -> Tuple[npt.ArrayLike, npt.ArrayLike]:
         # generate the deciding parameter of "initial-state-like" or
         # "final-state-like" for each data point based on the
         # value of Delta G and the distribution of Delta G
@@ -112,6 +113,13 @@ class GenerateParametersClassifier:
         p = (f + h) / 2
         p_prime = self.lib.ones_like(p) - p
         self.logger.debug(f"Shape of p: {p.shape}")
+
+        return p, p_prime
+
+    def get_interpolated_ts_positions(self, alpha: float, mu: float = None):
+        """Generate parameters for the classifier."""
+
+        p, p_prime = self.get_p_and_pprime(alpha, mu=mu)
 
         # Generate the interpolated transition state positions
         # based on the probability of each data point being

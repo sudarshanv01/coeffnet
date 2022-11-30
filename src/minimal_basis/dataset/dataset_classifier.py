@@ -69,10 +69,11 @@ class ClassifierDataset(InMemoryDataset):
 
         for data_ in self.input_data:
 
+            # --- Transition state graph construction ---
             reactant_structure = data_["reactant_structure"]
             product_structure = data_["product_structure"]
 
-            # Generat the transition state structure from the reactant and product structures
+            # Generate the transition state structure from the reactant and product structures
             parameters_transition_state = GenerateParametersClassifier(
                 is_positions=[reactant_structure.cart_coords],
                 fs_positions=[product_structure.cart_coords],
@@ -94,26 +95,18 @@ class ClassifierDataset(InMemoryDataset):
                 species=reactant_structure.species,
                 coords=transition_state_coords,
             )
-
-            # Get the average of all the quantities based on the reactant and product structures
-            nbo_charges = np.array(data_["reactant_partial_charges"]) + np.array(
-                data_["product_partial_charges"]
+            # Make a graph out of the transition state structure
+            transition_state_graph = MoleculeGraph.with_local_env_strategy(
+                transition_state_structure, OpenBabelNN()
             )
-            nbo_charges = nbo_charges / 2
-            core_electrons = np.array(data_["reactant_core_electrons"]) + np.array(
-                data_["product_core_electrons"]
-            )
-            core_electrons = core_electrons / 2
-            valence_electrons = np.array(
-                data_["reactant_valence_electrons"]
-            ) + np.array(data_["product_valence_electrons"])
-            valence_electrons = valence_electrons / 2
-            rydberg_electrons = np.array(
-                data_["reactant_rydberg_electrons"]
-            ) + np.array(data_["product_rydberg_electrons"])
-            rydberg_electrons = rydberg_electrons / 2
 
-            # Choose the reaction energy as the global feature
+            # Get the proportion of the reactant and product structures
+            p, p_prime = parameters_transition_state.get_p_and_pprime(
+                alpha=self.classifier_parameters["alpha"],
+                mu=self.classifier_parameters["mu"],
+            )
+
+            # --- Global features ---
             reaction_energy = data_["reaction_energy"]
             charge = data_["charge"]
             spin_multiplicity = data_["spin_multiplicity"]
@@ -125,27 +118,60 @@ class ClassifierDataset(InMemoryDataset):
             num_global_features = len(global_features)
             global_features = torch.tensor(global_features, dtype=torch.float)
 
-            # Make a graph out of the transition state structure
-            transition_state_graph = MoleculeGraph.with_local_env_strategy(
-                transition_state_structure, OpenBabelNN()
+            # --- Node features ---
+            # Get the reactant and product quantties
+            reactant_partial_charges = torch.tensor(
+                data_["reactant_partial_charges"], dtype=DTYPE
+            )
+            product_partial_charges = torch.tensor(
+                data_["product_partial_charges"], dtype=DTYPE
+            )
+            reactant_core_elctrons = torch.tensor(
+                data_["reactant_core_electrons"], dtype=DTYPE
+            )
+            product_core_electrons = torch.tensor(
+                data_["product_core_electrons"], dtype=DTYPE
+            )
+            reactant_valence_electrons = torch.tensor(
+                data_["reactant_valence_electrons"], dtype=DTYPE
+            )
+            product_valence_electrons = torch.tensor(
+                data_["product_valence_electrons"], dtype=DTYPE
+            )
+            reactant_rydber_electrons = torch.tensor(
+                data_["reactant_rydberg_electrons"], dtype=DTYPE
+            )
+            product_rydberg_electrons = torch.tensor(
+                data_["product_rydberg_electrons"], dtype=DTYPE
             )
 
-            # Collect the node features
-            node_features = []
-            for idx, node in enumerate(transition_state_graph.molecule):
-                node_feature = [
-                    node.specie.Z,
-                    nbo_charges[idx],
-                    core_electrons[idx],
-                    valence_electrons[idx],
-                    rydberg_electrons[idx],
-                ]
-                node_features.append(node_feature)
-            node_features = torch.tensor(node_features, dtype=torch.float)
+            # The quantities will be partitioned the same way as the structures
+            nbo_charges = (
+                p * reactant_partial_charges + p_prime * product_partial_charges
+            )
+            core_electrons = (
+                p * reactant_core_elctrons + p_prime * product_core_electrons
+            )
+            valence_electrons = (
+                p * reactant_valence_electrons + p_prime * product_valence_electrons
+            )
+            rydberg_electrons = (
+                p * reactant_rydber_electrons + p_prime * product_rydberg_electrons
+            )
+
+            node_features = torch.cat(
+                [
+                    nbo_charges.unsqueeze(1),
+                    core_electrons.unsqueeze(1),
+                    valence_electrons.unsqueeze(1),
+                    rydberg_electrons.unsqueeze(1),
+                ],
+                dim=1,
+            )
             logger.debug("node_features: {}".format(node_features))
             logger.debug("node_features.shape: {}".format(node_features.shape))
 
-            # Collect the edge index
+            # --- Edge features ---
             edges_for_graph = transition_state_graph.graph.edges
             edges_for_graph = [list(edge[:-1]) for edge in edges_for_graph]
             logger.debug("edges_for_graph: {}".format(edges_for_graph))

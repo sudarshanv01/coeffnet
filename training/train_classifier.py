@@ -12,7 +12,12 @@ import seaborn
 from minimal_basis.dataset.dataset_classifier import ClassifierDataset
 from minimal_basis.model.model_classifier import ClassifierModel
 
-from utils import read_inputs_yaml, get_test_data_path
+from utils import (
+    read_inputs_yaml,
+    get_test_data_path,
+    get_validation_data_path,
+    get_train_data_path,
+)
 
 LOGFILES_FOLDER = "log_files"
 logger = logging.getLogger(__name__)
@@ -33,6 +38,10 @@ parser.add_argument(
     type=int,
     default=64,
     help="Number of hidden channels in the neural network.",
+)
+parser.add_argument(
+    "--reprocess_dataset",
+    action="store_true",
 )
 args = parser.parse_args()
 
@@ -94,16 +103,20 @@ if __name__ == "__main__":
 
     # Create the training and test datasets
     train_dataset = ClassifierDataset(
-        root=get_test_data_path(),
+        root=get_train_data_path(),
         filename=train_json_filename,
         filename_classifier_parameters=dataset_parameters_filename,
     )
+    if args.reprocess_dataset:
+        train_dataset.process()
 
     validate_dataset = ClassifierDataset(
-        root=get_test_data_path(),
+        root=get_validation_data_path(),
         filename=validate_json_filename,
         filename_classifier_parameters=dataset_parameters_filename,
     )
+    if args.reprocess_dataset:
+        validate_dataset.process()
 
     # Create a dataloader for the train_dataset
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -134,11 +147,11 @@ if __name__ == "__main__":
         # Train the model
         train_loss = train(loader=train_loader)
         train_acc = validate(loader=train_loader)
-        logger.info(f"Epoch: {epoch}, Loss: {train_acc}")
+        logger.info(f"Epoch: {epoch}, Train Accuracy: {train_acc}")
 
         # Validate the model
         val_acc = validate(loader=validate_loader)
-        logger.info(f"Epoch: {epoch}, Validation Loss: {val_acc}")
+        logger.info(f"Epoch: {epoch}, Validation Accuracy: {val_acc}")
 
         if not args.debug:
             wandb.log({"train_loss": train_acc})
