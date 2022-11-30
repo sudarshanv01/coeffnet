@@ -64,7 +64,7 @@ class ChargeDataset(InMemoryDataset):
 
     @property
     def processed_file_names(self):
-        return "data.pt"
+        return "charge_data.pt"
 
     def download(self):
         """Load data from json file."""

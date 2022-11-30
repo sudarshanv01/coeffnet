@@ -13,11 +13,20 @@ import torch
 from torch_geometric.data import InMemoryDataset
 
 from minimal_basis.data import DatapointClassifier as Datapoint
+from minimal_basis.predata import GenerateParametersClassifier
 
 logger = logging.getLogger(__name__)
 
+from minimal_basis.data._dtype import (
+    DTYPE,
+    DTYPE_INT,
+    DTYPE_BOOL,
+    TORCH_FLOATS,
+    TORCH_INTS,
+)
 
-class SimpleTSDataset(InMemoryDataset):
+
+class ClassifierDataset(InMemoryDataset):
     def __init__(
         self,
         root,
@@ -25,9 +34,11 @@ class SimpleTSDataset(InMemoryDataset):
         pre_transform=None,
         pre_filter=None,
         filename: str = None,
+        filename_classifier_parameters: str = None,
     ):
 
         self.filename = filename
+        self.filename_classifier_parameters = filename_classifier_parameters
         super().__init__(
             root=root,
             transform=transform,
@@ -36,18 +47,22 @@ class SimpleTSDataset(InMemoryDataset):
         )
         self.data, self.slices = torch.load(self.processed_paths[0])
 
+        # Find the number of global features based on the first data
+        self.num_global_features = self.data.num_global_features
+
     @property
     def raw_file_names(self):
-        return "data_for_ml.json"
+        return ["data_for_ml.json", "classifier_parameters.json"]
 
     @property
     def processed_file_names(self):
-        return "data_for_ml.pt"
+        return "classifier_data.pt"
 
     def download(self):
         logger.info("Loading data from json file.")
         self.input_data = loadfn(self.filename)
         logger.info("Done loading data from json file.")
+        self.classifier_parameters = loadfn(self.filename_classifier_parameters)
 
     def process(self):
         data_list = []
@@ -56,6 +71,29 @@ class SimpleTSDataset(InMemoryDataset):
 
             reactant_structure = data_["reactant_structure"]
             product_structure = data_["product_structure"]
+
+            # Generat the transition state structure from the reactant and product structures
+            parameters_transition_state = GenerateParametersClassifier(
+                is_positions=[reactant_structure.cart_coords],
+                fs_positions=[product_structure.cart_coords],
+                deltaG=torch.tensor([data_["reaction_energy"]], dtype=DTYPE),
+                num_data_points=1,
+            )
+            transition_state_coords = (
+                parameters_transition_state.get_interpolated_ts_positions(
+                    alpha=self.classifier_parameters["alpha"],
+                    mu=self.classifier_parameters["mu"],
+                )[0]
+            )
+            logger.debug(
+                f"Shape of transition state coords: {transition_state_coords.shape}"
+            )
+
+            # Generate a molecule object for the transition state coords
+            transition_state_structure = Molecule(
+                species=reactant_structure.species,
+                coords=transition_state_coords,
+            )
 
             # Get the average of all the quantities based on the reactant and product structures
             nbo_charges = np.array(data_["reactant_partial_charges"]) + np.array(
@@ -84,6 +122,7 @@ class SimpleTSDataset(InMemoryDataset):
                 charge,
                 spin_multiplicity,
             ]
+            num_global_features = len(global_features)
             global_features = torch.tensor(global_features, dtype=torch.float)
 
             # Make a graph out of the transition state structure
@@ -135,6 +174,7 @@ class SimpleTSDataset(InMemoryDataset):
                 y=y,
                 u=global_features,
                 edge_attr=edge_attributes,
+                num_global_features=num_global_features,
             )
 
             data_list.append(data)

@@ -16,118 +16,7 @@ from monty.serialization import loadfn, dumpfn
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-
-class GenerateParametersClassifier:
-    def __init__(
-        self,
-        is_positions: List[Union[npt.ArrayLike, torch.Tensor]],
-        fs_positions: List[Union[npt.ArrayLike, torch.Tensor]],
-        deltaG: Union[npt.ArrayLike, torch.Tensor],
-        num_data_points: int,
-        ts_positions: List[Union[npt.ArrayLike, torch.Tensor]] = None,
-    ):
-        """Generate parameters for the classifier.
-
-        Args:
-            is_positions: The positions of the initial states.
-            fs_positions: The positions of the final states.
-            deltaG: The free energy difference between the initial
-                and final states.
-            num_data_points (int): The number of data points.
-            ts_positions: The positions of the transition states.
-
-        """
-        self.logger = logging.getLogger(__name__)
-
-        # Decide based on the inputs if we are using numpy or torch
-        if isinstance(ts_positions[0], torch.Tensor):
-            self.use_torch = True
-            self.lib = torch
-        else:
-            self.use_torch = False
-            self.lib = np
-
-        self.ts_positions = ts_positions
-        self.num_data_points = num_data_points
-        self.deltaG = deltaG
-        self.is_positions = is_positions
-        self.fs_positions = fs_positions
-        self.validate_parameters()
-
-        # Every instance of this class generates
-        # a completely random set of sigma parameters
-        self.sigma = self.lib.random.randn(self.num_data_points)
-
-    def f(self, x: Union[npt.ArrayLike, torch.Tensor], alpha: float) -> npt.ArrayLike:
-        """Return f based on parameter x and hyperparameter alpha."""
-
-        if self.use_torch:
-            return 0.5 * (1 + torch.erf(alpha * x / (self.lib.sqrt(2))))
-        else:
-            return 0.5 * (1 + scipy.special.erf(alpha * x / (self.lib.sqrt(2))))
-
-    def h(
-        self, x: Union[npt.ArrayLike, torch.Tensor], mu: float = None, sigma: float = 1
-    ) -> npt.ArrayLike:
-        """Return a normal distribution."""
-
-        if mu is None:
-            # If mu is not provided, use a centered normal distribution
-            mu = 0.0
-
-        return self.lib.exp(-((x - mu) ** 2) / (2 * sigma**2)) / (
-            sigma * self.lib.sqrt(2 * self.lib.pi)
-        )
-
-    def get_interpolated_ts_positions(self, alpha: float, mu: float = None):
-        """Generate parameters for the classifier."""
-        # generate the deciding parameter of "initial-state-like" or
-        # "final-state-like" for each data point based on the
-        # value of Delta G and the distribution of Delta G
-        f = self.f(self.deltaG, alpha)
-        h = self.h(self.deltaG, mu=mu, sigma=self.sigma)
-
-        # generate the probability of each data point being
-        # "initial-state-like" or "final-state-like"
-        p = (f + h) / 2
-        assert 0 <= p.all() <= 1, "p must be between 0 and 1"
-        p_prime = self.lib.ones_like(p) - p
-
-        # Generate the interpolated transition state positions
-        # based on the probability of each data point being
-        # "initial-state-like" or "final-state-like"
-        int_ts_positions = []
-        for i in range(self.num_data_points):
-            int_ts_positions.append(
-                p[i] * self.is_positions[i] + p_prime[i] * self.fs_positions[i]
-            )
-
-        return int_ts_positions
-
-    def objective_function(self, alpha: float, mu: float = None):
-        """Generate parameters for the classifier."""
-
-        # Make sure we are using the numpy library
-        assert not self.use_torch, "This function is only for numpy"
-
-        int_ts_positions = self.get_interpolated_ts_positions(alpha, mu=mu)
-
-        # Calculate the mean squared error between the
-        # interpolated transition state positions and the
-        # actual transition state positions
-        # Start by generating the norm of the difference
-        # between the interpolated transition state positions
-        # and the actual transition state positions
-        norm = np.linalg.norm(
-            np.array(int_ts_positions) - np.array(self.ts_positions), axis=1
-        )
-
-        # Calculate the mean squared error
-        mse = np.mean(norm**2)
-        rmse = np.sqrt(mse)
-        self.logger.debug("rmse: %s", rmse)
-
-        return rmse
+from minimal_basis.predata import GenerateParametersClassifier
 
 
 if __name__ == "__main__":
@@ -191,7 +80,7 @@ if __name__ == "__main__":
     parameters_dict = {
         "alpha": parameters.x[0],
         "mu": None,
-        "sigma": paramclass.sigma,
+        "sigma": paramclass.sigma.tolist(),
     }
 
     #   Save the parameters to a json file
