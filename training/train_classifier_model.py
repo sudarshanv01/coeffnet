@@ -51,7 +51,7 @@ if not args.debug:
     wandb.init(project="classifier_model", entity="sudarshanvj")
 
 
-def train(loader):
+def train(loader: DataLoader):
     model.train()
     total_loss = 0
     for data in loader:
@@ -66,13 +66,13 @@ def train(loader):
 
 
 @torch.no_grad()
-def validate(loader):
+def validate(loader: DataLoader, theshold: float = 0.5):
     model.eval()
     correct = 0
     for data in loader:
         data = data.to(device)
         out = model(data)
-        pred = out.argmax(dim=1)
+        pred = (out > theshold).float()
         correct += int((pred == data.y).sum())
 
     return correct / len(loader.dataset)
