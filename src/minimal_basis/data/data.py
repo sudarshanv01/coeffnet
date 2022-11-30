@@ -5,6 +5,7 @@ import numpy as np
 
 import torch
 from torch_geometric.data import Data
+from torch_geometric.typing import OptTensor
 
 from minimal_basis.data._dtype import (
     DTYPE,
