@@ -22,7 +22,6 @@ from minimal_basis.data._dtype import (
 )
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
 
 
 class GenerateParametersClassifier:

@@ -16,9 +16,11 @@ class DatapointClassifier(Data):
     ):
         if y is not None:
             if y == "high":
-                classify_y = torch.tensor([1], dtype=torch.long)
-            elif y == "low":
                 classify_y = torch.tensor([0], dtype=torch.long)
+            elif y == "low":
+                classify_y = torch.tensor([1], dtype=torch.long)
+            else:
+                raise ValueError("y must be 'high' or 'low'.")
         else:
             classify_y = None
 

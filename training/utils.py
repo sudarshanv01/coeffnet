@@ -4,12 +4,6 @@ import datetime
 import torch
 import logging
 
-LOGFILES_FOLDER = "log_files"
-logging.basicConfig(
-    filename=os.path.join(LOGFILES_FOLDER, "charge_model.log"),
-    filemode="w",
-    level=logging.INFO,
-)
 logger = logging.getLogger(__name__)
 
 
