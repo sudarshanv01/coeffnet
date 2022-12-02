@@ -23,6 +23,7 @@ from utils import (
 )
 
 from plot_params import get_plot_params
+from minimal_basis.data._dtype import TORCH_FLOATS
 
 get_plot_params()
 
@@ -54,6 +55,10 @@ parser.add_argument(
     help="Number of hidden channels in the neural network.",
 )
 parser.add_argument(
+    "--use_cpu",
+    action="store_true",
+)
+parser.add_argument(
     "--reprocess_dataset",
     action="store_true",
 )
@@ -72,7 +77,14 @@ def train(loader: DataLoader):
         optimizer.zero_grad()
         data = data.to(device)
         out = model(data)
-        loss = criterion(out, data.y)
+        # Apply a sigmoid to the out values
+        out = torch.sigmoid(out)
+        # Make out into a 1D tensor
+        out = out.view(-1)
+        actual = data.y
+        # Convert the actual values to torch float
+        actual = actual.to(TORCH_FLOATS[1])
+        loss = criterion(out, actual)
         loss.backward()
         total_loss += loss.item() * data.num_graphs
         optimizer.step()
@@ -86,12 +98,9 @@ def validate(loader: DataLoader, theshold: float = 0.5):
     for data in loader:
         data = data.to(device)
         out = model(data)
-        # # Sum up the out values for each graph
-        # out = out.sum(dim=1)
-        # # Apply a sigmoid to the out values
-        # out = torch.sigmoid(out)
-        # pred = (out > theshold).float()
-        pred = out.argmax(dim=1)
+        # Apply a sigmoid to the out values
+        out = torch.sigmoid(out)
+        pred = (out > theshold).float()
         correct += int((pred == data.y).sum())
 
     return correct / len(loader.dataset)
@@ -107,10 +116,10 @@ def validation_curve(loader: DataLoader, threshold: float = 0.5):
     for data in loader:
         data = data.to(device)
         out = model(data)
-        # Sum up the out values for each graph
-        out = out.mean(dim=1)
         # Apply a sigmoid to the out values
         out = torch.sigmoid(out)
+        # Make out into a 1D tensor
+        out = out.view(-1)
         _pred = (out > threshold).float()
         _actual = data.y
 
@@ -162,7 +171,11 @@ def metrics(pred: torch.Tensor, actual: torch.Tensor):
 if __name__ == "__main__":
     """Train a simple classifier model."""
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    if not args.use_cpu:
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    else:
+        device = torch.device("cpu")
+
     logger.info(f"Device: {device}")
 
     # --- Inputs
@@ -216,7 +229,7 @@ if __name__ == "__main__":
     model = ClassifierModel(
         num_node_features=num_node_features,
         hidden_channels=args.hidden_channels,
-        out_channels=num_classes,
+        out_channels=1,
     )
     model = model.to(device)
 
@@ -225,7 +238,7 @@ if __name__ == "__main__":
 
     # Create the optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    criterion = torch.nn.CrossEntropyLoss()
+    criterion = torch.nn.BCELoss()
 
     for epoch in range(1, epochs):
         # Train the model
@@ -252,28 +265,28 @@ if __name__ == "__main__":
     logger.info(f"Metrics: {pformat(metrics_dict)}")
 
     # Compute the AUCROC for the validation dataset
-    # recall = [] # True positive rate
-    # fpr = [] # False positive rate
-    # for threshold in np.linspace(0, 1, inputs["threshold_num"]):
-    #     logger.info(f"Threshold: {threshold}")
-    #     pred, actual = validation_curve(loader=validate_loader, threshold=threshold)
-    #     try:
-    #         data_dict = metrics(pred=pred, actual=actual)
-    #     except ZeroDivisionError:
-    #         logger.info("No predictions were made.")
-    #         continue
-    #     logger.info(f"Threshold: {threshold}, Metrics: {data_dict}")
+    recall = []  # True positive rate
+    fpr = []  # False positive rate
+    for threshold in np.linspace(0, 1, inputs["threshold_num"]):
+        logger.info(f"Threshold: {threshold}")
+        pred, actual = validation_curve(loader=validate_loader, threshold=threshold)
+        try:
+            data_dict = metrics(pred=pred, actual=actual)
+        except ZeroDivisionError:
+            logger.info("No predictions were made.")
+            continue
+        logger.info(f"Threshold: {threshold}, Metrics: {data_dict}")
 
-    #     recall.append(data_dict["recall"])
-    #     fpr.append(data_dict["fpr"])
+        recall.append(data_dict["recall"])
+        fpr.append(data_dict["fpr"])
 
-    # # Plot the precision recall curve
-    # fig, ax = plt.subplots(1, 1, figsize=(5, 5), constrained_layout=True)
-    # ax.plot(fpr, recall, 'o-')
-    # ax.set_xlabel("False Positive Rate")
-    # ax.set_ylabel("True Positive Rate")
-    # ax.set_title("Precision Recall Curve")
+    # Plot the precision recall curve
+    fig, ax = plt.subplots(1, 1, figsize=(5, 5), constrained_layout=True)
+    ax.plot(fpr, recall, "o-")
+    ax.set_xlabel("False Positive Rate")
+    ax.set_ylabel("True Positive Rate")
+    ax.set_title("Precision Recall Curve")
 
-    # # Plot the random guess line
-    # ax.plot([0, 1], [0, 1], linestyle="--", color="black")
-    # fig.savefig(os.path.join("output", "precision_recall_curve.png"), dpi=300)
+    # Plot the random guess line
+    ax.plot([0, 1], [0, 1], linestyle="--", color="black")
+    fig.savefig(os.path.join("output", "precision_recall_curve.png"), dpi=300)
