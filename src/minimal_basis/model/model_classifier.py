@@ -1,6 +1,6 @@
 import torch
 from torch.nn import Linear
-from torch_geometric.nn import GraphConv
+from torch_geometric.nn import GraphConv, GCNConv
 from torch_geometric.nn import global_mean_pool
 import torch.nn.functional as F
 
@@ -15,9 +15,9 @@ class ClassifierModel(torch.nn.Module):
         in_channels = num_node_features + num_global_features
 
         # Node feature embedding
-        self.conv1 = GraphConv(in_channels, hidden_channels)
-        self.conv2 = GraphConv(hidden_channels, hidden_channels)
-        self.conv3 = GraphConv(hidden_channels, hidden_channels)
+        self.conv1 = GCNConv(in_channels, hidden_channels)
+        self.conv2 = GCNConv(hidden_channels, hidden_channels)
+        self.conv3 = GCNConv(hidden_channels, hidden_channels)
         self.lin = Linear(hidden_channels, out_channels)
 
     def forward(self, data):

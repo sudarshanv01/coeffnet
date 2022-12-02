@@ -72,29 +72,35 @@ if not args.debug:
 
 def train(loader: DataLoader):
     model.train()
-    total_loss = 0
     for data in loader:
         optimizer.zero_grad()
         data = data.to(device)
+
+        # Run the model
         out = model(data)
+
         # Apply a sigmoid to the out values
         out = torch.sigmoid(out)
         # Make out into a 1D tensor
         out = out.view(-1)
+
+        # Get the actial data
         actual = data.y
+
         # Convert the actual values to torch float
         actual = actual.to(TORCH_FLOATS[1])
+
         loss = criterion(out, actual)
         loss.backward()
-        total_loss += loss.item() * data.num_graphs
-        optimizer.step()
-    return total_loss / len(loader.dataset)
 
 
 @torch.no_grad()
 def validate(loader: DataLoader, theshold: float = 0.5):
     model.eval()
+
+    # Store the number of correct predictions
     correct = 0
+
     for data in loader:
         data = data.to(device)
         out = model(data)
@@ -112,15 +118,21 @@ def validation_curve(loader: DataLoader, threshold: float = 0.5):
     # Make a tensor to store the predicted and actual values
     pred = []
     actual = []
+    output_model = []
+    out = []
 
     for data in loader:
         data = data.to(device)
-        out = model(data)
+        _out = model(data)
+        output_model.append(_out)
+
         # Apply a sigmoid to the out values
-        out = torch.sigmoid(out)
+        _out = torch.sigmoid(_out)
+        out.append(_out)
+
         # Make out into a 1D tensor
-        out = out.view(-1)
-        _pred = (out > threshold).float()
+        _out = _out.view(-1)
+        _pred = (_out > threshold).float()
         _actual = data.y
 
         pred.append(_pred)
@@ -129,8 +141,10 @@ def validation_curve(loader: DataLoader, threshold: float = 0.5):
     # Concatenate the tensors
     pred = torch.cat(pred)
     actual = torch.cat(actual)
+    out = torch.cat(out)
+    output_model = torch.cat(output_model)
 
-    return pred, actual
+    return pred, actual, [output_model, out]
 
 
 def metrics(pred: torch.Tensor, actual: torch.Tensor):
@@ -183,7 +197,7 @@ if __name__ == "__main__":
     batch_size = inputs["batch_size"]
     learning_rate = inputs["learning_rate"]
     if args.debug:
-        epochs = 20
+        epochs = 2
     else:
         epochs = inputs["epochs"]
 
@@ -242,7 +256,7 @@ if __name__ == "__main__":
 
     for epoch in range(1, epochs):
         # Train the model
-        train_loss = train(loader=train_loader)
+        train(loader=train_loader)
         train_acc = validate(loader=train_loader)
         logger.info(f"Epoch: {epoch}, Train Accuracy: {train_acc}")
 
@@ -260,8 +274,18 @@ if __name__ == "__main__":
     torch.save(model.state_dict(), os.path.join("model_files", "classifier_model.pt"))
 
     # Get the metrics for the model
-    pred, actual = validation_curve(loader=validate_loader)
+    pred, actual, output_sigmoid = validation_curve(loader=validate_loader)
     metrics_dict = metrics(pred, actual)
+    # Make a plot with the sigmoid values
+    fig, ax = plt.subplots(1, 1, figsize=(3.25, 2.75), constrained_layout=True)
+    ax.plot(output_sigmoid[0].cpu().detach(), output_sigmoid[1].cpu().detach(), "o")
+    # Plot also a generic sigmoid curve
+    ax.plot(np.linspace(-5, 5, 100), 1 / (1 + np.exp(-np.linspace(-5, 5, 100))), "k--")
+    ax.set_xlabel("Model output after linear layer")
+    ax.set_ylabel("Sigmoid output")
+    fig.savefig("output/sigmoid.png", dpi=300)
+    plt.close(fig)
+
     logger.info(f"Metrics: {pformat(metrics_dict)}")
 
     # Compute the AUCROC for the validation dataset
@@ -269,7 +293,7 @@ if __name__ == "__main__":
     fpr = []  # False positive rate
     for threshold in np.linspace(0, 1, inputs["threshold_num"]):
         logger.info(f"Threshold: {threshold}")
-        pred, actual = validation_curve(loader=validate_loader, threshold=threshold)
+        pred, actual, _ = validation_curve(loader=validate_loader, threshold=threshold)
         try:
             data_dict = metrics(pred=pred, actual=actual)
         except ZeroDivisionError:
@@ -281,7 +305,7 @@ if __name__ == "__main__":
         fpr.append(data_dict["fpr"])
 
     # Plot the precision recall curve
-    fig, ax = plt.subplots(1, 1, figsize=(5, 5), constrained_layout=True)
+    fig, ax = plt.subplots(1, 1, figsize=(3.25, 2.75), constrained_layout=True)
     ax.plot(fpr, recall, "o-")
     ax.set_xlabel("False Positive Rate")
     ax.set_ylabel("True Positive Rate")
