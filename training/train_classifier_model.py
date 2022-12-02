@@ -107,12 +107,13 @@ def validate(loader: DataLoader, theshold: float = 0.5):
         # Apply a sigmoid to the out values
         out = torch.sigmoid(out)
         pred = (out > theshold).float()
+        pred = pred.view(-1)
         correct += int((pred == data.y).sum())
 
     return correct / len(loader.dataset)
 
 
-def validation_curve(loader: DataLoader, threshold: float = 0.5):
+def statistics_model(loader: DataLoader, threshold: float = 0.5):
     """Return the predicted and actual values for the dataset."""
 
     # Make a tensor to store the predicted and actual values
@@ -197,7 +198,7 @@ if __name__ == "__main__":
     batch_size = inputs["batch_size"]
     learning_rate = inputs["learning_rate"]
     if args.debug:
-        epochs = 2
+        epochs = 20
     else:
         epochs = inputs["epochs"]
 
@@ -274,13 +275,13 @@ if __name__ == "__main__":
     torch.save(model.state_dict(), os.path.join("model_files", "classifier_model.pt"))
 
     # Get the metrics for the model
-    pred, actual, output_sigmoid = validation_curve(loader=validate_loader)
+    pred, actual, output_sigmoid = statistics_model(loader=validate_loader)
     metrics_dict = metrics(pred, actual)
     # Make a plot with the sigmoid values
     fig, ax = plt.subplots(1, 1, figsize=(3.25, 2.75), constrained_layout=True)
     ax.plot(output_sigmoid[0].cpu().detach(), output_sigmoid[1].cpu().detach(), "o")
     # Plot also a generic sigmoid curve
-    ax.plot(np.linspace(-5, 5, 100), 1 / (1 + np.exp(-np.linspace(-5, 5, 100))), "k--")
+    ax.plot(np.linspace(-2, 2, 100), 1 / (1 + np.exp(-np.linspace(-2, 2, 100))), "k--")
     ax.set_xlabel("Model output after linear layer")
     ax.set_ylabel("Sigmoid output")
     fig.savefig("output/sigmoid.png", dpi=300)
@@ -293,7 +294,7 @@ if __name__ == "__main__":
     fpr = []  # False positive rate
     for threshold in np.linspace(0, 1, inputs["threshold_num"]):
         logger.info(f"Threshold: {threshold}")
-        pred, actual, _ = validation_curve(loader=validate_loader, threshold=threshold)
+        pred, actual, _ = statistics_model(loader=validate_loader, threshold=threshold)
         try:
             data_dict = metrics(pred=pred, actual=actual)
         except ZeroDivisionError:

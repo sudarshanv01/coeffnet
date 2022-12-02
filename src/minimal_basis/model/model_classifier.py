@@ -15,10 +15,17 @@ class ClassifierModel(torch.nn.Module):
         in_channels = num_node_features + num_global_features
 
         # Node feature embedding
-        self.conv1 = GCNConv(in_channels, hidden_channels)
-        self.conv2 = GCNConv(hidden_channels, hidden_channels)
-        self.conv3 = GCNConv(hidden_channels, hidden_channels)
+        self.conv1 = GraphConv(in_channels, hidden_channels)
+        self.conv2 = GraphConv(hidden_channels, hidden_channels)
+        self.conv3 = GraphConv(hidden_channels, hidden_channels)
         self.lin = Linear(hidden_channels, out_channels)
+
+        self.reset_parameters()  # Initialize the parameters
+
+    def reset_parameters(self):
+        for item in [self.conv1, self.conv2, self.conv3, self.lin]:
+            if hasattr(item, "reset_parameters"):
+                item.reset_parameters()
 
     def forward(self, data):
 
@@ -46,10 +53,10 @@ class ClassifierModel(torch.nn.Module):
         x = x.relu()
         x = self.conv3(x, edge_index, edge_weight=edge_attr**-1)
 
-        # 3. Readout layer
+        # 2. Readout layer
         x = global_mean_pool(x, batch)
 
-        # 4. Apply a final classifier
+        # 3. Apply a final classifier
         x = F.dropout(x, p=0.5, training=self.training)
         x = self.lin(x)
 
