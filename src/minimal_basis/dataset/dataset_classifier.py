@@ -100,6 +100,8 @@ class ActivationBarrierDataset(InMemoryDataset):
             transition_state_graph = MoleculeGraph.with_local_env_strategy(
                 transition_state_structure, OpenBabelNN()
             )
+            # Store the species of the transition state structure
+            transition_state_species = transition_state_structure.species
 
             # Get the proportion of the reactant and product structures
             p, p_prime = parameters_transition_state.get_p_and_pprime(
@@ -112,16 +114,26 @@ class ActivationBarrierDataset(InMemoryDataset):
             reaction_energy = data_["reaction_energy"]
             charge = data_["charge"]
             spin_multiplicity = data_["spin_multiplicity"]
+            reactant_energy = data_["reactant_energy"]
+            product_energy = data_["product_energy"]
+            interpolated_transition_state_energy = (
+                p * reactant_energy + p_prime * product_energy
+            )
             global_features = [
                 reaction_energy,
                 charge,
                 spin_multiplicity,
+                interpolated_transition_state_energy,
             ]
             num_global_features = len(global_features)
             global_features = torch.tensor(global_features, dtype=torch.float)
 
             # --- Node features ---
-            # Get the reactant and product quantties
+            # Get the atomic numbers
+            atomic_numbers = torch.tensor(
+                [species.Z for species in transition_state_species], dtype=DTYPE_INT
+            )
+            # Get the reactant and product quantites
             reactant_partial_charges = torch.tensor(
                 data_["reactant_partial_charges"], dtype=DTYPE
             )
@@ -163,6 +175,7 @@ class ActivationBarrierDataset(InMemoryDataset):
 
             node_features = torch.cat(
                 [
+                    atomic_numbers.unsqueeze(1),
                     nbo_charges.unsqueeze(1),
                     core_electrons.unsqueeze(1),
                     valence_electrons.unsqueeze(1),

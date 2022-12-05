@@ -7,6 +7,7 @@ import numpy as np
 
 import torch
 import torch.nn.functional as F
+from torch.optim import lr_scheduler
 
 import torch_geometric
 from torch_geometric.loader import DataLoader
@@ -15,7 +16,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from minimal_basis.dataset.dataset_classifier import ActivationBarrierDataset
-from minimal_basis.model.model_classifier import ActivationBarrierModel
+from minimal_basis.model.model_classifier import (
+    ActivationBarrierModel,
+    MessagePassingActivationBarrierModel,
+)
 
 from utils import (
     read_inputs_yaml,
@@ -138,11 +142,13 @@ if __name__ == "__main__":
     logger.info(f"Device: {device}")
 
     # --- Inputs
-    inputs = read_inputs_yaml(os.path.join("input_files", "classifier_model.yaml"))
+    inputs = read_inputs_yaml(
+        os.path.join("input_files", "activation_barrier_model.yaml")
+    )
     batch_size = inputs["batch_size"]
     learning_rate = inputs["learning_rate"]
     if args.debug:
-        epochs = 20
+        epochs = 200
     else:
         epochs = inputs["epochs"]
 
@@ -188,18 +194,20 @@ if __name__ == "__main__":
     num_classes = train_dataset.num_classes
 
     # Create the model
-    model = ActivationBarrierModel(
+    model = MessagePassingActivationBarrierModel(
         num_node_features=num_node_features,
+        num_edge_features=num_edge_features,
+        num_global_features=num_global_features,
         hidden_channels=args.hidden_channels,
-        out_channels=1,
+        num_updates=args.num_updates,
     )
     model = model.to(device)
-
     if not args.debug:
         wandb.watch(model)
 
     # Create the optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    # scheduler = lr_scheduler.ExponentialLR(optimizer, gamma=0.9)
 
     for epoch in range(1, epochs):
         # Train the model
@@ -214,6 +222,8 @@ if __name__ == "__main__":
         if not args.debug:
             wandb.log({"train_loss": train_acc})
             wandb.log({"val_loss": val_acc})
+
+        # scheduler.step()
 
     # Save the model
     if not os.path.exists("model_files"):

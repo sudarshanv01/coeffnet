@@ -121,45 +121,57 @@ class Graph2GraphModel(torch.nn.Module):
         self.num_updates = num_updates
 
         # Define the model layers.
-        self.edge_model = EdgeModel(
-            hidden_channels=hidden_channels,
-            num_node_features=num_node_features,
-            num_edge_features=num_edge_features,
-            num_global_features=num_global_features,
-            num_targets=num_edge_features,
-        )
+        self.edge_model = torch.nn.ModuleList()
+        self.node_model = torch.nn.ModuleList()
+        self.global_model = torch.nn.ModuleList()
+        self.meta_layer = torch.nn.ModuleList()
 
-        self.node_model = NodeModel(
-            hidden_channels=hidden_channels,
-            num_node_features=num_node_features,
-            num_edge_features=num_edge_features,
-            num_global_features=num_global_features,
-            num_targets=num_node_features,
-        )
+        for i in range(num_updates):
+            self.edge_model.append(
+                EdgeModel(
+                    hidden_channels=hidden_channels,
+                    num_node_features=num_node_features,
+                    num_edge_features=num_edge_features,
+                    num_global_features=num_global_features,
+                    num_targets=num_edge_features,
+                )
+            )
 
-        self.global_model = GlobalModel(
-            hidden_channels=hidden_channels,
-            num_global_features=num_global_features,
-            num_node_features=num_node_features,
-            num_targets=num_global_features,
-        )
+            self.node_model.append(
+                NodeModel(
+                    hidden_channels=hidden_channels,
+                    num_node_features=num_node_features,
+                    num_edge_features=num_edge_features,
+                    num_global_features=num_global_features,
+                    num_targets=num_node_features,
+                )
+            )
 
-        # Define the model update function.
-        self.meta_layer = MetaLayer(
-            edge_model=self.edge_model,
-            node_model=self.node_model,
-            global_model=self.global_model,
-        )
+            self.global_model.append(
+                GlobalModel(
+                    hidden_channels=hidden_channels,
+                    num_global_features=num_global_features,
+                    num_node_features=num_node_features,
+                    num_targets=num_global_features,
+                )
+            )
+
+            # Define the model update function.
+            self.meta_layer.append(
+                MetaLayer(
+                    edge_model=self.edge_model[i],
+                    node_model=self.node_model[i],
+                    global_model=self.global_model[i],
+                )
+            )
 
     def forward(self, x_, edge_index, edge_attr_, u_, batch_):
-        # Perform a single GNN update.
-        x, edge_attr, u = self.meta_layer(x_, edge_index, edge_attr_, u_, batch_)
-
-        # Perform additional GNN updates if needed.
         for i in range(self.num_updates):
-            x, edge_attr, u = self.meta_layer(x, edge_index, edge_attr, u, batch_)
+            x_, edge_attr_, u_ = self.meta_layer[i](
+                x_, edge_index, edge_attr_, u_, batch_
+            )
 
-        return x, edge_attr, u
+        return x_, edge_attr_, u_
 
 
 class Graph2PropertyModel(torch.nn.Module):
