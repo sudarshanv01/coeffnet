@@ -73,9 +73,14 @@ class GenerateParametersClassifier:
         self, x: Union[float, torch.tensor, npt.ArrayLike], mu: float, sigma: float
     ):
         """Construct a normal distribution."""
-        return self.lib.exp(-((x - mu) ** 2) / (2 * sigma**2)) / (
-            sigma * self.lib.sqrt(2 * self.lib.pi)
-        )
+        if self.use_torch:
+            return torch.exp(-((x - mu) ** 2) / (2 * sigma**2)) / (
+                sigma * torch.sqrt(torch.tensor(2.0) * torch.pi)
+            )
+        else:
+            return np.exp(-((x - mu) ** 2) / (2 * sigma**2)) / (
+                sigma * np.sqrt(2 * np.pi)
+            )
 
     def skew_normal_distribution(
         self,
@@ -87,7 +92,7 @@ class GenerateParametersClassifier:
         """Construct a skewed normal distribution."""
         x_mod = (x - mu) / sigma
         if self.use_torch:
-            cdf = 0.5 * (1 + torch.erf(alpha * x_mod / torch.sqrt(2)))
+            cdf = 0.5 * (1 + torch.erf(alpha * x_mod / torch.sqrt(torch.tensor(2))))
         else:
             cdf = 0.5 * (1 + scipy.special.erf(alpha * x_mod / np.sqrt(2)))
 
@@ -100,7 +105,9 @@ class GenerateParametersClassifier:
     ):
         """Construct a cumulative distribution."""
         if self.use_torch:
-            return 0.5 * (1 + torch.erf((x - mu) / (sigma * torch.sqrt(2))))
+            return 0.5 * (
+                1 + torch.erf((x - mu) / (sigma * torch.sqrt(torch.tensor(2))))
+            )
         else:
             return 0.5 * (1 + scipy.special.erf((x - mu) / (sigma * np.sqrt(2))))
 
@@ -156,10 +163,13 @@ class GenerateParametersClassifier:
             self.x_grid, mu, sigma, alpha, self.lower, self.upper
         )
         # Get the cumulative distribution of the truncated normal distribution
-        cdf = self.lib.cumsum(tnd) / self.lib.sum(tnd)
+        cdf = self.lib.cumsum(tnd, dim=0) / self.lib.sum(tnd)
 
         # Choose a random number between 0 and 1
-        random_numbers = self.lib.random.rand(num_samples)
+        if not self.use_torch:
+            random_numbers = self.lib.random.rand(num_samples)
+        else:
+            random_numbers = torch.rand(num_samples)
 
         # Generate samples from the truncated normal distribution
         if not self.use_torch:
@@ -173,6 +183,18 @@ class GenerateParametersClassifier:
 
         return sample
 
+    def get_p_and_pprime(self, mu: float, sigma: float, alpha: float):
+        """Get the p and p' values, used to multiply the initial and final state positions to get the interpolated transition state positions."""
+        # Sample from the truncated skew normal distribution for the interpolated
+        # position of the transition state
+        sample = self.get_sampled_distribution(
+            mu, sigma, alpha, num_samples=self.num_samples
+        )
+        # Get the interpolated ts positions based on the average of the samples
+        p = self.lib.mean(sample)
+        p_prime = 1 - p
+        return p, p_prime
+
     def get_interpolated_transition_state_positions(
         self,
         is_positions: Union[npt.ArrayLike, torch.tensor],
@@ -182,15 +204,9 @@ class GenerateParametersClassifier:
         alpha: float,
     ):
         """Get the interpolated transition state positions."""
-        # Sample from the truncated skew normal distribution for the interpolated
-        # position of the transition state
-        sample = self.get_sampled_distribution(
-            mu, sigma, alpha, num_samples=self.num_samples
-        )
-        # Get the interpolated ts positions based on the average of the samples
-        p = self.lib.mean(sample)
         # The interpolated TS positions will be a linear combination of the initial and final state positions
-        int_ts_positions = p * is_positions + (1 - p) * fs_positions
+        p, p_prime = self.get_p_and_pprime(mu, sigma, alpha)
+        int_ts_positions = p * fs_positions + p_prime * is_positions
         return int_ts_positions
 
     def objective_function(
@@ -225,6 +241,5 @@ class GenerateParametersClassifier:
 
         # Return the average error
         average_error = total_error / len(self.deltaG)
-        print(average_error)
 
         return average_error

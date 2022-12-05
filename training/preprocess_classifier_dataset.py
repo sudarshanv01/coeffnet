@@ -112,6 +112,7 @@ if __name__ == "__main__":
     parameters_dict = {
         "mu": parameters.x[0],
         "sigma": parameters.x[1],
+        "alpha": parameters.x[2],
     }
 
     # Write out both the interpolated transition state and the

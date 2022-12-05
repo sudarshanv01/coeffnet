@@ -12,7 +12,7 @@ import torch
 
 from torch_geometric.data import InMemoryDataset
 
-from minimal_basis.data import DatapointClassifier as Datapoint
+from minimal_basis.data import ActivationBarrierDatapoint as Datapoint
 from minimal_basis.predata import GenerateParametersClassifier
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ from minimal_basis.data._dtype import (
 )
 
 
-class ClassifierDataset(InMemoryDataset):
+class ActivationBarrierDataset(InMemoryDataset):
     def __init__(
         self,
         root,
@@ -36,6 +36,7 @@ class ClassifierDataset(InMemoryDataset):
         filename: str = None,
         filename_classifier_parameters: str = None,
     ):
+        """Dataset which stores the data for predicting the raw activation barrier."""
 
         self.filename = filename
         self.filename_classifier_parameters = filename_classifier_parameters
@@ -56,7 +57,7 @@ class ClassifierDataset(InMemoryDataset):
 
     @property
     def processed_file_names(self):
-        return "classifier_data.pt"
+        return "activation_barrier_data.pt"
 
     def download(self):
         logger.info("Loading data from json file.")
@@ -75,16 +76,16 @@ class ClassifierDataset(InMemoryDataset):
 
             # Generate the transition state structure from the reactant and product structures
             parameters_transition_state = GenerateParametersClassifier(
-                is_positions=[reactant_structure.cart_coords],
-                fs_positions=[product_structure.cart_coords],
                 deltaG=torch.tensor([data_["reaction_energy"]], dtype=DTYPE),
-                num_data_points=1,
             )
             transition_state_coords = (
-                parameters_transition_state.get_interpolated_ts_positions(
+                parameters_transition_state.get_interpolated_transition_state_positions(
+                    is_positions=reactant_structure.cart_coords,
+                    fs_positions=product_structure.cart_coords,
                     alpha=self.classifier_parameters["alpha"],
                     mu=self.classifier_parameters["mu"],
-                )[0]
+                    sigma=self.classifier_parameters["sigma"],
+                )
             )
             logger.debug(
                 f"Shape of transition state coords: {transition_state_coords.shape}"
@@ -104,6 +105,7 @@ class ClassifierDataset(InMemoryDataset):
             p, p_prime = parameters_transition_state.get_p_and_pprime(
                 alpha=self.classifier_parameters["alpha"],
                 mu=self.classifier_parameters["mu"],
+                sigma=self.classifier_parameters["sigma"],
             )
 
             # --- Global features ---
@@ -147,16 +149,16 @@ class ClassifierDataset(InMemoryDataset):
 
             # The quantities will be partitioned the same way as the structures
             nbo_charges = (
-                p * reactant_partial_charges + p_prime * product_partial_charges
+                p_prime * reactant_partial_charges + p * product_partial_charges
             )
             core_electrons = (
-                p * reactant_core_elctrons + p_prime * product_core_electrons
+                p_prime * reactant_core_elctrons + p * product_core_electrons
             )
             valence_electrons = (
-                p * reactant_valence_electrons + p_prime * product_valence_electrons
+                p_prime * reactant_valence_electrons + p * product_valence_electrons
             )
             rydberg_electrons = (
-                p * reactant_rydber_electrons + p_prime * product_rydberg_electrons
+                p_prime * reactant_rydber_electrons + p * product_rydberg_electrons
             )
 
             node_features = torch.cat(
@@ -190,7 +192,7 @@ class ClassifierDataset(InMemoryDataset):
             edge_attributes = edge_attributes.view(-1, 1)
 
             # Collect 'y' which is determines if the reaction is feasible or not
-            y = data_["feasiblity"]
+            y = data_["transition_state_energy"]
             logging.debug("y: {}".format(y))
 
             # Create the datapoint
