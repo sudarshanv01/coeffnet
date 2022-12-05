@@ -27,12 +27,14 @@ logger = logging.getLogger(__name__)
 class GenerateParametersClassifier:
     def __init__(
         self,
-        is_positions: List[Union[npt.ArrayLike, torch.Tensor]],
-        fs_positions: List[Union[npt.ArrayLike, torch.Tensor]],
-        deltaG: Union[npt.ArrayLike, torch.Tensor],
-        num_data_points: int,
+        is_positions: List[Union[npt.ArrayLike, torch.Tensor]] = None,
+        fs_positions: List[Union[npt.ArrayLike, torch.Tensor]] = None,
+        deltaG: Union[npt.ArrayLike, torch.Tensor] = None,
         ts_positions: List[Union[npt.ArrayLike, torch.Tensor]] = None,
-        sigma: List[Union[npt.ArrayLike, torch.Tensor]] = None,
+        grid_size: int = 1000,
+        upper: float = 1.0,
+        lower: float = 0.0,
+        num_samples: int = 10,
     ):
         """Generate parameters for the classifier.
 
@@ -56,103 +58,173 @@ class GenerateParametersClassifier:
             self.lib = np
 
         self.ts_positions = ts_positions
-        self.num_data_points = num_data_points
         self.deltaG = deltaG
         self.is_positions = is_positions
         self.fs_positions = fs_positions
+        self.grid_size = grid_size
+        self.upper = upper
+        self.lower = lower
+        self.num_samples = num_samples
 
-        # Every instance of this class generates
-        # a completely random set of sigma parameters
-        # where all sigma parameters are between 0.1 and 1.0
-        if sigma is None:
-            self.sigma = np.random.uniform(0.1, 1.0, size=self.num_data_points)
-            if self.use_torch:
-                self.sigma = torch.tensor(self.sigma, dtype=DTYPE)
-        else:
-            self.sigma = sigma
-            # Make self.sigma a numpy array or a torch tensor depending on the input
-            if self.use_torch:
-                self.sigma = torch.tensor(self.sigma, dtype=DTYPE)
-            else:
-                self.sigma = np.array(self.sigma)
-        self.logger.debug(f"Shape of sigma: {self.sigma.shape}")
+        # Generate the grid
+        self.x_grid = self.lib.linspace(self.lower, self.upper, self.grid_size)
 
-    def f(self, x: Union[npt.ArrayLike, torch.Tensor], alpha: float) -> npt.ArrayLike:
-        """Return f based on parameter x and hyperparameter alpha."""
+    def normal_distribution(
+        self, x: Union[float, torch.tensor, npt.ArrayLike], mu: float, sigma: float
+    ):
+        """Construct a normal distribution."""
+        return self.lib.exp(-((x - mu) ** 2) / (2 * sigma**2)) / (
+            sigma * self.lib.sqrt(2 * self.lib.pi)
+        )
 
+    def skew_normal_distribution(
+        self,
+        x: Union[float, torch.tensor, npt.ArrayLike],
+        mu: float,
+        sigma: float,
+        alpha: float,
+    ):
+        """Construct a skewed normal distribution."""
+        x_mod = (x - mu) / sigma
         if self.use_torch:
-            return 0.5 * (1 + torch.erf(alpha * x / (self.lib.sqrt(torch.tensor(2.0)))))
+            cdf = 0.5 * (1 + torch.erf(alpha * x_mod / torch.sqrt(2)))
         else:
-            return 0.5 * (1 + scipy.special.erf(alpha * x / (self.lib.sqrt(2))))
+            cdf = 0.5 * (1 + scipy.special.erf(alpha * x_mod / np.sqrt(2)))
 
-    def h(
-        self, x: Union[npt.ArrayLike, torch.Tensor], mu: float = None, sigma: float = 1
-    ) -> npt.ArrayLike:
-        """Return a normal distribution."""
+        normal = self.normal_distribution(x, mu, sigma)
 
-        if mu is None:
-            # If mu is not provided, use a centered normal distribution
-            mu = 0.0
+        return 2 * normal * cdf
 
-        return self.lib.exp(-((x - mu) ** 2) / (2 * sigma**2))
+    def cumulative_distribution(
+        self, x: Union[float, torch.tensor, npt.ArrayLike], mu: float, sigma: float
+    ):
+        """Construct a cumulative distribution."""
+        if self.use_torch:
+            return 0.5 * (1 + torch.erf((x - mu) / (sigma * torch.sqrt(2))))
+        else:
+            return 0.5 * (1 + scipy.special.erf((x - mu) / (sigma * np.sqrt(2))))
 
-    def get_p_and_pprime(
-        self, alpha: float, mu: float = None
-    ) -> Tuple[npt.ArrayLike, npt.ArrayLike]:
-        # generate the deciding parameter of "initial-state-like" or
-        # "final-state-like" for each data point based on the
-        # value of Delta G and the distribution of Delta G
-        f = self.f(self.deltaG, alpha)
-        self.logger.debug(f"Shape of f: {f.shape}")
-        h = self.h(self.deltaG, mu=mu, sigma=self.sigma)
-        self.logger.debug(f"Shape of h: {h.shape}")
+    def truncated_normal_distribution(
+        self,
+        x: Union[float, torch.tensor, npt.ArrayLike, float],
+        mu: float,
+        sigma: float,
+        lower: float,
+        upper: float,
+    ):
+        """Get a truncated normal distribution."""
 
-        # generate the probability of each data point being
-        # "initial-state-like" or "final-state-like"
-        p = (f + h) / 2
-        p_prime = self.lib.ones_like(p) - p
-        self.logger.debug(f"Shape of p: {p.shape}")
+        truncated_normal_numerator = self.normal_distribution(x, mu, sigma)
+        truncated_normal_denominator = self.cumulative_distribution(
+            upper, mu, sigma
+        ) - self.cumulative_distribution(lower, mu, sigma)
+        truncated_normal = truncated_normal_numerator / truncated_normal_denominator
 
-        return p, p_prime
+        # Set the values outside the range to zero
+        truncated_normal[x < lower] = 0
+        truncated_normal[x > upper] = 0
+        return truncated_normal
 
-    def get_interpolated_ts_positions(self, alpha: float, mu: float = None):
-        """Generate parameters for the classifier."""
+    def truncated_skew_normal_distribution(
+        self,
+        x: Union[float, torch.tensor, npt.ArrayLike, float],
+        mu: float,
+        sigma: float,
+        alpha: float,
+        lower: float,
+        upper: float,
+    ):
+        """Get a truncated normal distribution."""
 
-        p, p_prime = self.get_p_and_pprime(alpha, mu=mu)
+        truncated_normal_numerator = self.skew_normal_distribution(x, mu, sigma, alpha)
+        truncated_normal_denominator = self.cumulative_distribution(
+            upper, mu, sigma
+        ) - self.cumulative_distribution(lower, mu, sigma)
+        truncated_normal = truncated_normal_numerator / truncated_normal_denominator
 
-        # Generate the interpolated transition state positions
-        # based on the probability of each data point being
-        # "initial-state-like" or "final-state-like"
-        int_ts_positions = []
-        for i in range(self.num_data_points):
-            int_ts_positions.append(
-                p[i] * self.is_positions[i] + p_prime[i] * self.fs_positions[i]
+        # Set the values outside the range to zero
+        truncated_normal[x < lower] = 0
+        truncated_normal[x > upper] = 0
+        return truncated_normal
+
+    def get_sampled_distribution(
+        self, mu: float, sigma: float, alpha: float, num_samples: int = 10
+    ):
+        """Get points sampled from the truncated normal distribution."""
+
+        tnd = self.truncated_skew_normal_distribution(
+            self.x_grid, mu, sigma, alpha, self.lower, self.upper
+        )
+        # Get the cumulative distribution of the truncated normal distribution
+        cdf = self.lib.cumsum(tnd) / self.lib.sum(tnd)
+
+        # Choose a random number between 0 and 1
+        random_numbers = self.lib.random.rand(num_samples)
+
+        # Generate samples from the truncated normal distribution
+        if not self.use_torch:
+            sample = np.interp(random_numbers, cdf, self.x_grid)
+        else:
+            # Use the numpy version of interp for torch
+            sample = np.interp(
+                random_numbers, cdf.cpu().numpy(), self.x_grid.cpu().numpy()
             )
-        self.logger.debug(f"Shape of int_ts_positions: {len(int_ts_positions)}")
+            sample = torch.tensor(sample, dtype=torch.float32)
 
+        return sample
+
+    def get_interpolated_transition_state_positions(
+        self,
+        is_positions: Union[npt.ArrayLike, torch.tensor],
+        fs_positions: Union[npt.ArrayLike, torch.tensor],
+        mu: float,
+        sigma: float,
+        alpha: float,
+    ):
+        """Get the interpolated transition state positions."""
+        # Sample from the truncated skew normal distribution for the interpolated
+        # position of the transition state
+        sample = self.get_sampled_distribution(
+            mu, sigma, alpha, num_samples=self.num_samples
+        )
+        # Get the interpolated ts positions based on the average of the samples
+        p = self.lib.mean(sample)
+        # The interpolated TS positions will be a linear combination of the initial and final state positions
+        int_ts_positions = p * is_positions + (1 - p) * fs_positions
         return int_ts_positions
 
-    def objective_function(self, alpha: float, mu: float = None):
-        """Generate parameters for the classifier."""
+    def objective_function(
+        self, input_params: Union[npt.ArrayLike, torch.Tensor, List[float]]
+    ):
+        """Generate parameters mu and sigma for the classifier."""
+
+        mu, sigma, alpha = input_params
 
         # Make sure we are using the numpy library
         assert not self.use_torch, "This function is only for numpy"
 
-        int_ts_positions = self.get_interpolated_ts_positions(alpha, mu=mu)
-
         # Calculate the difference between the interpolated
-        # transition state positions and the actual transition
-        square_error = []
-        for i in range(self.num_data_points):
-            _square_error = np.linalg.norm(
-                int_ts_positions[i] - self.ts_positions[i], axis=1
+        # transition state positions and the actual transition state positions
+        total_error = 0
+        for i in range(len(self.deltaG)):
+
+            # Get the interpolated transition state positions
+            int_ts_positions = self.get_interpolated_transition_state_positions(
+                self.is_positions[i],
+                self.fs_positions[i],
+                mu=mu,
+                sigma=sigma,
+                alpha=alpha * self.deltaG[i],
             )
-            square_error.append(np.sum(_square_error**2) / len(_square_error))
-        square_error = np.array(square_error)
-        self.logger.debug(f"Shape of square_error: {square_error.shape}")
 
-        # Calculate the mean squared error
-        rmse = np.sqrt(np.mean(square_error))
-        self.logger.debug("rmse: %s", rmse)
+            # Compute the norm between the interpolated transition state positions and the actual transition state positions
+            distance_correct_ts = np.linalg.norm(
+                int_ts_positions - self.ts_positions[i], axis=1
+            )
+            total_error += np.mean(distance_correct_ts)
 
-        return rmse
+        # Return the average error
+        average_error = total_error / len(self.deltaG)
+        print(average_error)
+
+        return average_error

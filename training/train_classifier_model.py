@@ -9,11 +9,16 @@ import torch
 import torch_geometric
 from torch_geometric.loader import DataLoader
 
+from torchmetrics.classification import BinaryAUROC
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 from minimal_basis.dataset.dataset_classifier import ClassifierDataset
-from minimal_basis.model.model_classifier import ClassifierModel
+from minimal_basis.model.model_classifier import (
+    ClassifierModel,
+    MessagePassingClassifierModel,
+)
 
 from utils import (
     read_inputs_yaml,
@@ -53,6 +58,12 @@ parser.add_argument(
     type=int,
     default=64,
     help="Number of hidden channels in the neural network.",
+)
+parser.add_argument(
+    "--num_updates",
+    type=int,
+    default=10,
+    help="Number of updates to perform on the model.",
 )
 parser.add_argument(
     "--use_cpu",
@@ -198,7 +209,7 @@ if __name__ == "__main__":
     batch_size = inputs["batch_size"]
     learning_rate = inputs["learning_rate"]
     if args.debug:
-        epochs = 20
+        epochs = 2
     else:
         epochs = inputs["epochs"]
 
@@ -236,8 +247,11 @@ if __name__ == "__main__":
 
     # Figure out the number of features
     num_node_features = train_dataset.num_node_features
+    logger.info(f"Number of node features: {num_node_features}")
     num_edge_features = train_dataset.num_edge_features
+    logger.info(f"Number of edge features: {num_edge_features}")
     num_global_features = train_dataset.num_global_features
+    logger.info(f"Number of global features: {num_global_features}")
     num_classes = train_dataset.num_classes
 
     # Create the model
@@ -246,6 +260,14 @@ if __name__ == "__main__":
         hidden_channels=args.hidden_channels,
         out_channels=1,
     )
+    # model = MessagePassingClassifierModel(
+    #     num_node_features=num_node_features,
+    #     num_edge_features=num_edge_features,
+    #     num_global_features=num_global_features,
+    #     hidden_channels=args.hidden_channels,
+    #     num_updates=args.num_updates,
+    #     out_channels=1,
+    # )
     model = model.to(device)
 
     if not args.debug:
@@ -276,7 +298,15 @@ if __name__ == "__main__":
 
     # Get the metrics for the model
     pred, actual, output_sigmoid = statistics_model(loader=validate_loader)
+
+    # Get the AUCROC score through torchmetrics
+    aucroc_metric = BinaryAUROC(thresholds=None)
+    aucroc = aucroc_metric(pred, actual)
+    logger.info(f"AUCROC: {aucroc}")
+
+    # Get other metrics
     metrics_dict = metrics(pred, actual)
+
     # Make a plot with the sigmoid values
     fig, ax = plt.subplots(1, 1, figsize=(3.25, 2.75), constrained_layout=True)
     ax.plot(output_sigmoid[0].cpu().detach(), output_sigmoid[1].cpu().detach(), "o")

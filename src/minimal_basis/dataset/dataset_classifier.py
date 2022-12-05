@@ -48,7 +48,7 @@ class ClassifierDataset(InMemoryDataset):
         self.data, self.slices = torch.load(self.processed_paths[0])
 
         # Find the number of global features based on the first data
-        self.num_global_features = self.data.num_global_features
+        self.num_global_features = self.data.num_global_features[0].item()
 
     @property
     def raw_file_names(self):
@@ -198,7 +198,7 @@ class ClassifierDataset(InMemoryDataset):
                 x=node_features,
                 edge_index=edge_index,
                 y=y,
-                u=global_features,
+                global_attr=global_features,
                 edge_attr=edge_attributes,
                 num_global_features=num_global_features,
             )

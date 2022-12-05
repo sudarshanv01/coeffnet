@@ -203,6 +203,11 @@ class ChargeModel(torch.nn.Module):
             num_updates=num_updates,
         )
 
+        # Store the number of features
+        self.num_node_features = num_node_features
+        self.num_edge_features = num_edge_features
+        self.num_global_features = num_global_features
+
         self.graph2property = Graph2PropertyModel()
 
     def forward(self, data):
@@ -214,9 +219,9 @@ class ChargeModel(torch.nn.Module):
             data.batch,
         )
 
-        x = x.view(-1, data.num_node_features)
-        edge_attr = edge_attr.view(-1, data.num_edge_features)
-        u = u.view(-1, 1)
+        x = x.view(-1, self.num_node_features)
+        edge_attr = edge_attr.view(-1, self.num_edge_features)
+        u = u.view(-1, self.num_global_features)
 
         x, edge_attr, u = self.graph2graph(x, edge_index, edge_attr, u, batch)
 
