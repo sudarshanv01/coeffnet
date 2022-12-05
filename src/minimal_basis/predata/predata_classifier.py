@@ -163,7 +163,10 @@ class GenerateParametersClassifier:
             self.x_grid, mu, sigma, alpha, self.lower, self.upper
         )
         # Get the cumulative distribution of the truncated normal distribution
-        cdf = self.lib.cumsum(tnd, dim=0) / self.lib.sum(tnd)
+        if not self.use_torch:
+            cdf = self.lib.cumsum(tnd) / self.lib.sum(tnd)
+        else:
+            cdf = self.lib.cumsum(tnd, dim=0) / self.lib.sum(tnd)
 
         # Choose a random number between 0 and 1
         if not self.use_torch:

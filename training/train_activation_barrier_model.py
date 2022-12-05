@@ -90,6 +90,7 @@ def train(loader):
         data = train_batch.to(device)
         optimizer.zero_grad()
         predicted_y = model(data)
+        predicted_y = predicted_y.view(-1)
         loss = F.mse_loss(predicted_y, data.y)
         loss.backward()
 
@@ -115,6 +116,7 @@ def validate(loader):
     for val_batch in loader:
         data = val_batch.to(device)
         predicted_y = model(data)
+        predicted_y = predicted_y.view(-1)
         loss = F.mse_loss(predicted_y, data.y)
 
         # Add up the loss
@@ -140,7 +142,7 @@ if __name__ == "__main__":
     batch_size = inputs["batch_size"]
     learning_rate = inputs["learning_rate"]
     if args.debug:
-        epochs = 2
+        epochs = 20
     else:
         epochs = inputs["epochs"]
 
