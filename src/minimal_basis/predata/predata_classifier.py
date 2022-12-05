@@ -184,7 +184,8 @@ class GenerateParametersClassifier:
         return sample
 
     def get_p_and_pprime(self, mu: float, sigma: float, alpha: float):
-        """Get the p and p' values, used to multiply the initial and final state positions to get the interpolated transition state positions."""
+        """Get the p and p' values, used to multiply the initial and final state positions
+        to get the interpolated transition state positions."""
         # Sample from the truncated skew normal distribution for the interpolated
         # position of the transition state
         sample = self.get_sampled_distribution(
