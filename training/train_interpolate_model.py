@@ -1,7 +1,6 @@
 import os
 import logging
 import argparse
-from pprint import pformat
 
 import numpy as np
 
@@ -12,14 +11,8 @@ from torch.optim import lr_scheduler
 import torch_geometric
 from torch_geometric.loader import DataLoader
 
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-from minimal_basis.dataset.dataset_classifier import ActivationBarrierDataset
-from minimal_basis.model.model_classifier import (
-    ActivationBarrierModel,
-    MessagePassingActivationBarrierModel,
-)
+from minimal_basis.dataset.dataset_interpolate import InterpolateDataset
+from minimal_basis.model.model_interpolate import MessagePassingInterpolateModel
 
 from utils import (
     read_inputs_yaml,
@@ -42,7 +35,7 @@ if not os.path.exists(os.path.join("output", "log_files")):
 LOGFILES_FOLDER = os.path.join("output", "log_files")
 logger = logging.getLogger(__name__)
 logging.basicConfig(
-    filename=os.path.join(LOGFILES_FOLDER, "activation_barrier_model.log"),
+    filename=os.path.join(LOGFILES_FOLDER, "interpolate_model.log"),
     filemode="w",
     level=logging.INFO,
 )
@@ -140,9 +133,7 @@ if __name__ == "__main__":
     logger.info(f"Device: {device}")
 
     # --- Inputs
-    inputs = read_inputs_yaml(
-        os.path.join("input_files", "activation_barrier_model.yaml")
-    )
+    inputs = read_inputs_yaml(os.path.join("input_files", "interpolate_model.yaml"))
     batch_size = inputs["batch_size"]
     learning_rate = inputs["learning_rate"]
     if args.debug:
@@ -151,7 +142,7 @@ if __name__ == "__main__":
         epochs = inputs["epochs"]
 
     if not args.debug:
-        wandb.init(project="activation_barrier_model", entity="sudarshanvj")
+        wandb.init(project="interpolate_model", entity="sudarshanvj")
         wandb.config.update(
             {
                 "learning_rate": learning_rate,
@@ -165,7 +156,7 @@ if __name__ == "__main__":
     dataset_parameters_filename = inputs["dataset_json"]
 
     # Create the training and test datasets
-    train_dataset = ActivationBarrierDataset(
+    train_dataset = InterpolateDataset(
         root=get_train_data_path(),
         filename=train_json_filename,
         filename_classifier_parameters=dataset_parameters_filename,
@@ -173,7 +164,7 @@ if __name__ == "__main__":
     if args.reprocess_dataset:
         train_dataset.process()
 
-    validate_dataset = ActivationBarrierDataset(
+    validate_dataset = InterpolateDataset(
         root=get_validation_data_path(),
         filename=validate_json_filename,
         filename_classifier_parameters=dataset_parameters_filename,
@@ -195,7 +186,7 @@ if __name__ == "__main__":
     num_classes = train_dataset.num_classes
 
     # Create the model
-    model = MessagePassingActivationBarrierModel(
+    model = MessagePassingInterpolateModel(
         num_node_features=num_node_features,
         num_edge_features=num_edge_features,
         num_global_features=num_global_features,
@@ -229,6 +220,4 @@ if __name__ == "__main__":
     # Save the model
     if not os.path.exists("model_files"):
         os.mkdir("model_files")
-    torch.save(
-        model.state_dict(), os.path.join("model_files", "activation_barrier_model.pt")
-    )
+    torch.save(model.state_dict(), os.path.join("model_files", "interpolate_model.pt"))

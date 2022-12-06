@@ -12,4 +12,4 @@ module load python
 module load cudatoolkit/11.5
 conda activate molml
 
-python train_activation_barrier_model.py #--reprocess_dataset
+python train_interpolate_model.py 

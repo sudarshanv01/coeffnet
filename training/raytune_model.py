@@ -45,9 +45,6 @@ def load_data(data_dir="input_files", model="charge"):
     )
     inputs = read_inputs_yaml(input_file)
 
-    # Graph generation method
-    graph_generation_method = inputs["graph_generation_method"]
-
     if args.debug:
         train_json_filename = inputs["debug_train_json"]
     else:
@@ -58,13 +55,23 @@ def load_data(data_dir="input_files", model="charge"):
     # Decipher the name of the Dataset based on the model
     if model == "charge":
         DatasetModule = ChargeDataset
-        kwargs = {}
+        graph_generation_method = inputs["graph_generation_method"]
+        kwargs = {"graph_generation_method": graph_generation_method}
     elif model == "hamiltonian":
         DatasetModule = HamiltonianDataset
-        kwargs = {"basis_file": inputs["basis_file"]}
+        graph_generation_method = inputs["graph_generation_method"]
+        kwargs = {
+            "basis_file": inputs["basis_file"],
+            "graph_generation_method": graph_generation_method,
+        }
     elif model == "equi_hamiltonian":
         DatasetModule = HamiltonianDataset
-        kwargs = {"basis_file": inputs["basis_file"]}
+        graph_generation_method = inputs["graph_generation_method"]
+        kwargs = {
+            "basis_file": inputs["basis_file"],
+            "graph_generation_method": graph_generation_method,
+        }
+    # elif model == "interpolate":
     else:
         raise ValueError(f"Model {model} not recognized.")
 
@@ -92,6 +99,7 @@ def load_data(data_dir="input_files", model="charge"):
         {
             "num_node_features": train_dataset.num_node_features,
             "num_edge_features": train_dataset.num_edge_features,
+            "num_global_features": train_dataset.num_global_features,
         },
     )
 
@@ -112,7 +120,7 @@ def train_model(config):
         model = ChargeModel(
             num_node_features=dataset_info["num_node_features"],
             num_edge_features=dataset_info["num_edge_features"],
-            num_global_features=num_global_features,
+            num_global_features=dataset_info["num_global_features"],
             hidden_channels=config["hidden_channels"],
             num_updates=config["num_layers"],
         )
@@ -120,7 +128,7 @@ def train_model(config):
         model = HamiltonianModel(
             num_node_features=dataset_info["num_node_features"],
             num_edge_features=dataset_info["num_edge_features"],
-            num_global_features=num_global_features,
+            num_global_features=dataset_info["num_global_features"],
             hidden_channels=config["hidden_channels"],
             num_updates=config["num_layers"],
         )
@@ -130,7 +138,7 @@ def train_model(config):
             irreps_out_per_basis=irreps_out,
             hidden_layers=config["hidden_channels"],
             num_basis=config["num_basis"],
-            num_global_features=num_global_features,
+            num_global_features=dataset_info["num_global_features"],
             num_targets=config["num_targets"],
             num_updates=config["num_layers"],
             hidden_channels=config["hidden_channels"],
@@ -170,7 +178,7 @@ def train_model(config):
     )
     checkpoint = Checkpoint.from_directory(args.output_dir)
     session.report({"loss": val_loss}, checkpoint=checkpoint)
-    print("Finished Training")
+    logger.info("Finished Training")
 
 
 @torch.no_grad()
@@ -336,7 +344,5 @@ if __name__ == "__main__":
         level=logging.INFO,
     )
     logger = logging.getLogger(__name__)
-
-    num_global_features = 1
 
     main(num_samples=5, max_num_epochs=500, gpus_per_trial=1)

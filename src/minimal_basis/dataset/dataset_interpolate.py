@@ -12,7 +12,7 @@ import torch
 
 from torch_geometric.data import InMemoryDataset
 
-from minimal_basis.data import ActivationBarrierDatapoint as Datapoint
+from minimal_basis.data import InterpolateDatapoint as Datapoint
 from minimal_basis.predata import GenerateParametersClassifier
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ from minimal_basis.data._dtype import (
 )
 
 
-class ClassifierDataset(InMemoryDataset):
+class InterpolateDataset(InMemoryDataset):
     def __init__(
         self,
         root,
@@ -57,7 +57,7 @@ class ClassifierDataset(InMemoryDataset):
 
     @property
     def processed_file_names(self):
-        return "activation_barrier_data.pt"
+        return "interpolate_data.pt"
 
     def download(self):
         logger.info("Loading data from json file.")
@@ -73,6 +73,7 @@ class ClassifierDataset(InMemoryDataset):
             # --- Transition state graph construction ---
             reactant_structure = data_["reactant_structure"]
             product_structure = data_["product_structure"]
+            reaction_energy = data_["reaction_energy"]
 
             # Generate the transition state structure from the reactant and product structures
             parameters_transition_state = GenerateParametersClassifier(
@@ -85,6 +86,7 @@ class ClassifierDataset(InMemoryDataset):
                     alpha=self.classifier_parameters["alpha"],
                     mu=self.classifier_parameters["mu"],
                     sigma=self.classifier_parameters["sigma"],
+                    deltaG=torch.tensor([data_["reaction_energy"]], dtype=DTYPE),
                 )
             )
             logger.debug(
@@ -113,7 +115,6 @@ class ClassifierDataset(InMemoryDataset):
             )
 
             # --- Global features ---
-            reaction_energy = data_["reaction_energy"]
             charge = data_["charge"]
             spin_multiplicity = data_["spin_multiplicity"]
             reactant_energy = data_["reactant_energy"]

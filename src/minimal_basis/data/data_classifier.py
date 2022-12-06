@@ -25,18 +25,3 @@ class DatapointClassifier(Data):
             classify_y = None
 
         super().__init__(x, edge_index, edge_attr, classify_y, pos, **kwargs)
-
-
-class ActivationBarrierDatapoint(Data):
-    def __init__(
-        self,
-        x: OptTensor = None,
-        edge_index: OptTensor = None,
-        edge_attr: OptTensor = None,
-        y: OptTensor = None,
-        pos: OptTensor = None,
-        **kwargs
-    ):
-        super().__init__(
-            x=x, edge_index=edge_index, edge_attr=edge_attr, y=y, pos=pos, **kwargs
-        )

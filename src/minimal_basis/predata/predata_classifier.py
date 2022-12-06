@@ -9,6 +9,10 @@ import scipy
 from scipy import special
 from scipy import optimize
 
+from pymatgen.core.structure import Molecule
+from pymatgen.analysis.graphs import MoleculeGraph
+from pymatgen.analysis.local_env import OpenBabelNN, metal_edge_extender
+
 import torch
 
 from monty.serialization import loadfn, dumpfn
@@ -28,26 +32,16 @@ logging.basicConfig(level=logging.INFO)
 class GenerateParametersClassifier:
     def __init__(
         self,
-        is_positions: List[Union[npt.ArrayLike, torch.Tensor]] = None,
-        fs_positions: List[Union[npt.ArrayLike, torch.Tensor]] = None,
+        reactant_graphs: List[MoleculeGraph] = None,
+        product_graphs: List[MoleculeGraph] = None,
+        transition_state_graphs: List[MoleculeGraph] = None,
         deltaG: Union[npt.ArrayLike, torch.Tensor] = None,
-        ts_positions: List[Union[npt.ArrayLike, torch.Tensor]] = None,
         grid_size: int = 1000,
         num_samples: int = 10,
         upper: float = 1.0,
         lower: float = 0.0,
     ):
-        """Generate parameters for the classifier.
-
-        Args:
-            is_positions: The positions of the initial states.
-            fs_positions: The positions of the final states.
-            deltaG: The free energy difference between the initial
-                and final states.
-            num_data_points (int): The number of data points.
-            ts_positions: The positions of the transition states.
-
-        """
+        """Generate parameters for the classifier."""
         self.logger = logging.getLogger(__name__)
 
         # Decide based on the inputs if we are using numpy or torch
@@ -57,16 +51,18 @@ class GenerateParametersClassifier:
         else:
             self.use_torch = False
             self.lib = np
+        self.logger.debug("Using %s", self.lib)
 
-        self.ts_positions = ts_positions
+        self.reactant_graphs = reactant_graphs
+        self.product_graphs = product_graphs
+        self.transition_state_graphs = transition_state_graphs
+
         self.deltaG = deltaG
-        self.is_positions = is_positions
-        self.fs_positions = fs_positions
+
         self.grid_size = grid_size
         self.num_samples = num_samples
         self.upper = upper
         self.lower = lower
-        self.logger.debug("Using %s", self.lib)
 
     def normal_distribution(
         self, x: Union[float, torch.tensor, npt.ArrayLike], mu: float, sigma: float
@@ -219,12 +215,13 @@ class GenerateParametersClassifier:
         mu: float,
         sigma: float,
         alpha: float,
+        deltaG: float,
         upper: float = 1.0,
         lower: float = 0.0,
     ):
         """Get the interpolated transition state positions."""
         # The interpolated TS positions will be a linear combination of the initial and final state positions
-        p, p_prime = self.get_p_and_pprime(mu, sigma, alpha, upper, lower)
+        p, p_prime = self.get_p_and_pprime(mu, sigma, alpha * deltaG, upper, lower)
         int_ts_positions = p * fs_positions + p_prime * is_positions
         return int_ts_positions
 
@@ -244,24 +241,42 @@ class GenerateParametersClassifier:
         for i in range(len(self.deltaG)):
 
             # Get the interpolated transition state positions
-            int_ts_positions = self.get_interpolated_transition_state_positions(
-                self.is_positions[i],
-                self.fs_positions[i],
+            interp_ts_positions = self.get_interpolated_transition_state_positions(
+                self.reactant_graphs[i].molecule.cart_coords,
+                self.product_graphs[i].molecule.cart_coords,
                 mu=mu,
                 sigma=sigma,
                 alpha=alpha * self.deltaG[i],
                 upper=self.upper,
                 lower=self.lower,
             )
+            # Get the species from the transition state graphs
+            species = self.transition_state_graphs[i].molecule.species
 
-            # Compute the norm between the interpolated transition state positions and the actual transition state positions
-            distance_correct_ts = np.linalg.norm(
-                int_ts_positions - self.ts_positions[i], axis=1
+            # Create an interpolated transition state molecule
+            interp_ts_molecule = Molecule(
+                species=species,
+                coords=interp_ts_positions,
+                charge=self.transition_state_graphs[i].molecule.charge,
+                spin_multiplicity=self.transition_state_graphs[
+                    i
+                ].molecule.spin_multiplicity,
             )
-            total_error += np.mean(distance_correct_ts)
+            # Generate the interpolated transition state graph
+            interp_ts_graph = MoleculeGraph.with_local_env_strategy(
+                interp_ts_molecule, OpenBabelNN()
+            )
+            # Add the metal edge extender to the graph
+            interp_ts_graph = metal_edge_extender(interp_ts_graph)
+
+            difference_graphs = interp_ts_graph.diff(
+                self.transition_state_graphs[i], strict=False
+            )
+            jaccard_distance = difference_graphs["dist"]
+            total_error += jaccard_distance
 
         # Return the average error
         average_error = total_error / len(self.deltaG)
-        logger.info(f"Average error: {average_error:.4f} Angstrom/atom/reaction")
+        logger.info(f"Average error: {average_error:.4f} reaction-1")
 
         return average_error
