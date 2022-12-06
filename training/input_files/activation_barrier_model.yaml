@@ -3,6 +3,6 @@ train_json: "/pscratch/sd/s/svijay/projects/18_SEI/minimal-basis/training/input_
 test_json: "/pscratch/sd/s/svijay/projects/18_SEI/minimal-basis/training/input_files/test_RAPTER.json"
 validate_json: "/pscratch/sd/s/svijay/projects/18_SEI/minimal-basis/training/input_files/validate_RAPTER.json"
 dataset_json: "/pscratch/sd/s/svijay/projects/18_SEI/minimal-basis/training/input_files/classifier_parameters.json"
-batch_size: 50 
-learning_rate: 0.0001
+batch_size: 10 
+learning_rate: 0.01
 epochs: 1000

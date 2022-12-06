@@ -22,6 +22,7 @@ from minimal_basis.data._dtype import (
 )
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 class GenerateParametersClassifier:
@@ -33,6 +34,8 @@ class GenerateParametersClassifier:
         ts_positions: List[Union[npt.ArrayLike, torch.Tensor]] = None,
         grid_size: int = 1000,
         num_samples: int = 10,
+        upper: float = 1.0,
+        lower: float = 0.0,
     ):
         """Generate parameters for the classifier.
 
@@ -61,6 +64,9 @@ class GenerateParametersClassifier:
         self.fs_positions = fs_positions
         self.grid_size = grid_size
         self.num_samples = num_samples
+        self.upper = upper
+        self.lower = lower
+        self.logger.debug("Using %s", self.lib)
 
     def normal_distribution(
         self, x: Union[float, torch.tensor, npt.ArrayLike], mu: float, sigma: float
@@ -199,7 +205,7 @@ class GenerateParametersClassifier:
         # Sample from the truncated skew normal distribution for the interpolated
         # position of the transition state
         sample = self.get_sampled_distribution(
-            mu, sigma, alpha, num_samples=self.num_samples
+            mu, sigma, alpha, num_samples=self.num_samples, upper=upper, lower=lower
         )
         # Get the interpolated ts positions based on the average of the samples
         p = self.lib.mean(sample) - lower
@@ -213,10 +219,12 @@ class GenerateParametersClassifier:
         mu: float,
         sigma: float,
         alpha: float,
+        upper: float = 1.0,
+        lower: float = 0.0,
     ):
         """Get the interpolated transition state positions."""
         # The interpolated TS positions will be a linear combination of the initial and final state positions
-        p, p_prime = self.get_p_and_pprime(mu, sigma, alpha)
+        p, p_prime = self.get_p_and_pprime(mu, sigma, alpha, upper, lower)
         int_ts_positions = p * fs_positions + p_prime * is_positions
         return int_ts_positions
 
@@ -242,6 +250,8 @@ class GenerateParametersClassifier:
                 mu=mu,
                 sigma=sigma,
                 alpha=alpha * self.deltaG[i],
+                upper=self.upper,
+                lower=self.lower,
             )
 
             # Compute the norm between the interpolated transition state positions and the actual transition state positions
@@ -252,5 +262,6 @@ class GenerateParametersClassifier:
 
         # Return the average error
         average_error = total_error / len(self.deltaG)
+        logger.info(f"Average error: {average_error:.4f} Angstrom/atom/reaction")
 
         return average_error

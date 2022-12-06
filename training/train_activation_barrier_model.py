@@ -42,7 +42,7 @@ if not os.path.exists(os.path.join("output", "log_files")):
 LOGFILES_FOLDER = os.path.join("output", "log_files")
 logger = logging.getLogger(__name__)
 logging.basicConfig(
-    filename=os.path.join(LOGFILES_FOLDER, "classifier_model.log"),
+    filename=os.path.join(LOGFILES_FOLDER, "activation_barrier_model.log"),
     filemode="w",
     level=logging.INFO,
 )
@@ -78,8 +78,6 @@ args = parser.parse_args()
 
 if not args.debug:
     import wandb
-
-    wandb.init(project="activation_barrier_model", entity="sudarshanvj")
 
 
 def train(loader):
@@ -153,11 +151,14 @@ if __name__ == "__main__":
         epochs = inputs["epochs"]
 
     if not args.debug:
-        wandb.config = {
-            "learning_rate": learning_rate,
-            "epochs": epochs,
-            "batch_size": batch_size,
-        }
+        wandb.init(project="activation_barrier_model", entity="sudarshanvj")
+        wandb.config.update(
+            {
+                "learning_rate": learning_rate,
+                "epochs": epochs,
+                "batch_size": batch_size,
+            }
+        )
 
     train_json_filename = inputs["train_json"]
     validate_json_filename = inputs["validate_json"]
@@ -207,23 +208,23 @@ if __name__ == "__main__":
 
     # Create the optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    # scheduler = lr_scheduler.ExponentialLR(optimizer, gamma=0.9)
+    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=10)
 
     for epoch in range(1, epochs):
         # Train the model
         train(loader=train_loader)
-        train_acc = validate(loader=train_loader)
-        logger.info(f"Epoch: {epoch}, Train Loss: {train_acc}")
+        train_loss = validate(loader=train_loader)
+        logger.info(f"Epoch: {epoch}, Train Loss: {train_loss}")
 
         # Validate the model
-        val_acc = validate(loader=validate_loader)
-        logger.info(f"Epoch: {epoch}, Validation Loss: {val_acc}")
+        val_loss = validate(loader=validate_loader)
+        logger.info(f"Epoch: {epoch}, Validation Loss: {val_loss}")
 
         if not args.debug:
-            wandb.log({"train_loss": train_acc})
-            wandb.log({"val_loss": val_acc})
+            wandb.log({"train_loss": train_loss})
+            wandb.log({"val_loss": val_loss})
 
-        # scheduler.step()
+        scheduler.step(metrics=val_loss)
 
     # Save the model
     if not os.path.exists("model_files"):

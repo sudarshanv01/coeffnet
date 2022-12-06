@@ -6,7 +6,7 @@ import numpy as np
 
 from pymatgen.core.structure import Molecule
 from pymatgen.analysis.graphs import MoleculeGraph
-from pymatgen.analysis.local_env import OpenBabelNN
+from pymatgen.analysis.local_env import OpenBabelNN, metal_edge_extender
 
 import torch
 
@@ -96,12 +96,14 @@ class ActivationBarrierDataset(InMemoryDataset):
                 species=reactant_structure.species,
                 coords=transition_state_coords,
             )
+            # Store the species of the transition state structure
+            transition_state_species = transition_state_structure.species
             # Make a graph out of the transition state structure
             transition_state_graph = MoleculeGraph.with_local_env_strategy(
                 transition_state_structure, OpenBabelNN()
             )
-            # Store the species of the transition state structure
-            transition_state_species = transition_state_structure.species
+            # Add the metal edge extender to the graph
+            transition_state_graph = metal_edge_extender(transition_state_graph)
 
             # Get the proportion of the reactant and product structures
             p, p_prime = parameters_transition_state.get_p_and_pprime(

@@ -98,6 +98,8 @@ if __name__ == "__main__":
     init_mu = 0.5
     init_sigma = 4.0
     init_alpha = 1.0
+    init_upper = 1.01
+    init_lower = 0.01
     # Generate the parameters for the classifier based on minimizing
     # the output of the objective function
     parameters = scipy.optimize.minimize(
