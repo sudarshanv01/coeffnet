@@ -90,26 +90,26 @@ class GenerateParametersClassifier:
         alpha: float,
     ):
         """Construct a skewed normal distribution."""
-        x_mod = (x - mu) / sigma
-        if self.use_torch:
-            cdf = 0.5 * (1 + torch.erf(alpha * x_mod / torch.sqrt(torch.tensor(2))))
-        else:
-            cdf = 0.5 * (1 + scipy.special.erf(alpha * x_mod / np.sqrt(2)))
-
+        cdf = self.cumulative_distribution(x, mu, sigma, alpha)
         normal = self.normal_distribution(x, mu, sigma)
-
         return 2 * normal * cdf
 
     def cumulative_distribution(
-        self, x: Union[float, torch.tensor, npt.ArrayLike], mu: float, sigma: float
+        self,
+        x: Union[float, torch.tensor, npt.ArrayLike],
+        mu: float,
+        sigma: float,
+        alpha: float,
     ):
         """Construct a cumulative distribution."""
         if self.use_torch:
             return 0.5 * (
-                1 + torch.erf((x - mu) / (sigma * torch.sqrt(torch.tensor(2))))
+                1 + torch.erf(alpha * (x - mu) / (sigma * torch.sqrt(torch.tensor(2))))
             )
         else:
-            return 0.5 * (1 + scipy.special.erf((x - mu) / (sigma * np.sqrt(2))))
+            return 0.5 * (
+                1 + scipy.special.erf(alpha * (x - mu) / (sigma * np.sqrt(2)))
+            )
 
     def truncated_normal_distribution(
         self,
@@ -123,8 +123,8 @@ class GenerateParametersClassifier:
 
         truncated_normal_numerator = self.normal_distribution(x, mu, sigma)
         truncated_normal_denominator = self.cumulative_distribution(
-            upper, mu, sigma
-        ) - self.cumulative_distribution(lower, mu, sigma)
+            upper, mu, sigma, alpha=1.0
+        ) - self.cumulative_distribution(lower, mu, sigma, alpha=1.0)
         truncated_normal = truncated_normal_numerator / truncated_normal_denominator
 
         # Set the values outside the range to zero
@@ -145,8 +145,8 @@ class GenerateParametersClassifier:
 
         truncated_normal_numerator = self.skew_normal_distribution(x, mu, sigma, alpha)
         truncated_normal_denominator = self.cumulative_distribution(
-            upper, mu, sigma
-        ) - self.cumulative_distribution(lower, mu, sigma)
+            upper, mu, sigma, alpha=1.0
+        ) - self.cumulative_distribution(lower, mu, sigma, alpha=1.0)
         truncated_normal = truncated_normal_numerator / truncated_normal_denominator
 
         # Set the values outside the range to zero
