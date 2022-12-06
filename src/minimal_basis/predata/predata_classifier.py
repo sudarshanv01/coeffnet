@@ -32,8 +32,6 @@ class GenerateParametersClassifier:
         deltaG: Union[npt.ArrayLike, torch.Tensor] = None,
         ts_positions: List[Union[npt.ArrayLike, torch.Tensor]] = None,
         grid_size: int = 1000,
-        upper: float = 1.0,
-        lower: float = 0.0,
         num_samples: int = 10,
     ):
         """Generate parameters for the classifier.
@@ -62,12 +60,7 @@ class GenerateParametersClassifier:
         self.is_positions = is_positions
         self.fs_positions = fs_positions
         self.grid_size = grid_size
-        self.upper = upper
-        self.lower = lower
         self.num_samples = num_samples
-
-        # Generate the grid
-        self.x_grid = self.lib.linspace(self.lower, self.upper, self.grid_size)
 
     def normal_distribution(
         self, x: Union[float, torch.tensor, npt.ArrayLike], mu: float, sigma: float
@@ -155,12 +148,21 @@ class GenerateParametersClassifier:
         return truncated_normal
 
     def get_sampled_distribution(
-        self, mu: float, sigma: float, alpha: float, num_samples: int = 10
+        self,
+        mu: float,
+        sigma: float,
+        alpha: float,
+        num_samples: int = 10,
+        upper: float = 1.0,
+        lower: float = 0.0,
     ):
         """Get points sampled from the truncated normal distribution."""
 
+        # Get the grid of points and the truncated normal distribution on
+        # the grid
+        x_grid = self.lib.linspace(lower, upper, self.grid_size)
         tnd = self.truncated_skew_normal_distribution(
-            self.x_grid, mu, sigma, alpha, self.lower, self.upper
+            x_grid, mu, sigma, alpha, lower, upper
         )
         # Get the cumulative distribution of the truncated normal distribution
         if not self.use_torch:
@@ -176,17 +178,22 @@ class GenerateParametersClassifier:
 
         # Generate samples from the truncated normal distribution
         if not self.use_torch:
-            sample = np.interp(random_numbers, cdf, self.x_grid)
+            sample = np.interp(random_numbers, cdf, x_grid)
         else:
             # Use the numpy version of interp for torch
-            sample = np.interp(
-                random_numbers, cdf.cpu().numpy(), self.x_grid.cpu().numpy()
-            )
+            sample = np.interp(random_numbers, cdf.cpu().numpy(), x_grid.cpu().numpy())
             sample = torch.tensor(sample, dtype=torch.float32)
 
         return sample
 
-    def get_p_and_pprime(self, mu: float, sigma: float, alpha: float):
+    def get_p_and_pprime(
+        self,
+        mu: float,
+        sigma: float,
+        alpha: float,
+        upper: float = 1.0,
+        lower: float = 0.0,
+    ):
         """Get the p and p' values, used to multiply the initial and final state positions
         to get the interpolated transition state positions."""
         # Sample from the truncated skew normal distribution for the interpolated
@@ -195,8 +202,8 @@ class GenerateParametersClassifier:
             mu, sigma, alpha, num_samples=self.num_samples
         )
         # Get the interpolated ts positions based on the average of the samples
-        p = self.lib.mean(sample)
-        p_prime = 1 - p
+        p = self.lib.mean(sample) - lower
+        p_prime = upper - p
         return p, p_prime
 
     def get_interpolated_transition_state_positions(
