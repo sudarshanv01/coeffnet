@@ -13,12 +13,14 @@ import torch.nn.functional as F
 
 from torch_geometric.loader import DataLoader
 
-from minimal_basis.dataset.dataset_charges import ChargeDataset
-from minimal_basis.dataset.dataset_hamiltonian import HamiltonianDataset
-from minimal_basis.dataset.dataset_interpolate import InterpolateDataset
-from minimal_basis.model.model_charges import ChargeModel
-from minimal_basis.model.model_hamiltonian import HamiltonianModel, EquiHamiltonianModel
-from minimal_basis.model.model_interpolate import MessagePassingInterpolateModel
+from minimal_basis.dataset import ChargeDataset
+from minimal_basis.dataset import HamiltonianDataset
+from minimal_basis.dataset import InterpolateDataset
+from minimal_basis.dataset import InterpolateDiffDataset
+from minimal_basis.model import ChargeModel
+from minimal_basis.model import HamiltonianModel, EquiHamiltonianModel
+from minimal_basis.model import MessagePassingInterpolateModel
+from minimal_basis.model import MessagePassingInterpolateDiffModel
 
 import ray
 from ray import tune
@@ -78,6 +80,10 @@ def load_data(data_dir: str = "input_files", model: str = "charge"):
         }
     elif model == "interpolate":
         DatasetModule = InterpolateDataset
+        pretrain_params_json = inputs["pretrain_params_json"]
+        kwargs = {"pretrain_params_json": pretrain_params_json}
+    elif model == "interpolate_diff":
+        DatasetModule = InterpolateDiffDataset
         pretrain_params_json = inputs["pretrain_params_json"]
         kwargs = {"pretrain_params_json": pretrain_params_json}
     else:
@@ -156,6 +162,14 @@ def train_model(config: Dict[str, float]):
             hidden_channels=config["hidden_channels"],
             num_updates=config["num_layers"],
         )
+    elif args.model == "interpolate_diff":
+        model = MessagePassingInterpolateDiffModel(
+            num_node_features=dataset_info["num_node_features"],
+            num_edge_features=dataset_info["num_edge_features"],
+            num_global_features=dataset_info["num_global_features"],
+            hidden_channels=config["hidden_channels"],
+            num_updates=config["num_layers"],
+        )
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model.to(device)
@@ -168,7 +182,7 @@ def train_model(config: Dict[str, float]):
     if loaded_checkpoint:
         with loaded_checkpoint.as_directory() as loaded_checkpoint_dir:
             model_state, optimizer_state = torch.load(
-                os.path.join(loaded_checkpoint_dir, "checkpoint.pt")
+                os.path.join(loaded_checkpoint_dir, f"{args.model}_checkpoint.pt")
             )
         model.load_state_dict(model_state)
         optim.load_state_dict(optimizer_state)
