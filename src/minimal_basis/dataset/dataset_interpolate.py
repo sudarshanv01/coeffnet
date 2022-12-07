@@ -34,12 +34,12 @@ class InterpolateDataset(InMemoryDataset):
         pre_transform=None,
         pre_filter=None,
         filename: str = None,
-        filename_classifier_parameters: str = None,
+        pretrain_params_json: str = None,
     ):
         """Dataset which stores the data for predicting the raw activation barrier."""
 
         self.filename = filename
-        self.filename_classifier_parameters = filename_classifier_parameters
+        self.pretrain_params_json = pretrain_params_json
         super().__init__(
             root=root,
             transform=transform,
@@ -63,7 +63,7 @@ class InterpolateDataset(InMemoryDataset):
         logger.info("Loading data from json file.")
         self.input_data = loadfn(self.filename)
         logger.info("Done loading data from json file.")
-        self.classifier_parameters = loadfn(self.filename_classifier_parameters)
+        self.pretrain_params = loadfn(self.pretrain_params_json)
 
     def process(self):
         data_list = []
@@ -83,9 +83,9 @@ class InterpolateDataset(InMemoryDataset):
                 parameters_transition_state.get_interpolated_transition_state_positions(
                     is_positions=reactant_structure.cart_coords,
                     fs_positions=product_structure.cart_coords,
-                    alpha=self.classifier_parameters["alpha"],
-                    mu=self.classifier_parameters["mu"],
-                    sigma=self.classifier_parameters["sigma"],
+                    alpha=self.pretrain_params["alpha"],
+                    mu=self.pretrain_params["mu"],
+                    sigma=self.pretrain_params["sigma"],
                     deltaG=torch.tensor([data_["reaction_energy"]], dtype=DTYPE),
                 )
             )
@@ -109,9 +109,9 @@ class InterpolateDataset(InMemoryDataset):
 
             # Get the proportion of the reactant and product structures
             p, p_prime = parameters_transition_state.get_p_and_pprime(
-                alpha=self.classifier_parameters["alpha"],
-                mu=self.classifier_parameters["mu"],
-                sigma=self.classifier_parameters["sigma"],
+                alpha=self.pretrain_params["alpha"],
+                mu=self.pretrain_params["mu"],
+                sigma=self.pretrain_params["sigma"],
             )
 
             # --- Global features ---

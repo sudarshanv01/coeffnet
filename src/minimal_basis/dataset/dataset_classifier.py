@@ -12,7 +12,7 @@ import torch
 
 from torch_geometric.data import InMemoryDataset
 
-from minimal_basis.data import ActivationBarrierDatapoint as Datapoint
+from minimal_basis.data import DatapointClassifier as Datapoint
 from minimal_basis.predata import GenerateParametersClassifier
 
 logger = logging.getLogger(__name__)

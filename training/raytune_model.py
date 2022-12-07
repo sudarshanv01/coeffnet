@@ -14,9 +14,11 @@ import torch.nn.functional as F
 from torch_geometric.loader import DataLoader
 
 from minimal_basis.dataset.dataset_charges import ChargeDataset
-from minimal_basis.model.model_charges import ChargeModel
 from minimal_basis.dataset.dataset_hamiltonian import HamiltonianDataset
+from minimal_basis.dataset.dataset_interpolate import InterpolateDataset
+from minimal_basis.model.model_charges import ChargeModel
 from minimal_basis.model.model_hamiltonian import HamiltonianModel, EquiHamiltonianModel
+from minimal_basis.model.model_interpolate import MessagePassingInterpolateModel
 
 import ray
 from ray import tune
@@ -35,7 +37,7 @@ from utils import (
 )
 
 
-def load_data(data_dir="input_files", model="charge"):
+def load_data(data_dir: str = "input_files", model: str = "charge"):
     """Load the data for the model."""
 
     # Load the input file
@@ -46,7 +48,10 @@ def load_data(data_dir="input_files", model="charge"):
     inputs = read_inputs_yaml(input_file)
 
     if args.debug:
-        train_json_filename = inputs["debug_train_json"]
+        if "debug_train_json" not in inputs:
+            train_json_filename = inputs["train_json"]
+        else:
+            train_json_filename = inputs["debug_train_json"]
     else:
         train_json_filename = inputs["train_json"]
 
@@ -71,7 +76,10 @@ def load_data(data_dir="input_files", model="charge"):
             "basis_file": inputs["basis_file"],
             "graph_generation_method": graph_generation_method,
         }
-    # elif model == "interpolate":
+    elif model == "interpolate":
+        DatasetModule = InterpolateDataset
+        pretrain_params_json = inputs["pretrain_params_json"]
+        kwargs = {"pretrain_params_json": pretrain_params_json}
     else:
         raise ValueError(f"Model {model} not recognized.")
 
@@ -80,18 +88,14 @@ def load_data(data_dir="input_files", model="charge"):
         train_dataset = DatasetModule(
             root=get_test_data_path(),
             filename=train_json_filename,
-            graph_generation_method=graph_generation_method,
             **kwargs,
         )
-        train_dataset.process()
 
         validate_dataset = DatasetModule(
             root=get_test_data_path(),
             filename=validate_json_filename,
-            graph_generation_method=graph_generation_method,
             **kwargs,
         )
-        validate_dataset.process()
 
     return (
         train_dataset,
@@ -105,7 +109,7 @@ def load_data(data_dir="input_files", model="charge"):
 
 
 @wandb_mixin
-def train_model(config):
+def train_model(config: Dict[str, float]):
     """Train the model."""
 
     train_dataset, validate_dataset, dataset_info = load_data("input_files", args.model)
@@ -144,6 +148,15 @@ def train_model(config):
             hidden_channels=config["hidden_channels"],
             max_radius=config["max_radius"],
         )
+    elif args.model == "interpolate":
+        model = MessagePassingInterpolateModel(
+            num_node_features=dataset_info["num_node_features"],
+            num_edge_features=dataset_info["num_edge_features"],
+            num_global_features=dataset_info["num_global_features"],
+            hidden_channels=config["hidden_channels"],
+            num_updates=config["num_layers"],
+        )
+
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model.to(device)
 

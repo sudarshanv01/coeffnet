@@ -12,8 +12,8 @@ from torch.optim import lr_scheduler
 import torch_geometric
 from torch_geometric.loader import DataLoader
 
-from minimal_basis.dataset import InterpolateDataset
-from minimal_basis.model import MessagePassingInterpolateModel
+from minimal_basis.dataset import InterpolateDiffDataset
+from minimal_basis.model import MessagePassingInterpolateDiffModel
 
 from utils import (
     read_inputs_yaml,
@@ -35,12 +35,6 @@ if not os.path.exists(os.path.join("output", "log_files")):
 
 LOGFILES_FOLDER = os.path.join("output", "log_files")
 logger = logging.getLogger(__name__)
-logging.basicConfig(
-    filename=os.path.join(LOGFILES_FOLDER, "interpolate_model.log"),
-    filemode="w",
-    level=logging.INFO,
-)
-logging.getLogger().addHandler(logging.StreamHandler())
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -73,9 +67,13 @@ parser.add_argument(
     action="store_true",
     help="If set, the best configuration is used based on ray tune run.",
 )
+parser.add_argument(
+    "--use_wandb",
+    action="store_true",
+)
 args = parser.parse_args()
 
-if not args.debug:
+if args.use_wandb:
     import wandb
 
 
@@ -139,7 +137,9 @@ if __name__ == "__main__":
     logger.info(f"Device: {device}")
 
     # --- Inputs
-    inputs = read_inputs_yaml(os.path.join("input_files", "interpolate_model.yaml"))
+    inputs = read_inputs_yaml(
+        os.path.join("input_files", "interpolate_diff_model.yaml")
+    )
 
     if args.use_best_config:
         best_config = json.load(open("output/best_config_interpolate.json", "r"))
@@ -157,7 +157,7 @@ if __name__ == "__main__":
     else:
         epochs = inputs["epochs"]
 
-    if not args.debug:
+    if args.use_wandb:
         wandb.init(project="interpolate_model", entity="sudarshanvj")
         wandb.config.update(
             {
@@ -172,15 +172,16 @@ if __name__ == "__main__":
     pretrain_params_json = inputs["pretrain_params_json"]
 
     # Create the training and test datasets
-    train_dataset = InterpolateDataset(
+    train_dataset = InterpolateDiffDataset(
         root=get_train_data_path(),
         filename=train_json_filename,
         pretrain_params_json=pretrain_params_json,
+        debug=args.debug,
     )
     if args.reprocess_dataset:
         train_dataset.process()
 
-    validate_dataset = InterpolateDataset(
+    validate_dataset = InterpolateDiffDataset(
         root=get_validation_data_path(),
         filename=validate_json_filename,
         pretrain_params_json=pretrain_params_json,
@@ -202,15 +203,16 @@ if __name__ == "__main__":
     num_classes = train_dataset.num_classes
 
     # Create the model
-    model = MessagePassingInterpolateModel(
+    model = MessagePassingInterpolateDiffModel(
         num_node_features=num_node_features,
         num_edge_features=num_edge_features,
         num_global_features=num_global_features,
         hidden_channels=args.hidden_channels,
         num_updates=args.num_updates,
+        debug=args.debug,
     )
     model = model.to(device)
-    if not args.debug:
+    if args.use_wandb:
         wandb.watch(model)
 
     # Create the optimizer
@@ -227,7 +229,7 @@ if __name__ == "__main__":
         val_loss = validate(loader=validate_loader)
         logger.info(f"Epoch: {epoch}, Validation Loss: {val_loss}")
 
-        if not args.debug:
+        if args.use_wandb:
             wandb.log({"train_loss": train_loss})
             wandb.log({"val_loss": val_loss})
 
@@ -236,4 +238,6 @@ if __name__ == "__main__":
     # Save the model
     if not os.path.exists("model_files"):
         os.mkdir("model_files")
-    torch.save(model.state_dict(), os.path.join("model_files", "interpolate_model.pt"))
+    torch.save(
+        model.state_dict(), os.path.join("model_files", "interpolate_diff_model.pt")
+    )
