@@ -208,28 +208,58 @@ def train_model(config: Dict[str, float]):
     logger.info("Finished Training")
 
 
-@torch.no_grad()
-def validation(model, validation_loader, device):
+def validation(
+    model,
+    validation_loader: DataLoader,
+    device: torch.device,
+    type_model: str = "regression",
+    theshold: float = None,
+):
     """Validate the model."""
+    model.eval()
 
-    # Store all the loses
-    losses = 0.0
+    if type_model == "regression":
+        # Store all the loses
+        losses = 0.0
 
-    for test_batch in validation_loader:
-        data = test_batch.to(device)
-        predicted_y = model(data)
-        loss = F.mse_loss(predicted_y, data.y)
+        for test_batch in validation_loader:
+            data = test_batch.to(device)
+            predicted_y = model(data)
+            loss = F.mse_loss(predicted_y, data.y)
 
-        # Add up the loss
-        losses += loss.item() * test_batch.num_graphs
+            # Add up the loss
+            losses += loss.item() * test_batch.num_graphs
 
-    rmse = np.sqrt(losses / len(validation_loader))
+        output_metric = np.sqrt(losses / len(validation_loader))
 
-    return rmse
+    elif type_model == "classifier":
+        # Store the number of correct predictions
+        correct = 0
+
+        for data in validation_loader:
+            data = data.to(device)
+            out = model(data)
+            # Apply a sigmoid to the out values
+            out = torch.sigmoid(out)
+            pred = (out > theshold).float()
+            pred = pred.view(-1)
+            correct += int((pred == data.y).sum())
+
+        output_metric = correct / len(validation_loader.dataset)
+
+    return output_metric
 
 
-def train(model, train_loader, optim, device):
+def train(
+    model,
+    train_loader: DataLoader,
+    optim,
+    device: torch.device,
+    type_model: str = "regression",
+):
     """Train the model."""
+
+    model.train()
 
     # Store all the loses
     losses = 0.0
