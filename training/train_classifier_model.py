@@ -14,8 +14,8 @@ from torchmetrics.classification import BinaryAUROC
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from minimal_basis.dataset.dataset_classifier import ClassifierDataset
-from minimal_basis.model.model_classifier import (
+from minimal_basis.dataset.dataset_diffclassifier import ClassifierDataset
+from minimal_basis.model.model_diffclassifier import (
     ClassifierModel,
     MessagePassingClassifierModel,
 )
