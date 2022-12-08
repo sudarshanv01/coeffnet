@@ -206,7 +206,10 @@ def train_model(config: Dict[str, float]):
 
     # Train the model
     model.train()
+
     for epoch in range(1, config["epochs"]):
+
+        logger.info(f"Epoch {epoch}")
 
         # Training
         train_params = {
@@ -216,21 +219,18 @@ def train_model(config: Dict[str, float]):
             "device": device,
         }
         if "classifier" in args.model:
-            logger.info("Training a classification model")
-            train_params["type_model"] = "classification"
-            train_params["theshold"] = config["theshold"]
+            train_params["type_model"] = "classifier"
         train_loss = train(**train_params)
         if "classifier" in args.model:
             # Log the training accuracy
-            train_acc = validation(
-                {
-                    "model": model,
-                    "validation_loader": train_loader,
-                    "device": device,
-                    "type_model": "classification",
-                    "theshold": config["theshold"],
-                }
-            )
+            train_accuracy_params = {
+                "model": model,
+                "validation_loader": train_loader,
+                "device": device,
+                "type_model": "classifier",
+                "threshold": config["threshold"],
+            }
+            train_acc = validation(**train_accuracy_params)
             wandb.log({"train_acc": train_acc})
         wandb.log({"train_loss": train_loss})
 
@@ -241,8 +241,8 @@ def train_model(config: Dict[str, float]):
             "device": device,
         }
         if "classifier" in args.model:
-            validation_params["type_model"] = "classification"
-            validation_params["theshold"] = config["theshold"]
+            validation_params["type_model"] = "classifier"
+            validation_params["threshold"] = config["threshold"]
         val_metric = validation(**validation_params)
         if "classifier" in args.model:
             wandb.log({"val_acc": val_metric})
@@ -264,7 +264,7 @@ def validation(
     validation_loader: DataLoader,
     device: torch.device,
     type_model: str = "regression",
-    theshold: float = None,
+    threshold: float = None,
 ):
     """Validate the model."""
     model.eval()
@@ -292,7 +292,7 @@ def validation(
             out = model(data)
             # Apply a sigmoid to the out values
             out = torch.sigmoid(out)
-            pred = (out > theshold).float()
+            pred = (out > threshold).float()
             pred = pred.view(-1)
             correct += int((pred == data.y).sum())
 
@@ -330,6 +330,7 @@ def train(
 
     elif type_model == "classifier":
         losses = 0.0
+        criterion = torch.nn.BCEWithLogitsLoss()
         for data in train_loader:
             optim.zero_grad()
             data = data.to(device)
@@ -337,8 +338,7 @@ def train(
             out = out.view(-1)
             actual = data.y
             actual = actual.to(TORCH_FLOATS[1])
-
-            loss = torch.nn.BCEWithLogitsLoss(out, actual)
+            loss = criterion(out, actual)
             loss.backward()
             losses += loss.item() * data.num_graphs
 
