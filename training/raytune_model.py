@@ -17,10 +17,13 @@ from minimal_basis.dataset import ChargeDataset
 from minimal_basis.dataset import HamiltonianDataset
 from minimal_basis.dataset import InterpolateDataset
 from minimal_basis.dataset import InterpolateDiffDataset
+from minimal_basis.dataset import DiffClassifierDataset
 from minimal_basis.model import ChargeModel
 from minimal_basis.model import HamiltonianModel, EquiHamiltonianModel
 from minimal_basis.model import MessagePassingInterpolateModel
 from minimal_basis.model import MessagePassingInterpolateDiffModel
+from minimal_basis.model import MessagePassingDiffClassifierModel
+from minimal_basis.data._dtype import DTYPE, TORCH_FLOATS
 
 import ray
 from ray import tune
@@ -84,6 +87,10 @@ def load_data(data_dir: str = "input_files", model: str = "charge"):
         kwargs = {"pretrain_params_json": pretrain_params_json}
     elif model == "interpolate_diff":
         DatasetModule = InterpolateDiffDataset
+        pretrain_params_json = inputs["pretrain_params_json"]
+        kwargs = {"pretrain_params_json": pretrain_params_json}
+    elif model == "diffclassifier":
+        DatasetModule = DiffClassifierDataset
         pretrain_params_json = inputs["pretrain_params_json"]
         kwargs = {"pretrain_params_json": pretrain_params_json}
     else:
@@ -170,6 +177,16 @@ def train_model(config: Dict[str, float]):
             hidden_channels=config["hidden_channels"],
             num_updates=config["num_layers"],
         )
+    elif args.model == "diffclassifier":
+        model = MessagePassingDiffClassifierModel(
+            num_node_features=dataset_info["num_node_features"],
+            num_edge_features=dataset_info["num_edge_features"],
+            num_global_features=dataset_info["num_global_features"],
+            hidden_channels=config["hidden_channels"],
+            num_updates=config["num_layers"],
+        )
+    else:
+        raise ValueError(f"Model {args.model} not recognized.")
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model.to(device)
@@ -190,13 +207,47 @@ def train_model(config: Dict[str, float]):
     # Train the model
     model.train()
     for epoch in range(1, config["epochs"]):
-        # Train the model
-        train_loss = train(model, train_loader, optim, device)
+
+        # Training
+        train_params = {
+            "model": model,
+            "train_loader": train_loader,
+            "optim": optim,
+            "device": device,
+        }
+        if "classifier" in args.model:
+            logger.info("Training a classification model")
+            train_params["type_model"] = "classification"
+            train_params["theshold"] = config["theshold"]
+        train_loss = train(**train_params)
+        if "classifier" in args.model:
+            # Log the training accuracy
+            train_acc = validation(
+                {
+                    "model": model,
+                    "validation_loader": train_loader,
+                    "device": device,
+                    "type_model": "classification",
+                    "theshold": config["theshold"],
+                }
+            )
+            wandb.log({"train_acc": train_acc})
         wandb.log({"train_loss": train_loss})
 
-        # Validation loss
-        val_loss = validation(model, test_loader, device)
-        wandb.log({"val_loss": val_loss})
+        # Validation
+        validation_params = {
+            "model": model,
+            "validation_loader": test_loader,
+            "device": device,
+        }
+        if "classifier" in args.model:
+            validation_params["type_model"] = "classification"
+            validation_params["theshold"] = config["theshold"]
+        val_metric = validation(**validation_params)
+        if "classifier" in args.model:
+            wandb.log({"val_acc": val_metric})
+        else:
+            wandb.log({"val_loss": val_metric})
 
     # Save the model
     os.makedirs(args.output_dir, exist_ok=True)
@@ -204,7 +255,7 @@ def train_model(config: Dict[str, float]):
         (model.state_dict(), optim.state_dict()), f"{args.output_dir}/checkpoint.pt"
     )
     checkpoint = Checkpoint.from_directory(args.output_dir)
-    session.report({"loss": val_loss}, checkpoint=checkpoint)
+    session.report({"loss": train_loss}, checkpoint=checkpoint)
     logger.info("Finished Training")
 
 
@@ -261,29 +312,45 @@ def train(
 
     model.train()
 
-    # Store all the loses
-    losses = 0.0
+    if type_model == "regression":
+        losses = 0.0
+        for train_batch in train_loader:
+            data = train_batch.to(device)
+            optim.zero_grad()
+            predicted_y = model(data)
+            loss = F.mse_loss(predicted_y, data.y)
+            loss.backward()
 
-    for train_batch in train_loader:
-        data = train_batch.to(device)
-        optim.zero_grad()
-        predicted_y = model(data)
-        loss = F.mse_loss(predicted_y, data.y)
-        loss.backward()
+            # Add up the loss
+            losses += loss.item() * train_batch.num_graphs
 
-        # Add up the loss
-        losses += loss.item() * train_batch.num_graphs
+            # Take an optimizer step
+            optim.step()
+        output_metric = np.sqrt(losses / len(train_loader))
 
-        # Take an optimizer step
-        optim.step()
+    elif type_model == "classifier":
+        losses = 0.0
+        for data in train_loader:
+            optim.zero_grad()
+            data = data.to(device)
+            out = model(data)
+            out = out.view(-1)
+            actual = data.y
+            actual = actual.to(TORCH_FLOATS[1])
 
-    rmse = np.sqrt(losses / len(train_loader))
+            loss = torch.nn.BCEWithLogitsLoss(out, actual)
+            loss.backward()
+            losses += loss.item() * data.num_graphs
 
-    return rmse
+            optim.step()
+        output_metric = losses
+
+    return output_metric
 
 
-def main(num_samples=10, max_num_epochs=100, gpus_per_trial=1):
-    # Define the search space
+def main(num_samples: int = 10, max_num_epochs: int = 100, gpus_per_trial: int = 1):
+    """Construct the hyperparameter search space and run the experiment."""
+
     if not args.debug:
         config = {
             "batch_size": tune.choice([5, 10, 15, 20]),
@@ -310,13 +377,20 @@ def main(num_samples=10, max_num_epochs=100, gpus_per_trial=1):
                 "max_radius": tune.choice([5, 10, 20]),
             }
         )
+    elif args.model == "diffclassifier":
+        config.update({"threshold": tune.uniform(0.0, 1.0)})
 
-    scheduler = ASHAScheduler(max_t=max_num_epochs, grace_period=1, reduction_factor=2)
+    # Schedule to decide when to cut off bad trials
+    scheduler = ASHAScheduler(
+        max_t=max_num_epochs,
+        grace_period=args.grace_period,
+        reduction_factor=args.reduction_factor,
+    )
 
     # Add wandb to the config
     config["wandb"] = {
         "api_key_file": api_key_file,
-        "project": args.wandb_project,
+        "project": f"raytune_{args.model}",
         "group": args.model,
     }
 
@@ -338,9 +412,11 @@ def main(num_samples=10, max_num_epochs=100, gpus_per_trial=1):
 
     best_result = results.get_best_result("loss", "min")
 
-    print("Best trial config: {}".format(best_result.config))
-    print("Best trial final validation loss: {}".format(best_result.metrics["loss"]))
-    print(
+    logger.info("Best trial config: {}".format(best_result.config))
+    logger.info(
+        "Best trial final validation loss: {}".format(best_result.metrics["loss"])
+    )
+    logger.info(
         "Best trial final validation accuracy: {}".format(best_result.metrics["loss"])
     )
 
@@ -359,12 +435,6 @@ def parse_cli():
         help="If set, the calculation is a DEBUG calculation.",
     )
     parser.add_argument(
-        "--wandb_project",
-        type=str,
-        default="minimal_basis_ray_tune",
-        help="Name of the wandb project.",
-    )
-    parser.add_argument(
         "--model",
         type=str,
         default="charge",
@@ -377,7 +447,28 @@ def parse_cli():
         help="Name of the output directory.",
     )
     parser.add_argument(
-        "--test_setup", action="store_true", help="Test the imports and quit."
+        "--num_samples",
+        type=int,
+        default=10,
+        help="Number of samples to run.",
+    )
+    parser.add_argument(
+        "--max_num_epochs",
+        type=int,
+        default=100,
+        help="Maximum number of epochs to train for.",
+    )
+    parser.add_argument(
+        "--grace_period",
+        type=int,
+        default=10,
+        help="Number of epochs to run before early stopping.",
+    )
+    parser.add_argument(
+        "--reduction_factor",
+        type=int,
+        default=2,
+        help="Reduction factor for the ASHA scheduler.",
     )
 
     args = parser.parse_args()
@@ -389,17 +480,13 @@ if __name__ == "__main__":
 
     args = parse_cli()
 
-    if args.test_setup:
-        quit()
-
     api_key_file = "~/.wandb_api_key"
 
-    LOGFILES_FOLDER = "log_files"
-    logging.basicConfig(
-        filename=os.path.join(LOGFILES_FOLDER, f"{args.wandb_project}_model.log"),
-        filemode="w",
-        level=logging.INFO,
-    )
     logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
 
-    main(num_samples=5, max_num_epochs=500, gpus_per_trial=1)
+    main(
+        num_samples=args.num_samples,
+        max_num_epochs=args.max_num_epochs,
+        gpus_per_trial=1,
+    )
