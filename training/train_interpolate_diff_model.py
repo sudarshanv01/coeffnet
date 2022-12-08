@@ -142,7 +142,7 @@ if __name__ == "__main__":
     )
 
     if args.use_best_config:
-        best_config = json.load(open("output/best_config_interpolate.json", "r"))
+        best_config = json.load(open("output/best_config_interpolate_diff.json", "r"))
         batch_size = best_config["batch_size"]
         learning_rate = best_config["learning_rate"]
         # Replace args with best config
@@ -158,7 +158,7 @@ if __name__ == "__main__":
         epochs = inputs["epochs"]
 
     if args.use_wandb:
-        wandb.init(project="interpolate_model", entity="sudarshanvj")
+        wandb.init(project="interpolate_diff_model", entity="sudarshanvj")
         wandb.config.update(
             {
                 "learning_rate": learning_rate,
@@ -217,7 +217,7 @@ if __name__ == "__main__":
 
     # Create the optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=10)
+    # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=10)
 
     for epoch in range(1, epochs):
         # Train the model
@@ -233,7 +233,7 @@ if __name__ == "__main__":
             wandb.log({"train_loss": train_loss})
             wandb.log({"val_loss": val_loss})
 
-        scheduler.step(metrics=val_loss)
+        # scheduler.step(metrics=val_loss)
 
     # Save the model
     if not os.path.exists("model_files"):

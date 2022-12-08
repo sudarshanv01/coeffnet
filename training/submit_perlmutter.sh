@@ -13,5 +13,5 @@ module load cudatoolkit/11.5
 conda activate molml
 
 # python train_interpolate_model.py 
-# python raytune_model.py --wandb_project interpolate_raytune --model interpolate
-python train_interpolate_model.py --use_best_config
+# python raytune_model.py --wandb_project interpolate_diff_raytune --model interpolate_diff
+python train_interpolate_diff_model.py --use_best_config --use_wandb --reprocess_dataset

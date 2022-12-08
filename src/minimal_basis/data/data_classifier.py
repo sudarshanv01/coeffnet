@@ -1,27 +1,24 @@
+from typing import Dict, List, Optional, Tuple, Union
+
 import torch
 
 from torch_geometric.data import Data
 from torch_geometric.typing import OptTensor
 
+from numpy import typing as nptying
 
-class DatapointClassifier(Data):
+from minimal_basis.data import InterpolateDiffDatapoint
+
+
+class DiffClassifierDatapoint(InterpolateDiffDatapoint):
     def __init__(
         self,
-        x: OptTensor = None,
-        edge_index: OptTensor = None,
-        edge_attr: OptTensor = None,
+        x: Dict[str, Union[OptTensor, nptying.ArrayLike]] = None,
+        edge_index: Dict[str, Union[OptTensor, nptying.ArrayLike]] = None,
+        edge_attr: Dict[str, Union[OptTensor, nptying.ArrayLike]] = None,
+        pos: Dict[str, Union[OptTensor, nptying.ArrayLike]] = None,
+        global_attr: Dict[str, Union[OptTensor, nptying.ArrayLike]] = None,
         y: OptTensor = None,
-        pos: OptTensor = None,
         **kwargs
     ):
-        if y is not None:
-            if y == "high":
-                classify_y = torch.tensor([0], dtype=torch.long)
-            elif y == "low":
-                classify_y = torch.tensor([1], dtype=torch.long)
-            else:
-                raise ValueError("y must be 'high' or 'low'.")
-        else:
-            classify_y = None
-
-        super().__init__(x, edge_index, edge_attr, classify_y, pos, **kwargs)
+        super().__init__(x, edge_index, edge_attr, pos, global_attr, y, **kwargs)
