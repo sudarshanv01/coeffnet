@@ -37,6 +37,8 @@ from e3nn import o3
 import wandb
 
 from utils import (
+    get_train_data_path,
+    get_validation_data_path,
     get_test_data_path,
     read_inputs_yaml,
 )
@@ -99,13 +101,13 @@ def load_data(data_dir: str = "input_files", model: str = "charge"):
     with FileLock(os.path.expanduser("~/.data.lock")):
         # Create the training and test datasets
         train_dataset = DatasetModule(
-            root=get_test_data_path(),
+            root=get_train_data_path(),
             filename=train_json_filename,
             **kwargs,
         )
 
         validate_dataset = DatasetModule(
-            root=get_test_data_path(),
+            root=get_validation_data_path(),
             filename=validate_json_filename,
             **kwargs,
         )
@@ -413,13 +415,7 @@ def main(num_samples: int = 10, max_num_epochs: int = 100, gpus_per_trial: int =
     best_result = results.get_best_result("loss", "min")
 
     logger.info("Best trial config: {}".format(best_result.config))
-    logger.info(
-        "Best trial final validation loss: {}".format(best_result.metrics["loss"])
-    )
-    logger.info(
-        "Best trial final validation accuracy: {}".format(best_result.metrics["loss"])
-    )
-
+    logger.info("Best trial final loss: {}".format(best_result.metrics["loss"]))
     # Write out the best performing model as a checkpoint
     best_config = best_result.config
     json.dump(best_config, open(f"output/best_config_{args.model}.json", "w"))

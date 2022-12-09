@@ -140,17 +140,6 @@ class HamiltonianDataset(InMemoryDataset):
             # that the graph creation process is flexible
             molecules_in_reaction = defaultdict(list)
 
-            # --- Get the output information and store that in the node
-            y = input_data.pop("transition_state_energy")
-            y = torch.tensor([y], dtype=DTYPE)
-
-            # --- Get the global information
-            global_information = input_data.pop("reaction_energy")
-            global_information = torch.tensor([global_information], dtype=DTYPE)
-
-            # Store the basis index
-            all_basis_idx = []
-
             for molecule_id in input_data:
 
                 state_fragment = input_data[molecule_id]["state_fragments"]

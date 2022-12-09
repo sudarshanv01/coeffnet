@@ -147,7 +147,7 @@ if __name__ == "__main__":
         learning_rate = best_config["learning_rate"]
         # Replace args with best config
         args.hidden_channels = best_config["hidden_channels"]
-        args.num_layers = best_config["num_layers"]
+        args.num_updates = best_config["num_layers"]
     else:
         batch_size = inputs["batch_size"]
         learning_rate = inputs["learning_rate"]
@@ -164,6 +164,8 @@ if __name__ == "__main__":
                 "learning_rate": learning_rate,
                 "epochs": epochs,
                 "batch_size": batch_size,
+                "hidden_channels": args.hidden_channels,
+                "num_updates": args.num_updates,
             }
         )
 

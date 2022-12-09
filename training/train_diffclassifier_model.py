@@ -1,7 +1,6 @@
 import os
 import logging
 import argparse
-from pprint import pformat
 import json
 
 import numpy as np
@@ -9,11 +8,6 @@ import numpy as np
 import torch
 import torch_geometric
 from torch_geometric.loader import DataLoader
-
-from torchmetrics.classification import BinaryAUROC
-
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 from minimal_basis.dataset import DiffClassifierDataset
 from minimal_basis.model import MessagePassingDiffClassifierModel
@@ -121,76 +115,6 @@ def validate(loader: DataLoader, theshold: float = 0.5):
     return correct / len(loader.dataset)
 
 
-def statistics_model(loader: DataLoader, threshold: float = 0.5):
-    """Return the predicted and actual values for the dataset."""
-
-    # Make a tensor to store the predicted and actual values
-    pred = []
-    actual = []
-    output_model = []
-    out = []
-
-    for data in loader:
-        data = data.to(device)
-        _out = model(data)
-        output_model.append(_out)
-
-        # Apply a sigmoid to the out values
-        _out = torch.sigmoid(_out)
-        out.append(_out)
-
-        # Make out into a 1D tensor
-        _out = _out.view(-1)
-        _pred = (_out > threshold).float()
-        _actual = data.y
-
-        pred.append(_pred)
-        actual.append(_actual)
-
-    # Concatenate the tensors
-    pred = torch.cat(pred)
-    actual = torch.cat(actual)
-    out = torch.cat(out)
-    output_model = torch.cat(output_model)
-
-    return pred, actual, [output_model, out]
-
-
-def metrics(pred: torch.Tensor, actual: torch.Tensor):
-    """Calculate the metrics for the model."""
-    if pred.shape != actual.shape:
-        raise ValueError("The shapes of the prediction and actual are not the same.")
-
-    # Calculate the true positives, true negatives, false positives, and false negatives
-    tp = ((pred == 1) & (actual == 1)).sum().item()
-    tn = ((pred == 0) & (actual == 0)).sum().item()
-    fp = ((pred == 1) & (actual == 0)).sum().item()
-    fn = ((pred == 0) & (actual == 1)).sum().item()
-    logger.debug(f"True positives: {tp}")
-    logger.debug(f"True negatives: {tn}")
-    logger.debug(f"False positives: {fp}")
-    logger.debug(f"False negatives: {fn}")
-
-    # Calculate the precision, recall, and f1 score
-    precision = tp / (tp + fp)
-    recall = tp / (tp + fn)
-    f1 = 2 * (precision * recall) / (precision + recall)
-    fpr = fp / (fp + tn)
-
-    data_dict = {
-        "tp": tp,
-        "tn": tn,
-        "fp": fp,
-        "fn": fn,
-        "fpr": fpr,
-        "precision": precision,
-        "recall": recall,
-        "f1": f1,
-    }
-
-    return data_dict
-
-
 if __name__ == "__main__":
     """Train a simple classifier model."""
 
@@ -210,7 +134,7 @@ if __name__ == "__main__":
         learning_rate = best_config["learning_rate"]
         # Replace args with best config
         args.hidden_channels = best_config["hidden_channels"]
-        args.num_layers = best_config["num_layers"]
+        args.num_updates = best_config["num_layers"]
     else:
         batch_size = inputs["batch_size"]
         learning_rate = inputs["learning_rate"]
@@ -227,6 +151,8 @@ if __name__ == "__main__":
                 "learning_rate": learning_rate,
                 "epochs": epochs,
                 "batch_size": batch_size,
+                "hidden_channels": args.hidden_channels,
+                "num_updates": args.num_updates,
             }
         )
 
@@ -306,53 +232,3 @@ if __name__ == "__main__":
     torch.save(
         model.state_dict(), os.path.join("model_files", "diffclassifier_model.pt")
     )
-
-    # Get the metrics for the model
-    pred, actual, output_sigmoid = statistics_model(loader=validate_loader)
-
-    # Get the AUCROC score through torchmetrics
-    aucroc_metric = BinaryAUROC(thresholds=None)
-    aucroc = aucroc_metric(pred, actual)
-    logger.info(f"AUCROC: {aucroc}")
-
-    # # Get other metrics
-    # metrics_dict = metrics(pred, actual)
-
-    # # Make a plot with the sigmoid values
-    # fig, ax = plt.subplots(1, 1, figsize=(3.25, 2.75), constrained_layout=True)
-    # ax.plot(output_sigmoid[0].cpu().detach(), output_sigmoid[1].cpu().detach(), "o")
-    # # Plot also a generic sigmoid curve
-    # ax.plot(np.linspace(-2, 2, 100), 1 / (1 + np.exp(-np.linspace(-2, 2, 100))), "k--")
-    # ax.set_xlabel("Model output after linear layer")
-    # ax.set_ylabel("Sigmoid output")
-    # fig.savefig("output/sigmoid.png", dpi=300)
-    # plt.close(fig)
-
-    # logger.info(f"Metrics: {pformat(metrics_dict)}")
-
-    # # Compute the AUCROC for the validation dataset
-    # recall = []  # True positive rate
-    # fpr = []  # False positive rate
-    # for threshold in np.linspace(0, 1, inputs["threshold_num"]):
-    #     logger.info(f"Threshold: {threshold}")
-    #     pred, actual, _ = statistics_model(loader=validate_loader, threshold=threshold)
-    #     try:
-    #         data_dict = metrics(pred=pred, actual=actual)
-    #     except ZeroDivisionError:
-    #         logger.info("No predictions were made.")
-    #         continue
-    #     logger.info(f"Threshold: {threshold}, Metrics: {data_dict}")
-
-    #     recall.append(data_dict["recall"])
-    #     fpr.append(data_dict["fpr"])
-
-    # # Plot the precision recall curve
-    # fig, ax = plt.subplots(1, 1, figsize=(3.25, 2.75), constrained_layout=True)
-    # ax.plot(fpr, recall, "o-")
-    # ax.set_xlabel("False Positive Rate")
-    # ax.set_ylabel("True Positive Rate")
-    # ax.set_title("Precision Recall Curve")
-
-    # # Plot the random guess line
-    # ax.plot([0, 1], [0, 1], linestyle="--", color="black")
-    # fig.savefig(os.path.join("output", "precision_recall_curve.png"), dpi=300)

@@ -324,6 +324,8 @@ class DiffClassifierDataset(InMemoryDataset):
                 y=y,
                 num_global_features=num_global_features,
                 global_attr=global_features,
+                reaction_energy=reaction_energy,
+                reaction_barrier=y_barrier,
             )
             self.logger.debug("data_to_return: {}".format(data_to_return))
             # Create the data object

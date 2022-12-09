@@ -69,6 +69,10 @@ parser.add_argument(
     action="store_true",
 )
 parser.add_argument(
+    "--use_wandb",
+    action="store_true",
+)
+parser.add_argument(
     "--use_best_config",
     action="store_true",
     help="If set, the best configuration is used based on ray tune run.",
@@ -147,7 +151,7 @@ if __name__ == "__main__":
         learning_rate = best_config["learning_rate"]
         # Replace args with best config
         args.hidden_channels = best_config["hidden_channels"]
-        args.num_layers = best_config["num_layers"]
+        args.num_updates = best_config["num_layers"]
     else:
         batch_size = inputs["batch_size"]
         learning_rate = inputs["learning_rate"]
@@ -157,13 +161,15 @@ if __name__ == "__main__":
     else:
         epochs = inputs["epochs"]
 
-    if not args.debug:
+    if args.use_wandb:
         wandb.init(project="interpolate_model", entity="sudarshanvj")
         wandb.config.update(
             {
                 "learning_rate": learning_rate,
                 "epochs": epochs,
                 "batch_size": batch_size,
+                "hidden_channels": args.hidden_channels,
+                "num_updates": args.num_updates,
             }
         )
 
@@ -210,7 +216,7 @@ if __name__ == "__main__":
         num_updates=args.num_updates,
     )
     model = model.to(device)
-    if not args.debug:
+    if args.use_wandb:
         wandb.watch(model)
 
     # Create the optimizer
@@ -227,7 +233,7 @@ if __name__ == "__main__":
         val_loss = validate(loader=validate_loader)
         logger.info(f"Epoch: {epoch}, Validation Loss: {val_loss}")
 
-        if not args.debug:
+        if args.use_wandb:
             wandb.log({"train_loss": train_loss})
             wandb.log({"val_loss": val_loss})
 
