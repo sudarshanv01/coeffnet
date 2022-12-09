@@ -16,7 +16,7 @@ if __name__ == "__main__":
     run_diffinterpolate = api.run("sudarshanvj/interpolate_diff_model/2dv4uhle")
     metrics_diffinterpolate = run_diffinterpolate.history()
 
-    fig, ax = plt.subplots(1, 3, figsize=(6.5, 2.25), constrained_layout=True)
+    fig, ax = plt.subplots(1, 3, figsize=(6.75, 3.0), constrained_layout=True)
 
     # Make a seaborn lineplot for train_acc vs _step
     # in blue and val_acc vs _step in red
@@ -26,14 +26,24 @@ if __name__ == "__main__":
         data=metrics_diffclassifier,
         ax=ax[0],
         color="tab:blue",
+        label="Training",
     )
     sns.lineplot(
-        x="_step", y="val_acc", data=metrics_diffclassifier, ax=ax[0], color="tab:red"
+        x="_step",
+        y="val_acc",
+        data=metrics_diffclassifier,
+        ax=ax[0],
+        color="tab:red",
+        label="Validation",
     )
 
     # Make a seaborn lineplot for train_loss and val_loss vs _step
     sns.lineplot(
-        x="_step", y="train_loss", data=metrics_interpolate, ax=ax[1], color="tab:blue"
+        x="_step",
+        y="train_loss",
+        data=metrics_interpolate,
+        ax=ax[1],
+        color="tab:blue",
     )
     sns.lineplot(
         x="_step", y="val_loss", data=metrics_interpolate, ax=ax[1], color="tab:red"
