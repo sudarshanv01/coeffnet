@@ -175,7 +175,7 @@ if __name__ == "__main__":
         validate_dataset.process()
 
     # Create a dataloader for the train_dataset
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
     validate_loader = DataLoader(validate_dataset, batch_size=batch_size, shuffle=False)
 
     # Figure out the number of features
