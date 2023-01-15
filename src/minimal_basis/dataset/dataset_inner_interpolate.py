@@ -86,11 +86,12 @@ class InnerInterpolateDataset(InMemoryDataset):
 
             # --- Node features ---
             atomic_numbers = [
-                ase_data.atomic_numbers[species.symbol] for species in structure
+                ase_data.atomic_numbers[species.species_string] for species in structure
             ]
-            atomic_charges = torch.tensor(
-                data_["atomic_charges"], dtype=TORCH_FLOATS[1]
-            )
+            atomic_charges = data_["atomic_charges"]
+            # Make a tensor of the atomic numbers and charges
+            atomic_numbers = torch.tensor(atomic_numbers, dtype=DTYPE_INT)
+            atomic_charges = torch.tensor(atomic_charges, dtype=TORCH_FLOATS[1])
             node_features = torch.cat(
                 [
                     atomic_numbers.unsqueeze(1),
@@ -100,7 +101,13 @@ class InnerInterpolateDataset(InMemoryDataset):
             )
 
             # --- Edge features ---
-            edges_for_graph = structure.graph.edges
+            # Make a pymatgen MoleculeGraph
+            structure_graph = MoleculeGraph.with_local_env_strategy(
+                structure, OpenBabelNN()
+            )
+            structure_graph = metal_edge_extender(structure_graph)
+
+            edges_for_graph = structure_graph.graph.edges
             edges_for_graph = [list(edge[:-1]) for edge in edges_for_graph]
             logger.debug("edges_for_graph: {}".format(edges_for_graph))
             edge_index = torch.tensor(edges_for_graph, dtype=torch.long)
@@ -109,7 +116,15 @@ class InnerInterpolateDataset(InMemoryDataset):
 
             # Collect the edge features, current the bond length
             # between two atom centres will be used as the edge feature
-            row, col = edge_index
+
+            # if `edge_index` is an empty tensor, then create empty
+            # tensors for row and col
+            if edge_index.shape[0] == 0:
+                row = torch.tensor([], dtype=torch.long)
+                col = torch.tensor([], dtype=torch.long)
+            else:
+                row, col = edge_index
+
             atom_positions = structure.cart_coords
             atom_positions = torch.tensor(atom_positions, dtype=torch.float)
             edge_attributes = torch.linalg.norm(
