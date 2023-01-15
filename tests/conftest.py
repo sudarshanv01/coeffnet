@@ -170,6 +170,63 @@ def sn2_reaction_input(tmp_path):
     return input_json_file
 
 
+@pytest.fixture()
+def inner_interpolate_input(tmp_path):
+    """Generate input for the inner interpolation model."""
+
+    from ase.collections import g2
+    from ase.build import molecule as ase_molecule
+
+    from pymatgen.io.ase import AseAtomsAdaptor
+
+    def _inner_interpolate_input():
+        # Generate a series of structure to store based
+        # on the g2 database of structures
+        data_list = []
+
+        for molecule_name in g2.names:
+            # Generate the ase steucture for the molecule
+            ase_structure = ase_molecule(molecule_name)
+            # Convert to pymatgen molecule
+            structure = AseAtomsAdaptor.get_molecule(ase_structure)
+            # Generate a random float as the energy
+            energy = random.random()
+            # Generate a random list for the atomic charges
+            atomic_charges = np.random.rand(len(structure))
+
+            # Generate a random number for the net charge
+            charge = random.random()
+            # Generate a random number for the spin multiplicity
+            spin_multiplicity = random.random()
+
+            # Create a dict with all the inputs stored
+            input_data = {}
+            input_data["energy"] = energy
+            input_data["structure"] = structure
+            input_data["charge"] = charge
+            input_data["spin_multiplicity"] = spin_multiplicity
+            input_data["atomic_charges"] = atomic_charges
+
+            data_list.append(input_data)
+
+        return data_list
+
+    # The input file for the tests.
+    input_json_file = os.path.join(
+        tmp_path, "inputs", "inner_interpolate_test_data", "input.json"
+    )
+    # Create the base directory for the input file.
+    os.makedirs(os.path.dirname(input_json_file), exist_ok=True)
+
+    # Generate inputs for the SN2 reaction.
+    input_data = _inner_interpolate_input()
+
+    # Write the input data to a json file.
+    dumpfn(input_data, input_json_file)
+
+    return input_json_file
+
+
 def get_basis_file_info(basis_set: str = "sto-3g"):
     """Get the absolute path of the requested basis file."""
     relative_filepath = os.path.join("inputs", f"{basis_set}.json")
