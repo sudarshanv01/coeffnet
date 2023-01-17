@@ -12,6 +12,8 @@ module load python
 module load cudatoolkit/11.5
 conda activate molml
 
+# --- Test ---
+python train_inner_interpolate_model.py --use_wandb --reprocess_dataset --num_updates 5
 
 # --- Raytune ---
 # python raytune_model.py --model diffclassifier 
@@ -19,6 +21,6 @@ conda activate molml
 # python raytune_model.py --model interpolate
 
 # --- Best Config --- 
-python train_diffclassifier_model.py --use_best_config --use_wandb
+# python train_diffclassifier_model.py --use_best_config --use_wandb
 # python train_interpolate_diff_model.py --use_best_config --use_wandb
 # python train_interpolate_model.py --use_best_config --use_wandb

@@ -70,6 +70,8 @@ class InnerInterpolateDataset(InMemoryDataset):
             # The details of what this structure is doesnt really matter
             # as we are doing a structure -> energy mapping
             structure = data_["structure"]
+            if isinstance(structure, dict):
+                structure = Molecule.from_dict(structure)
 
             # We need the energy which is the quantity to predict
             energy = data_["energy"]

@@ -1,0 +1,6 @@
+---
+train_json: "/pscratch/sd/s/svijay/projects/18_SEI/minimal-basis/training/input_files/train_interpolated.json"
+validate_json: "/pscratch/sd/s/svijay/projects/18_SEI/minimal-basis/training/input_files/validate_interpolated.json"
+batch_size: 10 
+learning_rate: 0.001
+epochs: 250 
