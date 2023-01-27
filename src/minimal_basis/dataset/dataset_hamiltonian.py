@@ -130,27 +130,28 @@ class HamiltonianDataset(InMemoryDataset):
 
             input_data = copy.deepcopy(input_data_)
 
-            # The label for this reaction
-            label = input_data.pop("label")
-
-            # Collect the molecular level information
-            molecule_info_collected = defaultdict(dict)
-
-            # Store the molecules separately to make sure
-            # that the graph creation process is flexible
+            data_to_store = defaultdict(dict)
             molecules_in_reaction = defaultdict(list)
 
-            for molecule_id in input_data:
+            # --- Get the output information and store that in the node
+            y = input_data.pop("transition_state_energy")
+            y = torch.tensor([y], dtype=DTYPE)
 
-                state_fragment = input_data[molecule_id]["state_fragments"]
+            # --- Get the global information
+            global_information = input_data.pop("reaction_energy")
+            global_information = torch.tensor([global_information], dtype=DTYPE)
 
-                molecule = input_data[molecule_id]["molecule"]
-                if state_fragment == "initial_state":
+            # Store the basis index of all atoms
+            all_basis_idx = []
+
+            for state in input_data:
+
+                molecule = input_data[state]["molecule"]
+
+                if state == "initial_state":
                     molecules_in_reaction["reactants"].append(molecule)
-                    molecules_in_reaction["reactants_index"].append(molecule_id)
-                elif state_fragment == "final_state":
+                elif state == "final_state":
                     molecules_in_reaction["products"].append(molecule)
-                    molecules_in_reaction["products_index"].append(molecule_id)
 
                 # Get the index of the basis within the atom for each molecule
                 # Iterate over the atoms in the molecule and store the indices of the
@@ -158,6 +159,7 @@ class HamiltonianDataset(InMemoryDataset):
                 basis_s = []
                 basis_p = []
                 basis_d = []
+
                 # Store the grouping of the basis index of each atom in the molecule
                 basis_atom = []
 
@@ -199,18 +201,18 @@ class HamiltonianDataset(InMemoryDataset):
                 hamiltonian = np.zeros((tot_basis_idx, tot_basis_idx, 2))
                 for spin_index, spin in enumerate(["alpha", "beta"]):
                     if spin == "beta":
-                        if input_data[molecule_id]["beta_fock_matrix"] == None:
+                        if input_data[state]["beta_fock_matrix"] == None:
                             # There is no computed beta spin, i.e. alpha and beta are the same
-                            hamiltonian[..., 0] = input_data[molecule_id][
+                            hamiltonian[..., 0] = input_data[state][
                                 "alpha_fock_matrix"
                             ]
                         else:
-                            hamiltonian[..., 0] = input_data[molecule_id][
+                            hamiltonian[..., 0] = input_data[state][
                                 spin + "_fock_matrix"
                             ]
                     else:
                         # Must always have an alpha spin
-                        hamiltonian[..., 1] = input_data[molecule_id][
+                        hamiltonian[..., 1] = input_data[state][
                             spin + "_fock_matrix"
                         ]
 
@@ -231,51 +233,42 @@ class HamiltonianDataset(InMemoryDataset):
                 # Flatten the dimensions of the intra_atomic_mb aside from the first dimension
                 intra_atomic_mb = intra_atomic_mb.reshape(intra_atomic_mb.shape[0], -1)
 
-                molecule_info_collected["node_features"][
-                    molecule_id
+                data_to_store["node_features"][
+                    state
                 ] = intra_atomic_mb.tolist()
 
                 # Store the coupling information, which will be processed together
                 # with all atoms in the molecule
-                molecule_info_collected["edge_features"][molecule_id] = coupling
+                data_to_store["edge_features"][state] = coupling
 
                 # Store the s,p and d basis functions for this atom
-                molecule_info_collected["basis_index"][molecule_id] = all_basis_idx_
+                data_to_store["basis_index"][state] = all_basis_idx_
                 # Store the atom basis index grouping
-                molecule_info_collected["atom_basis_index"][molecule_id] = basis_atom
+                data_to_store["atom_basis_index"][state] = basis_atom
 
-            (
-                edge_molecule_mapping,
-                edge_internal_mol_mapping,
-            ) = generate_graphs_by_method(
-                graph_generation_method=self.graph_generation_method,
-                molecules_in_reaction=molecules_in_reaction,
-                molecule_info_collected=molecule_info_collected,
-            )
-
-            edge_index = molecule_info_collected["edge_index"]
+            edge_index = data_to_store["edge_index"]
             datapoint = DataPoint(
-                pos=molecule_info_collected["pos"],
+                pos=data_to_store["pos"],
                 edge_index=edge_index,
-                x=molecule_info_collected["node_features"],
+                x=data_to_store["node_features"],
                 y=y,
                 global_attr=global_information,
                 all_basis_idx=all_basis_idx,
             )
 
-            # Generate the minimal basis representation of the edge attributes
-            edge_features_mb = self.get_edge_features_mb(
-                molecule_info_collected["edge_features"],
-                datapoint.edge_index.detach().numpy(),
-                edge_molecule_mapping,
-                edge_internal_mol_mapping,
-                molecule_info_collected["basis_index"],
-            )
+            # # Generate the minimal basis representation of the edge attributes
+            # edge_features_mb = self.get_edge_features_mb(
+            #     molecule_info_collected["edge_features"],
+            #     datapoint.edge_index.detach().numpy(),
+            #     edge_molecule_mapping,
+            #     edge_internal_mol_mapping,
+            #     molecule_info_collected["basis_index"],
+            # )
 
-            # Flatten the dimensions of the edge_features_mb aside from the first dimension
-            edge_features_mb = edge_features_mb.reshape(edge_features_mb.shape[0], -1)
-            # Make edge features a torch tensor from an np array
-            datapoint.edge_attr = torch.tensor(edge_features_mb, dtype=torch.float)
+            # # Flatten the dimensions of the edge_features_mb aside from the first dimension
+            # edge_features_mb = edge_features_mb.reshape(edge_features_mb.shape[0], -1)
+            # # Make edge features a torch tensor from an np array
+            # datapoint.edge_attr = torch.tensor(edge_features_mb, dtype=torch.float)
 
             logging.debug("Datapoint:")
             logging.debug(datapoint)

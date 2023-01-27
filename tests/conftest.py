@@ -25,10 +25,10 @@ def sn2_reaction_input(tmp_path):
     }
 
     def _generate_sn2_input_data(basis_set):
-        """Generate a species at an arbitrary geometry.
-        Reaction is of the form:
-        A + X- -> B + Y-
-        """
+        """Create an sn2 reaction data file. Currently implemented
+        as a generic A -> B reaction. A and B are both complexes of
+        either the initial or final state."""
+
         # Sequence of attacking groups
         attacking_groups = ["H", "F", "Cl", "Br"]
 
@@ -39,7 +39,16 @@ def sn2_reaction_input(tmp_path):
 
             input_data = defaultdict(lambda: defaultdict(dict))
 
-            species_A = ["C", "C", attacking_group, "H", "H", "H", "H", "H"]
+            # --- Global output data ---
+            # Get some random positive number for the transitition state energy.
+            random_ts_energy = random.random()
+            input_data["transition_state_energy"] = random_ts_energy
+            # Get some random positive number for the reaction energy
+            random_reaction_energy = random.random()
+            input_data["reaction_energy"] = random_reaction_energy
+
+            # --- Structure related data ---
+            species_A = ["C", "C", attacking_group, "H", "H", "H", "H", "H", "H"]
             coords_A = [
                 [-0.72558049658904, -0.14174575671651, 0.00208172081967],
                 [0.76901052138111, 0.06698557922871, -0.02093370787145],
@@ -49,14 +58,11 @@ def sn2_reaction_input(tmp_path):
                 [-1.01869749371280, -0.86537324884060, 0.76632671534726],
                 [1.03764409021868, 0.80730478500607, -0.77564403715648],
                 [1.11821307982460, 0.42048053107351, 0.95011062929873],
+                [0.0, 0.0, 0.0],
             ]
             molecule_A = Molecule(species_A, coords_A, charge=0, spin_multiplicity=1)
 
-            species_X = ["H"]
-            coords_X = [[0.0, 0.0, 0.0]]
-            molecule_X = Molecule(species_X, coords_X, charge=-1, spin_multiplicity=1)
-
-            species_B = ["C", "C", "H", "H", "H", "H", "H", "H"]
+            species_B = ["C", "C", "H", "H", "H", "H", "H", "H", attacking_group]
             coords_B = [
                 [-0.72558049658904, -0.14174575671651, 0.00208172081967],
                 [0.76901052138111, 0.06698557922871, -0.02093370787145],
@@ -66,88 +72,38 @@ def sn2_reaction_input(tmp_path):
                 [-1.01869749371280, -0.86537324884060, 0.76632671534726],
                 [1.03764409021868, 0.80730478500607, -0.77564403715648],
                 [1.11821307982460, 0.42048053107351, 0.95011062929873],
+                [0.0, 0.0, 0.0],
             ]
             molecule_B = Molecule(species_B, coords_B, charge=0, spin_multiplicity=1)
 
-            species_Y = [attacking_group]
-            coords_Y = [[0.0, 0.0, 0.0]]
-            molecule_Y = Molecule(species_Y, coords_Y, charge=-1, spin_multiplicity=1)
-
-            # Generate a random label for the reaction.
-            label_reaction = "SN2_" + attacking_group
-            input_data["label"] = label_reaction
-
-            # Generate fragment information
-            input_data[-2]["state_fragments"] = "initial_state"
-            input_data[-1]["state_fragments"] = "initial_state"
-            input_data[1]["state_fragments"] = "final_state"
-            input_data[2]["state_fragments"] = "final_state"
-
             # Generate molecule information
-            input_data[-2]["molecule"] = molecule_A.as_dict()
-            input_data[-1]["molecule"] = molecule_X.as_dict()
-            input_data[1]["molecule"] = molecule_B.as_dict()
-            input_data[2]["molecule"] = molecule_Y.as_dict()
-
-            # Get some random positive number for the transitition state energy.
-            random_ts_energy = random.random()
-            input_data["transition_state_energy"] = random_ts_energy
-
-            # Get some random positive number for the reaction energy
-            random_reaction_energy = random.random()
-            input_data["reaction_energy"] = random_reaction_energy
+            input_data["final_state"]["molecule"] = molecule_A.as_dict()
+            input_data["initial_state"]["molecule"] = molecule_B.as_dict()
 
             # Generate the alpha and beta fock matrix for each molecule
             basis_functions_A = sum(
                 [BASIS_FUNCTION_ATOM[basis_set][atom] for atom in species_A]
             )
-            basis_functions_X = sum(
-                [BASIS_FUNCTION_ATOM[basis_set][atom] for atom in species_X]
-            )
             basis_functions_B = sum(
                 [BASIS_FUNCTION_ATOM[basis_set][atom] for atom in species_B]
             )
-            basis_functions_Y = sum(
-                [BASIS_FUNCTION_ATOM[basis_set][atom] for atom in species_Y]
-            )
+
             # Generate the alpha and beta fock matrix for each molecule
             # These are random (symmetric) matrices of size (no_basis_functions, no_basis_functions)
             fock_matrix_A = np.random.rand(basis_functions_A, basis_functions_A)
             fock_matrix_A = (fock_matrix_A + fock_matrix_A.T) / 2
-            fock_matrix_X = np.random.rand(basis_functions_X, basis_functions_X)
-            fock_matrix_X = (fock_matrix_X + fock_matrix_X.T) / 2
             fock_matrix_B = np.random.rand(basis_functions_B, basis_functions_B)
             fock_matrix_B = (fock_matrix_B + fock_matrix_B.T) / 2
-            fock_matrix_Y = np.random.rand(basis_functions_Y, basis_functions_Y)
-            fock_matrix_Y = (fock_matrix_Y + fock_matrix_Y.T) / 2
+            # Create the fock matrix for the transition state
+            fock_matrix_X = np.random.rand(basis_functions_A, basis_functions_A)
+            fock_matrix_X = (fock_matrix_X + fock_matrix_X.T) / 2
 
             # Store the fock matrix in the input data.
-            input_data[-2]["alpha_fock_matrix"] = fock_matrix_A.tolist()
-            input_data[-2]["beta_fock_matrix"] = fock_matrix_A.tolist()
-            input_data[-1]["alpha_fock_matrix"] = fock_matrix_X.tolist()
-            input_data[-1]["beta_fock_matrix"] = fock_matrix_X.tolist()
+            input_data["initial_state"]["alpha_fock_matrix"] = fock_matrix_A.tolist()
+            input_data["initial_state"]["beta_fock_matrix"] = fock_matrix_A.tolist()
 
-            input_data[1]["alpha_fock_matrix"] = fock_matrix_B.tolist()
-            input_data[1]["beta_fock_matrix"] = fock_matrix_B.tolist()
-            input_data[2]["alpha_fock_matrix"] = fock_matrix_Y.tolist()
-            input_data[2]["beta_fock_matrix"] = fock_matrix_Y.tolist()
-
-            # Make up a set of random charges for each atom centre
-            charges_A = np.random.rand(len(species_A))
-            charges_X = np.random.rand(len(species_X))
-            charges_B = np.random.rand(len(species_B))
-            charges_Y = np.random.rand(len(species_Y))
-
-            # Make the list charge_A into a dict
-            charges_A = {i: charges_A[i] for i in range(len(charges_A))}
-            charges_X = {i: charges_X[i] for i in range(len(charges_X))}
-            charges_B = {i: charges_B[i] for i in range(len(charges_B))}
-            charges_Y = {i: charges_Y[i] for i in range(len(charges_Y))}
-
-            input_data[-2]["atom_charge"] = charges_A
-            input_data[-1]["atom_charge"] = charges_X
-            input_data[1]["atom_charge"] = charges_B
-            input_data[2]["atom_charge"] = charges_Y
+            input_data["final_state"]["alpha_fock_matrix"] = fock_matrix_B.tolist()
+            input_data["final_state"]["beta_fock_matrix"] = fock_matrix_B.tolist()
 
             all_data.append(input_data)
 
