@@ -1,5 +1,9 @@
 import os
+
 import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 import argparse
 
 import numpy as np
@@ -23,3 +27,12 @@ from utils import (
 if __name__ == "__main__":
 
     inputs = read_inputs_yaml(os.path.join("input_files", "hamiltonian_model.yaml"))
+
+    train_json_filename = inputs["train_json"]
+    train_json_filename = inputs["train_json"]
+    
+    train_dataset = HamiltonianDataset(
+        root=get_test_data_path(),
+        filename=train_json_filename,
+        basis_file=inputs["basis_file"],
+    )

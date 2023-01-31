@@ -198,12 +198,11 @@ class HamiltonianDataset(InMemoryDataset):
             final_energy = np.array(final_energy)
 
             structures = input_data["structures"]
-            structures = [Molecule.from_dict(structure) for structure in structures]
+            if isinstance(structures, dict):
+                structures = [Molecule.from_dict(structure) for structure in structures]
 
             # The basis is assumed to be the same across all structures
-            all_basis_idx, basis_atom = self.get_basis_index(
-                structures["initial_state"]
-            )
+            all_basis_idx, basis_atom = self.get_basis_index(structures[0])
 
             for idx_state, state in enumerate(input_data["state"]):
 
