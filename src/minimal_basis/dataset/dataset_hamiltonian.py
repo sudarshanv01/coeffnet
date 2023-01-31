@@ -444,6 +444,7 @@ class HamiltonianDataset(InMemoryDataset):
 
             # Get the minimal_basis s-matrix
             atom_basis_s = np.zeros((1, 1, 2))
+            print(intra_atomic.shape)
             for idx_, basis_s_atom_idx_ in enumerate(basis_s_atom_idx):
                 atom_basis_s_ = intra_atomic[basis_s_atom_idx_, :][:, basis_s_atom_idx_]
                 if idx_ == 0:
