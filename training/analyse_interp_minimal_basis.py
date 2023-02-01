@@ -1,6 +1,7 @@
 import os
 
 import logging
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -29,10 +30,10 @@ if __name__ == "__main__":
     inputs = read_inputs_yaml(os.path.join("input_files", "hamiltonian_model.yaml"))
 
     train_json_filename = inputs["train_json"]
-    train_json_filename = inputs["train_json"]
-    
+    validation_json_filename = inputs["validate_json"]
+
     train_dataset = HamiltonianDataset(
         root=get_test_data_path(),
-        filename=train_json_filename,
+        filename=validation_json_filename,
         basis_file=inputs["basis_file"],
     )

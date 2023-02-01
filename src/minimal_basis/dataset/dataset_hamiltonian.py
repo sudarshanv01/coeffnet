@@ -230,6 +230,8 @@ class HamiltonianDataset(InMemoryDataset):
                 intra_atomic, coupling = self._split_hamiltonian(
                     fock_matrix_state, *all_basis_idx
                 )
+                print(intra_atomic.shape)
+                print(coupling.shape)
 
                 intra_atomic_mb = self.get_intra_atomic_mb(
                     intra_atomic, basis_atom, *all_basis_idx
@@ -432,7 +434,7 @@ class HamiltonianDataset(InMemoryDataset):
 
         num_atoms = len(basis_atom)
         intra_atomic_mb = np.zeros(
-            (num_atoms, self.minimal_basis_size, self.minimal_basis_size, 2)
+            (num_atoms, 2, self.minimal_basis_size, self.minimal_basis_size)
         )
 
         for atom_idx, atom_basis in enumerate(basis_atom):
@@ -443,62 +445,71 @@ class HamiltonianDataset(InMemoryDataset):
             basis_d_atom_idx = basis_d[atom_idx]
 
             # Get the minimal_basis s-matrix
-            atom_basis_s = np.zeros((1, 1, 2))
-            print(intra_atomic.shape)
+            atom_basis_s = np.zeros((2, 1, 1))
             for idx_, basis_s_atom_idx_ in enumerate(basis_s_atom_idx):
-                atom_basis_s_ = intra_atomic[basis_s_atom_idx_, :][:, basis_s_atom_idx_]
+                atom_basis_s_ = intra_atomic[:, basis_s_atom_idx_, :][
+                    :, :, basis_s_atom_idx_
+                ]
                 if idx_ == 0:
                     # First iteration, set the values
                     atom_basis_s = atom_basis_s_
                     continue
 
-                spin_up_max = np.max(np.diag(atom_basis_s_[..., 0]))
-                spin_down_max = np.max(np.diag(atom_basis_s_[..., 1]))
+                spin_up_max = np.max(np.diag(atom_basis_s_[0, ...]))
+                spin_down_max = np.max(np.diag(atom_basis_s_[1, ...]))
 
-                if spin_up_max > np.max(np.diag(atom_basis_s[..., 0])):
-                    atom_basis_s[..., 0] = atom_basis_s_[..., 0]
-                if spin_down_max > np.max(np.diag(atom_basis_s[..., 1])):
-                    atom_basis_s[..., 1] = atom_basis_s_[..., 1]
+                if spin_up_max > np.max(np.diag(atom_basis_s[0, ...])):
+                    atom_basis_s[0, ...] = atom_basis_s_[0, ...]
+                if spin_down_max > np.max(np.diag(atom_basis_s[1, ...])):
+                    atom_basis_s[1, ...] = atom_basis_s_[1, ...]
             # Add the s-matrix to the minimal basis matrix
-            intra_atomic_mb[atom_idx, 0, 0, :] = atom_basis_s
+            intra_atomic_mb[atom_idx, :, 0:1, 0:1] = atom_basis_s
 
             # Get the minimal_basis p-matrix
-            atom_basis_p = np.zeros((3, 3, 2))
+            atom_basis_p = np.zeros((2, 3, 3))
             for idx_, basis_p_atom_idx_ in enumerate(basis_p_atom_idx):
-                atom_basis_p_ = intra_atomic[basis_p_atom_idx_, :][:, basis_p_atom_idx_]
+                atom_basis_p_ = intra_atomic[:, basis_p_atom_idx_, :][
+                    :, :, basis_p_atom_idx_
+                ]
                 if idx_ == 0:
                     # First iteration, set the values
                     atom_basis_p = atom_basis_p_
                     continue
 
-                spin_up_max = np.max(np.diag(atom_basis_p_[..., 0]))
-                spin_down_max = np.max(np.diag(atom_basis_p_[..., 1]))
+                spin_up_max = np.max(np.diag(atom_basis_p_[0, ...]))
+                spin_down_max = np.max(np.diag(atom_basis_p_[1, ...]))
 
-                if spin_up_max > np.max(np.diag(atom_basis_p[..., 0])):
-                    atom_basis_p[..., 0] = atom_basis_p_[..., 0]
-                if spin_down_max > np.max(np.diag(atom_basis_p[..., 1])):
-                    atom_basis_p[..., 1] = atom_basis_p_[..., 1]
+                if spin_up_max > np.max(np.diag(atom_basis_p[0, ...])):
+                    atom_basis_p[0, ...] = atom_basis_p_[0, ...]
+                if spin_down_max > np.max(np.diag(atom_basis_p[1, ...])):
+                    atom_basis_p[1, ...] = atom_basis_p_[1, ...]
+
             # Add the p-matrix to the minimal basis matrix
-            intra_atomic_mb[atom_idx, 1:4, 1:4, :] = atom_basis_p
+            intra_atomic_mb[atom_idx, :, 1:4, 1:4] = atom_basis_p
 
             # Get the minimal_basis d-matrix
-            atom_basis_d = np.zeros((5, 5, 2))
+            atom_basis_d = np.zeros((2, 5, 5))
             for idx_, basis_d_atom_idx_ in enumerate(basis_d_atom_idx):
-                atom_basis_d_ = intra_atomic[basis_d_atom_idx_, :][:, basis_d_atom_idx_]
+                atom_basis_d_ = intra_atomic[:, basis_d_atom_idx_, :][
+                    :, :, basis_d_atom_idx_
+                ]
                 if idx_ == 0:
                     # First iteration, set the values
                     atom_basis_d = atom_basis_d_
                     continue
 
-                spin_up_max = np.max(np.diag(atom_basis_d_[..., 0]))
-                spin_down_max = np.max(np.diag(atom_basis_d_[..., 1]))
+                spin_up_max = np.max(np.diag(atom_basis_d_[0, ...]))
+                spin_down_max = np.max(np.diag(atom_basis_d_[1, ...]))
 
-                if spin_up_max > np.max(np.diag(atom_basis_d[..., 0])):
-                    atom_basis_d[..., 0] = atom_basis_d_[..., 0]
+                if spin_up_max > np.max(np.diag(atom_basis_d[0, ...])):
+                    atom_basis_d[0, ...] = atom_basis_d_[0, ...]
                 if spin_down_max > np.max(np.diag(atom_basis_d[..., 1])):
-                    atom_basis_d[..., 1] = atom_basis_d_[..., 1]
+                    atom_basis_d[1, ...] = atom_basis_d_[1, ...]
+
             # Add the d-matrix to the minimal basis matrix
-            intra_atomic_mb[atom_idx, 4:9, 4:9, :] = atom_basis_d
+            intra_atomic_mb[atom_idx, :, 4:9, 4:9] = atom_basis_d
+
+            adsdads
 
         return intra_atomic_mb
 
