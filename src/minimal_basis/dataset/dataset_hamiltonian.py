@@ -223,15 +223,13 @@ class HamiltonianDataset(InMemoryDataset):
 
                 edges_for_graph = molecule_graph.graph.edges
                 edges_for_graph = [list(edge[:-1]) for edge in edges_for_graph]
-                edge_index = torch.tensor(edges_for_graph, dtype=torch.long)
+                edge_index = np.array(edges_for_graph).T
 
                 fock_matrix_state = fock_matrices[idx_state]
 
                 intra_atomic, coupling = self._split_hamiltonian(
                     fock_matrix_state, *all_basis_idx
                 )
-                print(intra_atomic.shape)
-                print(coupling.shape)
 
                 intra_atomic_mb = self.get_intra_atomic_mb(
                     intra_atomic, basis_atom, *all_basis_idx
@@ -289,52 +287,32 @@ class HamiltonianDataset(InMemoryDataset):
         self,
         edge_features,
         edge_index,
-        edge_molecule_mapping,
-        edge_internal_mol_mapping,
-        basis_index,
+        basis_s,
+        basis_p,
+        basis_d,
     ):
-
         # Determine the edge index for all molecules participating in the reaction.
         row, col = edge_index
 
         # The edge attributes will be generated for each edge in the graph
         edge_features_mb = np.zeros(
-            (len(row), self.minimal_basis_size, self.minimal_basis_size, 2)
+            (len(row), 2, self.minimal_basis_size, self.minimal_basis_size)
         )
 
         # Simultaneously loop over all edges
         for vsk_, vrk_ in zip(row, col):
 
-            # Get the molecule index of the edge
-            mol_idx_vsk = edge_molecule_mapping[vsk_]
-            mol_idx_vrk = edge_molecule_mapping[vrk_]
-
-            # Both the edge indices must be in the same molecule
-            # otherwise there is no coupling elements between them
-            if mol_idx_vsk != mol_idx_vrk:
-                continue
-
-            # Get the edge_feature of the molecule in question
-            edge_feature = edge_features[mol_idx_vsk]
-
-            # Get the internal edge index of the edge
-            vsk_internal = edge_internal_mol_mapping[vsk_]
-            vrk_internal = edge_internal_mol_mapping[vrk_]
-
-            # Split the basis_index into s, p and d contributions
-            basis_s, basis_p, basis_d = basis_index[mol_idx_vrk]
-
             # Get the basis index of the s, p and d atoms
-            basis_s_vsk = basis_s[vsk_internal]
-            basis_p_vsk = basis_p[vsk_internal]
-            basis_d_vsk = basis_d[vsk_internal]
+            basis_s_vsk = basis_s[vsk_]
+            basis_p_vsk = basis_p[vsk_]
+            basis_d_vsk = basis_d[vsk_]
 
             basis_vsk = [basis_s_vsk, basis_p_vsk, basis_d_vsk]
             basis_vsk_type = ["s", "p", "d"]
 
-            basis_s_vrk = basis_s[vrk_internal]
-            basis_p_vrk = basis_p[vrk_internal]
-            basis_d_vrk = basis_d[vrk_internal]
+            basis_s_vrk = basis_s[vrk_]
+            basis_p_vrk = basis_p[vrk_]
+            basis_d_vrk = basis_d[vrk_]
 
             basis_vrk = [basis_s_vrk, basis_p_vrk, basis_d_vrk]
             basis_vrk_type = ["s", "p", "d"]
@@ -343,7 +321,7 @@ class HamiltonianDataset(InMemoryDataset):
             # between vsk and vrk and populate the minimal basis
             # representation of the edge features
             edge_features_mb_ = np.zeros(
-                (self.minimal_basis_size, self.minimal_basis_size, 2)
+                (2, self.minimal_basis_size, self.minimal_basis_size)
             )
 
             # Iterate over the s, p and d basis functions
@@ -361,25 +339,27 @@ class HamiltonianDataset(InMemoryDataset):
                     for basis_idx_vrk_ in basis_vrk[basis_idx_vrk]:
 
                         idx_chosen_edge = np.s_[
+                            ...,
                             basis_idx_vsk_[0] : basis_idx_vsk_[-1] + 1,
                             basis_idx_vrk_[0] : basis_idx_vrk_[-1] + 1,
-                            ...,
                         ]
-                        chosen_edge_feature = edge_feature[idx_chosen_edge]
+                        chosen_edge_feature = edge_features[idx_chosen_edge]
 
                         index_x, index_y = indices_to_populate
                         idx_chosen_mb = np.s_[
+                            ...,
                             index_x[0] : index_x[-1] + 1,
                             index_y[0] : index_y[-1] + 1,
-                            ...,
                         ]
                         edge_features_mb_[idx_chosen_mb] = chosen_edge_feature
 
             # Make edge_features_mb_ symmetric
             edge_features_mb_ = (
-                edge_features_mb_ + edge_features_mb_.transpose(1, 0, 2)
+                edge_features_mb_ + edge_features_mb_.transpose(0, 2, 1)
             ) / 2
-            edge_features_mb[vsk_, :, :, :] = edge_features_mb_
+            # Find the index of vsk_ in row
+            idx_store = np.where(row == vsk_)[0][0]
+            edge_features_mb[idx_store, :, :, :] = edge_features_mb_
 
         return edge_features_mb
 
@@ -508,8 +488,6 @@ class HamiltonianDataset(InMemoryDataset):
 
             # Add the d-matrix to the minimal basis matrix
             intra_atomic_mb[atom_idx, :, 4:9, 4:9] = atom_basis_d
-
-            adsdads
 
         return intra_atomic_mb
 
