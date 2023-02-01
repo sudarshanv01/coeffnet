@@ -17,7 +17,7 @@ from minimal_basis.data._dtype import (
 
 
 class HamiltonianDataPoint(Data):
-    """Store the Hamiltonian data for the reactant and product."""
+    """Store the Hamiltonian data for the initial_state and final_state."""
 
     def __init__(
         self,
@@ -29,56 +29,59 @@ class HamiltonianDataPoint(Data):
         y: OptTensor = None,
         **kwargs
     ):
-
         if pos is not None:
-            pos_reactant, pos_product = pos["reactant"], pos["product"]
+            pos_initial_state, pos_final_state = (
+                pos["initial_state"],
+                pos["final_state"],
+            )
         else:
-            pos_reactant = None
-            pos_product = None
+            pos_initial_state = None
+            pos_final_state = None
 
         if x is not None:
-            x_reactant, x_product = x["reactant"], x["product"]
+            x_initial_state, x_final_state = x["initial_state"], x["final_state"]
         else:
-            x_reactant = None
+            x_initial_state = None
+            x_final_state = None
 
         if edge_index is not None:
-            edge_index_reactant, edge_index_product = (
-                edge_index["reactant"],
-                edge_index["product"],
+            edge_index_initial_state, edge_index_final_state = (
+                edge_index["initial_state"],
+                edge_index["final_state"],
             )
         else:
-            edge_index_reactant = None
-            edge_index_product = None
+            edge_index_initial_state = None
+            edge_index_final_state = None
 
         if edge_attr is not None:
-            edge_attr_reactant, edge_attr_product = (
-                edge_attr["reactant"],
-                edge_attr["product"],
+            edge_attr_initial_state, edge_attr_final_state = (
+                edge_attr["initial_state"],
+                edge_attr["final_state"],
             )
         else:
-            edge_attr_reactant = None
-            edge_attr_product = None
+            edge_attr_initial_state = None
+            edge_attr_final_state = None
 
         if global_attr is not None:
-            global_attr_reactant, global_attr_product = (
-                global_attr["reactant"],
-                global_attr["product"],
+            global_attr_initial_state, global_attr_final_state = (
+                global_attr["initial_state"],
+                global_attr["final_state"],
             )
         else:
-            global_attr_reactant = None
-            global_attr_product = None
+            global_attr_initial_state = None
+            global_attr_final_state = None
 
         super().__init__(
-            x=x_reactant,
-            x_product=x_product,
-            edge_index=edge_index_reactant,
-            edge_index_product=edge_index_product,
-            edge_attr=edge_attr_reactant,
-            edge_attr_product=edge_attr_product,
-            pos=pos_reactant,
-            pos_product=pos_product,
-            global_attr=global_attr_reactant,
-            global_attr_product=global_attr_product,
+            x=x_initial_state,
+            x_final_state=x_final_state,
+            edge_index=edge_index_initial_state,
+            edge_index_final_state=edge_index_final_state,
+            edge_attr=edge_attr_initial_state,
+            edge_attr_final_state=edge_attr_final_state,
+            pos=pos_initial_state,
+            pos_final_state=pos_final_state,
+            global_attr=global_attr_initial_state,
+            global_attr_final_state=global_attr_final_state,
             y=y,
             **kwargs
         )

@@ -23,9 +23,7 @@ from monty.serialization import loadfn
 
 import itertools
 
-from minimal_basis.data import DataPoint
-from minimal_basis.dataset.utils import generate_graphs_by_method
-from minimal_basis.data._dtype import DTYPE
+from minimal_basis.data.data_hamiltonian import HamiltonianDataPoint as DataPoint
 
 logger = logging.getLogger(__name__)
 
@@ -224,6 +222,7 @@ class HamiltonianDataset(InMemoryDataset):
                 edges_for_graph = molecule_graph.graph.edges
                 edges_for_graph = [list(edge[:-1]) for edge in edges_for_graph]
                 edge_index = np.array(edges_for_graph).T
+                data_to_store["edge_index"][state] = edge_index
 
                 fock_matrix_state = fock_matrices[idx_state]
 
@@ -258,7 +257,6 @@ class HamiltonianDataset(InMemoryDataset):
 
                 data_to_store["edge_features"][state] = edge_features_mb.tolist()
 
-            edge_index = data_to_store["edge_index"]
             datapoint = DataPoint(
                 pos=data_to_store["pos"],
                 edge_index=data_to_store["edge_index"],
