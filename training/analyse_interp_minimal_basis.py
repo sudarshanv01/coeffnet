@@ -37,3 +37,12 @@ if __name__ == "__main__":
         filename=validation_json_filename,
         basis_file=inputs["basis_file"],
     )
+    train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
+
+    for data in train_loader:
+        print(data)
+        print(data.x)
+        print(data.edge_index)
+        print(data.edge_attr)
+        print(data.y)
+        break

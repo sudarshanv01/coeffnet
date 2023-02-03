@@ -64,6 +64,11 @@ class HamiltonianDataset(InMemoryDataset):
             pre_filter=pre_filter,
         )
 
+        self.data, self.slices = torch.load(self.processed_paths[0])
+
+        # Find the number of global features based on the first data
+        self.num_global_features = self.data.num_global_features[0].item()
+
     @property
     def raw_file_names(self):
         return "input.json"
@@ -275,11 +280,7 @@ class HamiltonianDataset(InMemoryDataset):
 
         # Store the list of datapoints in the dataset
         data, slices = self.collate(datapoint_list)
-        self.data = data
-        self.slices = slices
-
-        # Save the dataset
-        torch.save(self.data, self.processed_paths[0])
+        torch.save((data, slices), self.processed_paths[0])
 
     def get_edge_features_mb(
         self,
