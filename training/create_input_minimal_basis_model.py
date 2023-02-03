@@ -1,3 +1,5 @@
+import argparse
+
 import random
 
 from instance_mongodb import instance_mongodb_sei
@@ -24,17 +26,54 @@ def split_dataset(all_entries, train_frac, test_frac, validate_frac):
     return train_list, test_list, validate_list
 
 
+def get_cli_args():
+    """Get the command line arguments."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--train_frac",
+        type=float,
+        default=0.8,
+        help="Fraction of the data to be used for training.",
+    )
+    parser.add_argument(
+        "--test_frac",
+        type=float,
+        default=0.1,
+        help="Fraction of the data to be used for testing.",
+    )
+    parser.add_argument(
+        "--validate_frac",
+        type=float,
+        default=0.1,
+        help="Fraction of the data to be used for validation.",
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+    )
+    args = parser.parse_args()
+    return args
+
+
 if __name__ == "__main__":
     """Create train, validation and test sets out of the data."""
+
+    args = get_cli_args()
 
     db = instance_mongodb_sei(project="mlts")
     collection = db.minimal_basis_interpolated_sn2
 
     # Get all entries in this collection as a list
-    cursor = collection.find()
+    if args.debug:
+        cursor = collection.find().limit(100)
+    else:
+        cursor = collection.find()
+
     data = list(cursor)
 
-    train_data, test_data, validate_data = split_dataset(data, 0.8, 0.1, 0.1)
+    train_data, test_data, validate_data = split_dataset(
+        data, args.train_frac, args.test_frac, args.validate_frac
+    )
 
     # Save the data
     dumpfn(train_data, "input_files/train_data_interp_minimal_basis.json")
