@@ -396,28 +396,7 @@ class HamiltonianDataset(InMemoryDataset):
         return indices_to_populate
 
     def get_intra_atomic_mb(self, intra_atomic, basis_atom, basis_s, basis_p, basis_d):
-        """Generate the minimal basis representation of the intra_atomic matrix by
-        choosing the maximum value for the diagonal value of each element in the
-        matrix.
-
-        Parameters
-        ----------
-        intra_atomic : np.ndarray
-            The intra atomic matrix.
-        basis_atom : list
-            The grouping of the basis index of each atom in the molecule.
-        basis_s : list
-            The s basis functions for each atom in the molecule.
-        basis_p : list
-            The p basis functions for each atom in the molecule.
-        basis_d : list
-            The d basis functions for each atom in the molecule.
-
-        Returns
-        -------
-        intra_atomic_mb : np.ndarray
-            The minimal basis representation of the intra_atomic matrix.
-        """
+        """Get the minimal basis representation of the intra-atomic features."""
 
         num_atoms = len(basis_atom)
         intra_atomic_mb = np.zeros(
@@ -516,7 +495,7 @@ class HamiltonianDataset(InMemoryDataset):
 
         # Populate the elemental matrix first by splicing
         for idx in flatten_basis:
-            sp_idx = np.s_[idx[0] : idx[-1] + 1, idx[0] : idx[-1] + 1, ...]
+            sp_idx = np.s_[..., idx[0] : idx[-1] + 1, idx[0] : idx[-1] + 1]
             elemental_matrix[sp_idx] = h_matrix[sp_idx]
 
         # Populate the coupling matrix by subtracting the total matrix from the elemental matrix

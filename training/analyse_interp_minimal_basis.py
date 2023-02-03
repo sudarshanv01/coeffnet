@@ -19,6 +19,8 @@ from minimal_basis.dataset.dataset_hamiltonian import HamiltonianDataset
 import seaborn
 import matplotlib.pyplot as plt
 
+import plotly.express as px
+
 from utils import (
     get_train_data_path,
     get_validation_data_path,
@@ -43,8 +45,26 @@ if __name__ == "__main__":
 
     for data in train_loader:
         print(data)
-        # print(data.x)
-        # print(data.edge_index)
-        # print(data.edge_attr)
-        # print(data.y)
+        minimal_basis_H = data.x
+        minimal_basis_H = minimal_basis_H.reshape((-1, 2, 9, 9))
+        edge_attr = data.edge_attr
+        edge_attr = edge_attr.reshape((-1, 2, 9, 9))
+
+        # Plot both `minimal_basis_H` and `edge_attr` together
+        # as subplots with the animation for the first dimension
+        for i in range(2):
+            fig = px.imshow(
+                minimal_basis_H[:, i, :, :],
+                labels=dict(x="Basis", y="Basis", color="Value"),
+                animation_frame=0,
+            )
+            fig.show()
+        # for i in range(2):
+        #     fig = px.imshow(
+        #         edge_attr[:, i, :, :],
+        #         labels=dict(x="Basis", y="Basis", color="Value"),
+        #         animation_frame=0,
+        #     )
+        #     fig.show()
+
         break
