@@ -215,7 +215,12 @@ class HamiltonianDataset(InMemoryDataset):
 
                 logger.debug(f"Processing state {state}")
 
-                data_to_store["global_attr"][state] = final_energy[idx_state]
+                data_to_store["global_attr"][state] = np.array(
+                    [final_energy[idx_state]]
+                )
+                data_to_store["num_global_features"][state] = data_to_store[
+                    "global_attr"
+                ][state].shape[0]
 
                 molecule = structures[idx_state]
                 molecule_graph = MoleculeGraph.with_local_env_strategy(
@@ -270,6 +275,9 @@ class HamiltonianDataset(InMemoryDataset):
                 global_attr=data_to_store["global_attr"],
                 y=y,
                 all_basis_idx=all_basis_idx,
+                num_global_features=data_to_store["num_global_features"][
+                    "initial_state"
+                ],
             )
 
             logging.debug("Datapoint:")
