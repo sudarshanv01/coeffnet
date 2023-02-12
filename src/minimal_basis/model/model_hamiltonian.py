@@ -64,6 +64,7 @@ class NodeEquiModel(torch.nn.Module):
         )
         return out
 
+
 def generate_equi_rep_from_matrix(matrix):
     """Take out the relevant parts of the symmetric matrix to generate the 45 element vector"""
 
@@ -80,7 +81,7 @@ def generate_equi_rep_from_matrix(matrix):
         off_diagonal = torch.triu(component, diagonal=1)
         off_diagonal = off_diagonal[off_diagonal != 0]
         return torch.cat([diagonal, off_diagonal])
-    
+
     # Create the voigt notation vector for the s_component, p_component, d_component
     s_contrib = create_voigt_notation_vector(s_comp)
     p_contrib = create_voigt_notation_vector(p_comp)
@@ -92,12 +93,14 @@ def generate_equi_rep_from_matrix(matrix):
     pd_contrib = pd_comp.flatten()
 
     # Concatenate the components to get the 45 element vector
-    equi_rep = torch.cat([s_contrib, p_contrib, d_contrib, sp_contrib, sd_contrib, pd_contrib])
+    equi_rep = torch.cat(
+        [s_contrib, p_contrib, d_contrib, sp_contrib, sd_contrib, pd_contrib]
+    )
 
     return equi_rep
 
-class EquivariantConv(torch.nn.Module):
 
+class EquivariantConv(torch.nn.Module):
     def __init__(self, hidden_layers, num_basis, irreps_in, irreps_out):
         super().__init__()
 
@@ -105,7 +108,7 @@ class EquivariantConv(torch.nn.Module):
             irreps_in1=irreps_in,
             irreps_in2=irreps_in,
             irreps_out=irreps_out,
-        ) 
+        )
 
         self.fc = e3nn.nn.FullyConnectedNet(
             [num_basis, hidden_layers, self.tp_s.weight_numel], torch.relu
@@ -290,7 +293,6 @@ class EquiGraph2GraphModel(torch.nn.Module):
     def forward(
         self, x_, edge_index, edge_attr_, u_, batch_, pos, max_radius, num_nodes
     ):
-
         # Perform a single GNN update for the equivariant network.
         x, edge_attr, u = self.equi_meta_layer(
             x_, edge_index, edge_attr_, u_, batch_, pos, max_radius, num_nodes
@@ -319,7 +321,6 @@ class MetaLayerEqui(torch.nn.Module):
                 item.reset_parameters()
 
     def forward(self, x, edge_index, edge_attr, u, batch, pos, max_radius, num_nodes):
-
         if self.node_model:
             x = self.node_model(
                 x=x,
