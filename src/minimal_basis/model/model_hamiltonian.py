@@ -64,94 +64,63 @@ class NodeEquiModel(torch.nn.Module):
         )
         return out
 
+def generate_equi_rep_from_matrix(matrix):
+    """Take out the relevant parts of the symmetric matrix to generate the 45 element vector"""
+
+    s_comp = matrix[..., 0:1, 0:1]
+    p_comp = matrix[..., 1:4, 1:4]
+    d_comp = matrix[..., 4:, 4:]
+    sp_comp = matrix[..., 0:1, 1:4]
+    sd_comp = matrix[..., 0:1, 4:]
+    pd_comp = matrix[..., 1:4, 4:]
+
+    def create_voigt_notation_vector(component):
+        """For a given component, create the voigt notation vector"""
+        diagonal = torch.diagonal(component, dim1=-2, dim1=-1)
+        off_diagonal = torch.triu(component, diagonal=1)
+        off_diagonal = off_diagonal[off_diagonal != 0]
+        return torch.cat([diagonal, off_diagonal])
+    
+    # Create the voigt notation vector for the s_component, p_component, d_component
+    s_contrib = create_voigt_notation_vector(s_comp)
+    p_contrib = create_voigt_notation_vector(p_comp)
+    d_contrib = create_voigt_notation_vector(d_comp)
+
+    # Flatten the sp, sd, pd components
+    sp_contrib = sp_comp.flatten()
+    sd_contrib = sd_comp.flatten()
+    pd_contrib = pd_comp.flatten()
+
+    # Concatenate the components to get the 45 element vector
+    equi_rep = torch.cat([s_contrib, p_contrib, d_contrib, sp_contrib, sd_contrib, pd_contrib])
+
+    return equi_rep
 
 class EquivariantConv(torch.nn.Module):
 
-    # The minimal basis representation will always
-    # be 1s + 3p + 5d functions.
-    minimal_basis_size = 9
-
-    def __init__(self, irreps_out_per_basis, hidden_layers, num_basis):
+    def __init__(self, hidden_layers, num_basis, irreps_in, irreps_out):
         super().__init__()
 
-        # Create the spherical harmonics
-        self.irreps_sh = o3.Irreps.spherical_harmonics(lmax=2)
+        self.tp = o3.FullyConnectedTensorProduct(
+            irreps_in1=irreps_in,
+            irreps_in2=irreps_in,
+            irreps_out=irreps_out,
+        ) 
 
-        # Create the tensor products needed for the equivariant convolution
-        irreps_s = o3.Irreps("1x0e")
-        irreps_p = o3.Irreps("3x1o")
-        irreps_d = o3.Irreps("5x2e")
-
-        self.tp_s = o3.FullyConnectedTensorProduct(
-            irreps_s, self.irreps_sh, irreps_out_per_basis, shared_weights=False
-        )
-        self.tp_p = o3.FullyConnectedTensorProduct(
-            irreps_p, self.irreps_sh, irreps_out_per_basis, shared_weights=False
-        )
-        self.tp_d = o3.FullyConnectedTensorProduct(
-            irreps_d, self.irreps_sh, irreps_out_per_basis, shared_weights=False
-        )
-
-        # Create a fully connected layer
-        self.fc_s = e3nn.nn.FullyConnectedNet(
+        self.fc = e3nn.nn.FullyConnectedNet(
             [num_basis, hidden_layers, self.tp_s.weight_numel], torch.relu
         )
-        self.fc_p = e3nn.nn.FullyConnectedNet(
-            [num_basis, hidden_layers, self.tp_p.weight_numel], torch.relu
-        )
-        self.fc_d = e3nn.nn.FullyConnectedNet(
-            [num_basis, hidden_layers, self.tp_d.weight_numel], torch.relu
-        )
-
-        self.num_basis = num_basis
 
     def forward(self, f_in, edge_index, pos, max_radius, num_nodes, target_dim):
         """Forward pass of Equivariant convolution."""
 
         row, col = edge_index
 
-        # --- Create weights based on the distance between nodes ---
-        # Create the edge vector based on the positions of the nodes
         edge_vec = pos[row] - pos[col]
 
-        # Infer the number of neighbors for each node
-        num_neighbors = len(row) / num_nodes
-
-        # Start by creating the spherical harmonics
-        sh = o3.spherical_harmonics(
-            self.irreps_sh, edge_vec, normalize=True, normalization="component"
-        )
-
-        # Embedding for the edge length
-        edge_length_embedding = soft_one_hot_linspace(
-            edge_vec.norm(dim=1),
-            start=0.0,
-            end=max_radius,
-            number=self.num_basis,
-            basis="smooth_finite",
-            cutoff=True,
-        )
-        edge_length_embedding = edge_length_embedding.mul(self.num_basis**0.5)
-
-        # Weights come from the fully connected layer
-        weights_s = self.fc_s(edge_length_embedding)
-        weights_p = self.fc_p(edge_length_embedding)
-        weights_d = self.fc_d(edge_length_embedding)
-
-        # --- Compute tensor products between the s, p and d channels ---
-        # First reshape the input_tensor to the right shape, i.e.
-        # (num_nodes, minimal_basis, minimal_basis, 2)
         f_in_matrix = f_in.reshape(
-            -1, self.minimal_basis_size, self.minimal_basis_size, 2
+            -1, 2, self.minimal_basis_size, self.minimal_basis_size
         )
-
-        f_in_s = f_in_matrix[:, 0:1, 0:1, :]
-        f_in_p = f_in_matrix[:, 1:4, 1:4, :]
-        f_in_d = f_in_matrix[:, 4:9, 4:9, :]
-
-        f_in_s_flatten = f_in_s.reshape(f_in_matrix.shape[0], -1, 2)
-        f_in_p_flatten = f_in_p.reshape(f_in_matrix.shape[0], -1, 2)
-        f_in_d_flatten = f_in_d.reshape(f_in_matrix.shape[0], -1, 2)
 
         out_s = self.tp_s(f_in_s_flatten[..., 0][row], sh, weights_s)
         out_s += self.tp_s(f_in_s_flatten[..., 1][row], sh, weights_s)
