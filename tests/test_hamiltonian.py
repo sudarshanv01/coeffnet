@@ -10,6 +10,8 @@ from torch_geometric.loader import DataLoader
 
 from minimal_basis.dataset.dataset_hamiltonian import HamiltonianDataset
 
+from minimal_basis.model.model_hamiltonian import generate_equi_rep_from_matrix
+
 from e3nn.util.test import assert_equivariant, assert_auto_jitable
 
 
@@ -43,3 +45,12 @@ def test_hamiltonian_dataset(sn2_reaction_input, tmp_path):
         assert isinstance(data.edge_index, torch.Tensor)
         assert isinstance(data.global_attr, torch.Tensor)
         assert isinstance(data.y, torch.Tensor)
+
+
+def test_generate_equi_rep_from_matrix():
+    """Test the generate_equi_rep_from_matrix function."""
+
+    matrix = torch.randn(4, 2, 9, 9)
+    matrix = (matrix + matrix.transpose(2, 3)) / 2
+    equivariant_rep = generate_equi_rep_from_matrix(matrix)
+    assert equivariant_rep.shape == (4, 2, 45)

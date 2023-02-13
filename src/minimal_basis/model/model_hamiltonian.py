@@ -66,8 +66,9 @@ class NodeEquiModel(torch.nn.Module):
 
 
 def generate_equi_rep_from_matrix(matrix):
-    """Take out the relevant parts of the symmetric matrix to generate the 45 element vector"""
+    """For a minimal basis matrix, generate the 45 element vector representation."""
 
+    # Split the components of the matrix
     s_comp = matrix[..., 0:1, 0:1]
     p_comp = matrix[..., 1:4, 1:4]
     d_comp = matrix[..., 4:, 4:]
@@ -77,24 +78,25 @@ def generate_equi_rep_from_matrix(matrix):
 
     def create_voigt_notation_vector(component):
         """For a given component, create the voigt notation vector"""
-        diagonal = torch.diagonal(component, dim1=-2, dim1=-1)
-        off_diagonal = torch.triu(component, diagonal=1)
-        off_diagonal = off_diagonal[off_diagonal != 0]
-        return torch.cat([diagonal, off_diagonal])
+        diagonal = torch.diagonal(component, dim1=-2, dim2=-1)
+        indices_upper = torch.triu_indices(
+            component.shape[-2], component.shape[-1], offset=1
+        )
+        off_diagonal = component[..., indices_upper[0], indices_upper[1]]
+        return torch.cat([diagonal, off_diagonal], dim=-1)
 
     # Create the voigt notation vector for the s_component, p_component, d_component
     s_contrib = create_voigt_notation_vector(s_comp)
     p_contrib = create_voigt_notation_vector(p_comp)
     d_contrib = create_voigt_notation_vector(d_comp)
 
-    # Flatten the sp, sd, pd components
-    sp_contrib = sp_comp.flatten()
-    sd_contrib = sd_comp.flatten()
-    pd_contrib = pd_comp.flatten()
+    sp_contrib = sp_comp.flatten(start_dim=-2)
+    sd_contrib = sd_comp.flatten(start_dim=-2)
+    pd_contrib = pd_comp.flatten(start_dim=-2)
 
     # Concatenate the components to get the 45 element vector
     equi_rep = torch.cat(
-        [s_contrib, p_contrib, d_contrib, sp_contrib, sd_contrib, pd_contrib]
+        [s_contrib, p_contrib, d_contrib, sp_contrib, sd_contrib, pd_contrib], dim=-1
     )
 
     return equi_rep
