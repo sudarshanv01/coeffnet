@@ -67,8 +67,8 @@ def sn2_reaction_input(tmp_path):
 
             num_basis_functions = np.sum(
                 [
-                    BASIS_FUNCTION_ATOM[basis_set][atom]
-                    for atom in initial_state_structure.symbols
+                    BASIS_FUNCTION_ATOM[basis_set][atom.symbol]
+                    for atom in initial_state_structure.species
                 ]
             )
             fock_matrices = [
