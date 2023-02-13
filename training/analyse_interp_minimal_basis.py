@@ -14,6 +14,8 @@ import torch
 from torch_geometric.loader import DataLoader
 from torch_geometric.utils import convert
 
+from monty.serialization import loadfn, dumpfn
+
 from minimal_basis.dataset.dataset_hamiltonian import HamiltonianDataset
 
 import seaborn
@@ -35,6 +37,10 @@ if __name__ == "__main__":
 
     train_json_filename = inputs["train_json"]
     validation_json_filename = inputs["validate_json"]
+
+    # Get the schema of the validation_json_dataset
+    validation_json = loadfn(validation_json_filename)
+    schema = validation_json[0].keys()
 
     train_dataset = HamiltonianDataset(
         root=get_validation_data_path(),
