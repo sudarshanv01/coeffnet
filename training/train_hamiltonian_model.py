@@ -10,7 +10,7 @@ import torch
 from torch_geometric.loader import DataLoader
 
 from minimal_basis.dataset.dataset_hamiltonian import HamiltonianDataset
-from minimal_basis.model.model_hamiltonian import HamiltonianModel, EquiHamiltonianModel
+from minimal_basis.model.model_hamiltonian import SimpleHamiltonianModel
 
 from e3nn import o3
 
@@ -38,38 +38,9 @@ parser.add_argument(
     help="If set, the calculation is a DEBUG calculation.",
 )
 parser.add_argument(
-    "--use_equivariant",
+    "--use_wandb",
     action="store_true",
-    help="If set, the model will use equivariant layers.",
-)
-parser.add_argument(
-    "--hidden_channels",
-    type=int,
-    default=64,
-    help="Number of hidden channels in the neural network.",
-)
-parser.add_argument(
-    "--num_basis",
-    type=int,
-    default=10,
-    help="Number of basis functions to use in the model.",
-)
-parser.add_argument(
-    "--num_targets",
-    type=int,
-    default=5,
-    help="Number of targets to predict.",
-)
-parser.add_argument(
-    "--num_layers",
-    type=int,
-    default=4,
-    help="Number of layers in the neural network.",
-)
-parser.add_argument(
-    "--max_radius",
-    type=float,
-    default=10.0,
+    help="If set, wandb is used for logging.",
 )
 parser.add_argument(
     "--use_best_config",
@@ -78,16 +49,12 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
-print(args)
 
 
-if not args.debug:
+if args.use_wandb:
     import wandb
 
-    if args.use_equivariant:
-        wandb.init(project="equi_hamiltonian", entity="sudarshanvj")
-    else:
-        wandb.init(project="hamiltonian", entity="sudarshanvj")
+    wandb.init(project="hamiltonian", entity="sudarshanvj")
 
 
 def train(train_loader):
@@ -147,17 +114,14 @@ if __name__ == "__main__":
     graph_generation_method = inputs["graph_generation_method"]
 
     if args.use_best_config:
-        if args.use_equivariant:
-            best_config = json.load(
-                open("output/best_config_equi_hamiltonian.json", "r")
-            )
-        else:
-            best_config = json.load(open("output/best_config_hamiltonian.json", "r"))
+        best_config = json.load(open("output/best_config_hamiltonian.json", "r"))
         batch_size = best_config["batch_size"]
         learning_rate = best_config["learning_rate"]
+
         # Replace args with best config
         args.hidden_channels = best_config["hidden_channels"]
         args.num_layers = best_config["num_layers"]
+
         if args.use_equivariant:
             args.num_basis = best_config["num_basis"]
             args.num_targets = best_config["num_targets"]
@@ -169,7 +133,7 @@ if __name__ == "__main__":
         learning_rate = inputs["learning_rate"]
     epochs = inputs["epochs"]
 
-    if not args.debug:
+    if args.use_wandb:
         wandb.config = {
             "learning_rate": learning_rate,
             "epochs": epochs,
@@ -187,14 +151,13 @@ if __name__ == "__main__":
     train_dataset = HamiltonianDataset(
         root=get_test_data_path(),
         filename=train_json_filename,
-        graph_generation_method=graph_generation_method,
         basis_file=inputs["basis_file"],
     )
     train_dataset.process()
+
     validate_dataset = HamiltonianDataset(
         root=get_test_data_path(),
         filename=validate_json_filename,
-        graph_generation_method=graph_generation_method,
         basis_file=inputs["basis_file"],
     )
     validate_dataset.process()
@@ -208,32 +171,14 @@ if __name__ == "__main__":
     # Figure out the number of features
     num_node_features = train_dataset.num_node_features
     num_edge_features = train_dataset.num_edge_features
-    num_global_features = 1
     print(f"Number of node features: {num_node_features}")
     print(f"Number of edge features: {num_edge_features}")
 
     # Create the optimizer
-    if args.use_equivariant:
-        irreps_out = o3.Irreps("1x0e + 3x1o + 5x2e")
-        model = EquiHamiltonianModel(
-            irreps_out_per_basis=irreps_out,
-            hidden_layers=args.hidden_channels,
-            num_basis=args.num_basis,
-            num_global_features=num_global_features,
-            num_targets=args.num_targets,
-            num_updates=args.num_layers,
-            hidden_channels=10,
-            max_radius=args.max_radius,
-        )
-    else:
-        model = HamiltonianModel(
-            num_node_features=num_node_features,
-            num_edge_features=num_edge_features,
-            num_global_features=num_global_features,
-            hidden_channels=args.hidden_channels,
-            num_updates=args.num_layers,
-        )
-
+    model = SimpleHamiltonianModel(
+        irreps_in="1x0e+1x2e+1x4e+1x6e+1x8e",
+        irreps_intermediate="5x0e+4x1e+12x2e+10x3e+16x4e",
+    )
     model = model.to(DEVICE)
     if not args.debug:
         wandb.watch(model)

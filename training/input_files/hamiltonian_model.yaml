@@ -6,4 +6,3 @@ batch_size: 10
 learning_rate: 0.001
 epochs: 250
 basis_file: "./input_files/6-31G_star.json"
-irreps_out: "1x0e + 3x1o + 5x2e"
