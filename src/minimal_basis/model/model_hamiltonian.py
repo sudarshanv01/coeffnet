@@ -105,17 +105,13 @@ class EquivariantConv(torch.nn.Module):
 
     minimal_basis_size = 9
 
-    def __init__(self, hidden_layers, num_basis, irreps_in, irreps_out) -> None:
+    def __init__(self, irreps_in, irreps_out) -> None:
         super().__init__()
 
         self.tp = FullyConnectedTensorProduct(
             irreps_in1=irreps_in,
             irreps_in2=irreps_in,
             irreps_out=irreps_out,
-        )
-
-        self.fc = e3nn.nn.FullyConnectedNet(
-            [num_basis, hidden_layers, self.tp.weight_numel], torch.relu
         )
 
     def forward(self, f_nodes, f_edges, edge_index):
@@ -138,6 +134,41 @@ class EquivariantConv(torch.nn.Module):
         f_output = self.tp(f_nodes_matrix, f_edges_matrix)
 
         return f_output
+
+
+class SimpleHamiltonianModel(torch.nn.Module):
+    def __init__(self, irreps_in, irreps_intermediate) -> None:
+        super().__init__()
+
+        self.conv = EquivariantConv(irreps_in=irreps_in, irreps_out=irreps_intermediate)
+
+    def forward(self, data):
+        """Forward pass of the Hamiltonian model."""
+
+        # Parse data from the data object
+        f_nodes_IS = data.x
+        f_nodes_FS = data.x_final_state
+        f_edges_IS = data.edge_attr
+        f_edges_FS = data.edge_attr_final_state
+        edge_index_IS = data.edge_index
+        edge_index_FS = data.edge_index_final_state
+
+        f_output_IS = self.conv(f_nodes_IS, f_edges_IS, edge_index_IS)
+        f_output_FS = self.conv(f_nodes_FS, f_edges_FS, edge_index_FS)
+
+        # Average the outputs along the first dimension separately for the two
+        # graphs
+        f_output_IS = torch.mean(f_output_IS, dim=0)
+        f_output_FS = torch.mean(f_output_FS, dim=0)
+
+        # Subtract the final state from the initial state
+        f_output = f_output_IS - f_output_FS
+
+        # Return the mean of the output while retaining the batch dimension
+        output = torch.mean(f_output)
+        output = output.unsqueeze(0)
+
+        return output
 
 
 class NodeModel(torch.nn.Module):
