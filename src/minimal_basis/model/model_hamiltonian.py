@@ -94,7 +94,6 @@ def generate_equi_rep_from_matrix(matrix):
     sd_contrib = sd_comp.flatten(start_dim=-2)
     pd_contrib = pd_comp.flatten(start_dim=-2)
 
-    # Concatenate the components to get the 45 element vector
     equi_rep = torch.cat(
         [s_contrib, p_contrib, d_contrib, sp_contrib, sd_contrib, pd_contrib], dim=-1
     )
@@ -116,32 +115,26 @@ class EquivariantConv(torch.nn.Module):
             [num_basis, hidden_layers, self.tp_s.weight_numel], torch.relu
         )
 
-    def forward(self, f_in, edge_index, pos, max_radius, num_nodes, target_dim):
+    def forward(self, f_nodes, f_edges, edge_index):
         """Forward pass of Equivariant convolution."""
 
         row, col = edge_index
 
-        edge_vec = pos[row] - pos[col]
-
-        f_in_matrix = f_in.reshape(
+        f_nodes_matrix = f_nodes.reshape(
+            -1, 2, self.minimal_basis_size, self.minimal_basis_size
+        )
+        f_edges_matrix = f_edges.reshape(
             -1, 2, self.minimal_basis_size, self.minimal_basis_size
         )
 
-        out_s = self.tp_s(f_in_s_flatten[..., 0][row], sh, weights_s)
-        out_s += self.tp_s(f_in_s_flatten[..., 1][row], sh, weights_s)
-        out_p = self.tp_p(f_in_p_flatten[..., 0][row], sh, weights_p)
-        out_p += self.tp_p(f_in_p_flatten[..., 1][row], sh, weights_p)
-        out_d = self.tp_d(f_in_d_flatten[..., 0][row], sh, weights_d)
-        out_d += self.tp_d(f_in_d_flatten[..., 1][row], sh, weights_d)
+        f_nodes_matrix = generate_equi_rep_from_matrix(f_nodes_matrix)
+        f_edges_matrix = generate_equi_rep_from_matrix(f_edges_matrix)
 
-        summand = torch.cat([out_s, out_p, out_d], dim=1)
+        f_nodes_matrix = f_nodes_matrix[row]
 
-        # Get the output
-        f_out = scatter(summand, col, dim=0, dim_size=target_dim)
-
-        f_out = f_out.div(num_neighbors**0.5)
-
-        return f_out
+        f_output = self.tp(f_nodes_matrix, f_edges_matrix)
+        print(f_output.shape)
+        asdad
 
 
 class NodeModel(torch.nn.Module):

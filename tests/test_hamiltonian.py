@@ -10,7 +10,10 @@ from torch_geometric.loader import DataLoader
 
 from minimal_basis.dataset.dataset_hamiltonian import HamiltonianDataset
 
-from minimal_basis.model.model_hamiltonian import generate_equi_rep_from_matrix
+from minimal_basis.model.model_hamiltonian import (
+    generate_equi_rep_from_matrix,
+    EquivariantConv,
+)
 
 from e3nn.util.test import assert_equivariant, assert_auto_jitable
 
@@ -54,3 +57,30 @@ def test_generate_equi_rep_from_matrix():
     matrix = (matrix + matrix.transpose(2, 3)) / 2
     equivariant_rep = generate_equi_rep_from_matrix(matrix)
     assert equivariant_rep.shape == (4, 2, 45)
+
+
+def test_EquivariantConv(sn2_reaction_input, tmp_path):
+    """Test the EquivariantConv class."""
+
+    dataset = HamiltonianDataset(
+        root=tmp_path,
+        filename=sn2_reaction_input,
+        basis_file=get_basis_file_info(),
+    )
+
+    # Create the dataloader
+    loader = DataLoader(dataset, batch_size=1, shuffle=True)
+
+    # Loop over the data
+    for data in loader:
+
+        conv = EquivariantConv(
+            irreps_in="1x0e+1x2e+1x4e+1x6e+1x8e",
+            irreps_out="5x0e+4x1e+12x2e+10x3e+16x4e",
+            num_basis=10,
+            hidden_layers=2,
+        )
+        output = conv(data.x, data.edge_attr, data.edge_index)
+
+        print(output.shape)
+        adsasd
