@@ -11,7 +11,7 @@ from torch_geometric.nn import MetaLayer
 from torch_scatter import scatter_mean, scatter
 
 import e3nn
-from e3nn import o3
+from e3nn.o3 import FullyConnectedTensorProduct
 from e3nn.math import soft_one_hot_linspace
 
 
@@ -102,17 +102,20 @@ def generate_equi_rep_from_matrix(matrix):
 
 
 class EquivariantConv(torch.nn.Module):
-    def __init__(self, hidden_layers, num_basis, irreps_in, irreps_out):
+
+    minimal_basis_size = 9
+
+    def __init__(self, hidden_layers, num_basis, irreps_in, irreps_out) -> None:
         super().__init__()
 
-        self.tp = o3.FullyConnectedTensorProduct(
+        self.tp = FullyConnectedTensorProduct(
             irreps_in1=irreps_in,
             irreps_in2=irreps_in,
             irreps_out=irreps_out,
         )
 
         self.fc = e3nn.nn.FullyConnectedNet(
-            [num_basis, hidden_layers, self.tp_s.weight_numel], torch.relu
+            [num_basis, hidden_layers, self.tp.weight_numel], torch.relu
         )
 
     def forward(self, f_nodes, f_edges, edge_index):
@@ -128,13 +131,13 @@ class EquivariantConv(torch.nn.Module):
         )
 
         f_nodes_matrix = generate_equi_rep_from_matrix(f_nodes_matrix)
-        f_edges_matrix = generate_equi_rep_from_matrix(f_edges_matrix)
-
         f_nodes_matrix = f_nodes_matrix[row]
 
+        f_edges_matrix = generate_equi_rep_from_matrix(f_edges_matrix)
+
         f_output = self.tp(f_nodes_matrix, f_edges_matrix)
-        print(f_output.shape)
-        asdad
+
+        return f_output
 
 
 class NodeModel(torch.nn.Module):

@@ -1,5 +1,7 @@
 import numpy as np
 
+import pytest
+
 import torch
 
 from e3nn import o3
@@ -59,6 +61,7 @@ def test_generate_equi_rep_from_matrix():
     assert equivariant_rep.shape == (4, 2, 45)
 
 
+@pytest.mark.filterwarnings("ignore::UserWarning")
 def test_EquivariantConv(sn2_reaction_input, tmp_path):
     """Test the EquivariantConv class."""
 
@@ -82,5 +85,4 @@ def test_EquivariantConv(sn2_reaction_input, tmp_path):
         )
         output = conv(data.x, data.edge_attr, data.edge_index)
 
-        print(output.shape)
-        adsasd
+        assert output.shape == (data.num_edges, 2, 291)
