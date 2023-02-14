@@ -16,6 +16,8 @@ from e3nn import o3
 
 from utils import (
     get_test_data_path,
+    get_validation_data_path,
+    get_train_data_path,
     read_inputs_yaml,
 )
 
@@ -148,14 +150,14 @@ if __name__ == "__main__":
 
     # Create the training and test datasets
     train_dataset = HamiltonianDataset(
-        root=get_test_data_path(),
+        root=get_train_data_path(),
         filename=train_json_filename,
         basis_file=inputs["basis_file"],
     )
     train_dataset.process()
 
     validate_dataset = HamiltonianDataset(
-        root=get_test_data_path(),
+        root=get_validation_data_path(),
         filename=validate_json_filename,
         basis_file=inputs["basis_file"],
     )
