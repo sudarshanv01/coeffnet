@@ -97,6 +97,9 @@ class HamiltonianDataPoint(Data):
             global_attr_initial_state = None
             global_attr_final_state = None
 
+        if y is not None:
+            y = convert_to_tensor(y)
+
         super().__init__(
             x=x_initial_state,
             x_final_state=x_final_state,

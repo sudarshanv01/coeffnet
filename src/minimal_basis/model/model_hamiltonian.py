@@ -156,19 +156,24 @@ class SimpleHamiltonianModel(torch.nn.Module):
         f_output_IS = self.conv(f_nodes_IS, f_edges_IS, edge_index_IS)
         f_output_FS = self.conv(f_nodes_FS, f_edges_FS, edge_index_FS)
 
-        # Average the outputs along the first dimension separately for the two
-        # graphs
-        f_output_IS = torch.mean(f_output_IS, dim=0)
-        f_output_FS = torch.mean(f_output_FS, dim=0)
+        # Scatter the outputs to the nodes
+        f_output_IS = scatter(
+            f_output_IS, edge_index_IS[0], dim=0, dim_size=f_nodes_IS.size(0)
+        )
+        f_output_FS = scatter(
+            f_output_FS, edge_index_FS[0], dim=0, dim_size=f_nodes_FS.size(0)
+        )
 
         # Subtract the final state from the initial state
         f_output = f_output_IS - f_output_FS
 
-        # Return the mean of the output while retaining the batch dimension
-        output = torch.mean(f_output)
-        output = output.unsqueeze(0)
+        # Mean over all dimensions except the batch dimension
+        f_output = f_output.mean(dim=tuple(range(1, f_output.dim())))
 
-        return output
+        # Scatter the output such that there is one output per graph
+        f_output = scatter(f_output, data.batch, dim=0, reduce="mean")
+
+        return f_output
 
 
 class NodeModel(torch.nn.Module):

@@ -111,7 +111,6 @@ if __name__ == "__main__":
 
     # --- Inputs
     inputs = read_inputs_yaml(os.path.join("input_files", "hamiltonian_model.yaml"))
-    graph_generation_method = inputs["graph_generation_method"]
 
     if args.use_best_config:
         best_config = json.load(open("output/best_config_hamiltonian.json", "r"))
@@ -180,7 +179,8 @@ if __name__ == "__main__":
         irreps_intermediate="5x0e+4x1e+12x2e+10x3e+16x4e",
     )
     model = model.to(DEVICE)
-    if not args.debug:
+
+    if args.use_wandb:
         wandb.watch(model)
 
     # Create the optimizer
@@ -195,42 +195,42 @@ if __name__ == "__main__":
         validate_loss = validate(val_loader=validate_loader)
         print(f"Epoch: {epoch}, Validation Loss: {validate_loss}")
 
-        if not args.debug:
+        if args.use_wandb:
             wandb.log({"train_loss": train_loss})
             wandb.log({"val_loss": validate_loss})
 
     # Plot the comparison between the predicted and actual activation energies
-    model.eval()
-    predicted_energies = []
-    actual_energies = []
-    for val_batch in validate_loader:
-        data = val_batch.to(DEVICE)
-        predicted_y = model(data)
-        predicted_energies.extend(predicted_y.detach().cpu().numpy())
-        actual_energies.extend(data.y.cpu().numpy())
-    # Get the training loader as well
-    train_predicted_energies = []
-    train_actual_energies = []
-    for train_batch in train_loader:
-        data = train_batch.to(DEVICE)
-        predicted_y = model(data)
-        train_predicted_energies.extend(predicted_y.detach().cpu().numpy())
-        train_actual_energies.extend(data.y.cpu().numpy())
-    # Plot the training and validation data
-    fig, ax = plt.subplots(1, 1, figsize=(5, 5), constrained_layout=True)
-    ax.scatter(train_actual_energies, train_predicted_energies, label="Training Data")
-    ax.scatter(actual_energies, predicted_energies, label="Validation Data")
+    # model.eval()
+    # predicted_energies = []
+    # actual_energies = []
+    # for val_batch in validate_loader:
+    #     data = val_batch.to(DEVICE)
+    #     predicted_y = model(data)
+    #     predicted_energies.extend(predicted_y.detach().cpu().numpy())
+    #     actual_energies.extend(data.y.cpu().numpy())
+    # # Get the training loader as well
+    # train_predicted_energies = []
+    # train_actual_energies = []
+    # for train_batch in train_loader:
+    #     data = train_batch.to(DEVICE)
+    #     predicted_y = model(data)
+    #     train_predicted_energies.extend(predicted_y.detach().cpu().numpy())
+    #     train_actual_energies.extend(data.y.cpu().numpy())
+    # # Plot the training and validation data
+    # fig, ax = plt.subplots(1, 1, figsize=(5, 5), constrained_layout=True)
+    # ax.scatter(train_actual_energies, train_predicted_energies, label="Training Data")
+    # ax.scatter(actual_energies, predicted_energies, label="Validation Data")
 
-    ax.set_xlabel("DFT Activation Energy (Ha)")
-    ax.set_ylabel("Predicted Activation Energy (Ha)")
+    # ax.set_xlabel("DFT Activation Energy (Ha)")
+    # ax.set_ylabel("Predicted Activation Energy (Ha)")
 
-    # Plot the 1:1 line
-    x_min = min(min(train_actual_energies), min(actual_energies))
-    x_max = max(max(train_actual_energies), max(actual_energies))
-    ax.plot([x_min, x_max], [x_min, x_max], color="black", linestyle="--")
+    # # Plot the 1:1 line
+    # x_min = min(min(train_actual_energies), min(actual_energies))
+    # x_max = max(max(train_actual_energies), max(actual_energies))
+    # ax.plot([x_min, x_max], [x_min, x_max], color="black", linestyle="--")
 
-    ax.legend()
-    if args.use_equivariant:
-        fig.savefig("output/equi_hamiltonian_model.png", dpi=300)
-    else:
-        fig.savefig("output/hamiltonian_model.png", dpi=300)
+    # ax.legend()
+    # if args.use_equivariant:
+    #     fig.savefig("output/equi_hamiltonian_model.png", dpi=300)
+    # else:
+    #     fig.savefig("output/hamiltonian_model.png", dpi=300)

@@ -76,6 +76,14 @@ if __name__ == "__main__":
     )
 
     # Save the data
-    dumpfn(train_data, "input_files/train_data_interp_minimal_basis.json")
-    dumpfn(test_data, "input_files/test_data_interp_minimal_basis.json")
-    dumpfn(validate_data, "input_files/validate_data_interp_minimal_basis.json")
+    if args.debug:
+        # Prepend the debug tag
+        dumpfn(train_data, "input_files/debug_train_data_interp_minimal_basis.json")
+        dumpfn(test_data, "input_files/debug_test_data_interp_minimal_basis.json")
+        dumpfn(
+            validate_data, "input_files/debug_validate_data_interp_minimal_basis.json"
+        )
+    else:
+        dumpfn(train_data, "input_files/train_data_interp_minimal_basis.json")
+        dumpfn(test_data, "input_files/test_data_interp_minimal_basis.json")
+        dumpfn(validate_data, "input_files/validate_data_interp_minimal_basis.json")

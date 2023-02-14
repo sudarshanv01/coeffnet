@@ -2,6 +2,9 @@
 test_json: "./input_files/test_data_interp_minimal_basis.json" 
 train_json: "./input_files/train_data_interp_minimal_basis.json" 
 validate_json: "./input_files/validate_data_interp_minimal_basis.json" 
+debug_test_json: "./input_files/debug_test_data_interp_minimal_basis.json" 
+debug_train_json: "./input_files/debug_train_data_interp_minimal_basis.json" 
+debug_validate_json: "./input_files/debug_validate_data_interp_minimal_basis.json" 
 batch_size: 10
 learning_rate: 0.001
 epochs: 250
