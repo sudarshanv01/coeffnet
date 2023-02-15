@@ -186,6 +186,8 @@ if __name__ == "__main__":
         irreps_in="1x0e+1x2e+1x4e+1x6e+1x8e",
         irreps_intermediate="5x0e+4x1e+12x2e+10x3e+16x4e",
         hidden_layers=inputs["hidden_layers"],
+        num_basis=inputs["num_basis"],
+        max_radius=inputs["max_radius"],
     )
     model = model.to(DEVICE)
 
