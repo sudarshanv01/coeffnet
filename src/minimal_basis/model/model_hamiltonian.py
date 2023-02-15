@@ -120,7 +120,9 @@ class EquivariantConv(torch.nn.Module):
         if isinstance(irreps_out, str):
             irreps_out = e3nn.o3.Irreps(irreps_out)
 
-        self.fc = FullyConnectedNet([irreps_out.dim, hidden_layers, irreps_in.dim])
+        self.fc = FullyConnectedNet(
+            [irreps_out.dim, hidden_layers, irreps_in.dim], torch.relu
+        )
 
     def forward(self, f_nodes, f_edges, edge_index):
         """Forward pass of Equivariant convolution."""
