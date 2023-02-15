@@ -12,6 +12,7 @@ from torch_scatter import scatter_mean, scatter
 
 import e3nn
 from e3nn.o3 import FullyConnectedTensorProduct
+from e3nn.nn import FullyConnectedNet
 from e3nn.math import soft_one_hot_linspace
 
 
@@ -105,7 +106,7 @@ class EquivariantConv(torch.nn.Module):
 
     minimal_basis_size = 9
 
-    def __init__(self, irreps_in, irreps_out) -> None:
+    def __init__(self, irreps_in, irreps_out, hidden_layers) -> None:
         super().__init__()
 
         self.tp = FullyConnectedTensorProduct(
@@ -113,6 +114,13 @@ class EquivariantConv(torch.nn.Module):
             irreps_in2=irreps_in,
             irreps_out=irreps_out,
         )
+
+        if isinstance(irreps_in, str):
+            irreps_in = e3nn.o3.Irreps(irreps_in)
+        if isinstance(irreps_out, str):
+            irreps_out = e3nn.o3.Irreps(irreps_out)
+
+        self.fc = FullyConnectedNet([irreps_out.dim, hidden_layers, irreps_in.dim])
 
     def forward(self, f_nodes, f_edges, edge_index):
         """Forward pass of Equivariant convolution."""
@@ -133,14 +141,21 @@ class EquivariantConv(torch.nn.Module):
 
         f_output = self.tp(f_nodes_matrix, f_edges_matrix)
 
+        # Apply the fully connected network
+        f_output = self.fc(f_output)
+
         return f_output
 
 
 class SimpleHamiltonianModel(torch.nn.Module):
-    def __init__(self, irreps_in, irreps_intermediate) -> None:
+    def __init__(self, irreps_in, irreps_intermediate, hidden_layers) -> None:
         super().__init__()
 
-        self.conv = EquivariantConv(irreps_in=irreps_in, irreps_out=irreps_intermediate)
+        self.conv = EquivariantConv(
+            irreps_in=irreps_in,
+            irreps_out=irreps_intermediate,
+            hidden_layers=hidden_layers,
+        )
 
     def forward(self, data):
         """Forward pass of the Hamiltonian model."""

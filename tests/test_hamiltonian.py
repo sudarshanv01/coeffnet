@@ -81,10 +81,11 @@ def test_EquivariantConv(sn2_reaction_input, tmp_path):
         conv = EquivariantConv(
             irreps_in="1x0e+1x2e+1x4e+1x6e+1x8e",
             irreps_out="5x0e+4x1e+12x2e+10x3e+16x4e",
+            hidden_layers=64,
         )
         output = conv(data.x, data.edge_attr, data.edge_index)
 
-        assert output.shape == (data.num_edges, 2, 291)
+        assert output.shape == (data.num_edges, 2, 45)
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -106,6 +107,7 @@ def test_SimpleHamiltonianModel(sn2_reaction_input, tmp_path):
         model = SimpleHamiltonianModel(
             irreps_in="1x0e+1x2e+1x4e+1x6e+1x8e",
             irreps_intermediate="5x0e+4x1e+12x2e+10x3e+16x4e",
+            hidden_layers=64,
         )
         output = model(data)
 
