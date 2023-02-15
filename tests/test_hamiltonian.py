@@ -85,7 +85,7 @@ def test_EquivariantConv(sn2_reaction_input, tmp_path):
         )
         output = conv(data.x, data.edge_attr, data.edge_index)
 
-        assert output.shape == (data.num_edges, 2, 45)
+        assert output.shape == (data.num_edges, 2, 291)
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")

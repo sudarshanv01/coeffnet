@@ -121,7 +121,7 @@ class EquivariantConv(torch.nn.Module):
             irreps_out = e3nn.o3.Irreps(irreps_out)
 
         self.fc = FullyConnectedNet(
-            [irreps_out.dim, hidden_layers, irreps_in.dim], torch.relu
+            [irreps_in.dim, hidden_layers, irreps_in.dim], torch.relu
         )
 
     def forward(self, f_nodes, f_edges, edge_index):
@@ -138,13 +138,13 @@ class EquivariantConv(torch.nn.Module):
 
         f_nodes_matrix = generate_equi_rep_from_matrix(f_nodes_matrix)
         f_nodes_matrix = f_nodes_matrix[row]
-
         f_edges_matrix = generate_equi_rep_from_matrix(f_edges_matrix)
 
-        f_output = self.tp(f_nodes_matrix, f_edges_matrix)
+        # Apply the MLP to the nodes and edges
+        f_nodes_matrix = self.fc(f_nodes_matrix)
+        f_edges_matrix = self.fc(f_edges_matrix)
 
-        # Apply the fully connected network
-        f_output = self.fc(f_output)
+        f_output = self.tp(f_nodes_matrix, f_edges_matrix)
 
         return f_output
 
