@@ -1,7 +1,7 @@
 #!/bin/bash -l
 
 #SBATCH --job-name=job
-#SBATCH --time=10:00:00  
+#SBATCH --time=5:00:00  
 #SBATCH --constraint=gpu
 #SBATCH --qos=regular         # use the `regular` queue
 #SBATCH --account=jcesr_g    # don't forget the `_g`; you may want to use `jcesr_g`
@@ -13,7 +13,8 @@ module load cudatoolkit/11.5
 conda activate molml
 
 # --- Test ---
-python train_inner_interpolate_model.py --use_wandb --reprocess_dataset --num_updates 5
+# python train_inner_interpolate_model.py --use_wandb --reprocess_dataset --num_updates 5
+python train_hamiltonian_model.py --use_wandb
 
 # --- Raytune ---
 # python raytune_model.py --model diffclassifier 

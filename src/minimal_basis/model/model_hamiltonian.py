@@ -106,13 +106,16 @@ class EquivariantConv(torch.nn.Module):
 
     minimal_basis_size = 9
 
-    def __init__(self, irreps_in, irreps_out, hidden_layers) -> None:
+    def __init__(
+        self, irreps_in, irreps_out, num_basis, max_radius, hidden_layers
+    ) -> None:
         super().__init__()
 
         self.tp = FullyConnectedTensorProduct(
             irreps_in1=irreps_in,
             irreps_in2=irreps_in,
             irreps_out=irreps_out,
+            shared_weights=False,
         )
 
         if isinstance(irreps_in, str):
@@ -120,14 +123,28 @@ class EquivariantConv(torch.nn.Module):
         if isinstance(irreps_out, str):
             irreps_out = e3nn.o3.Irreps(irreps_out)
 
+        self.num_basis = num_basis
+        self.max_radius = max_radius
         self.fc = FullyConnectedNet(
-            [irreps_out.dim, hidden_layers, irreps_in.dim], torch.relu
+            [self.num_basis, hidden_layers, self.tp.weight_numel], torch.relu
         )
 
-    def forward(self, f_nodes, f_edges, edge_index):
+    def forward(self, f_nodes, f_edges, edge_index, pos):
         """Forward pass of Equivariant convolution."""
 
         row, col = edge_index
+
+        # Create the edge length embeddings
+        edge_vec = pos[row] - pos[col]
+        edge_length_embedding = soft_one_hot_linspace(
+            edge_vec.norm(dim=1),
+            start=0.0,
+            end=self.max_radius,
+            number=self.num_basis,
+            basis="smooth_finite",
+            cutoff=True,
+        )
+        weights_from_embedding = self.fc(edge_length_embedding)
 
         f_nodes_matrix = f_nodes.reshape(
             -1, 2, self.minimal_basis_size, self.minimal_basis_size
@@ -138,25 +155,32 @@ class EquivariantConv(torch.nn.Module):
 
         f_nodes_matrix = generate_equi_rep_from_matrix(f_nodes_matrix)
         f_nodes_matrix = f_nodes_matrix[row]
-
         f_edges_matrix = generate_equi_rep_from_matrix(f_edges_matrix)
 
-        f_output = self.tp(f_nodes_matrix, f_edges_matrix)
+        summand_up = self.tp(
+            f_nodes_matrix[:, 0, :], f_edges_matrix[:, 0, :], weights_from_embedding
+        )
+        summand_down = self.tp(
+            f_nodes_matrix[:, 1, :], f_edges_matrix[:, 1, :], weights_from_embedding
+        )
 
-        # Apply the fully connected network
-        f_output = self.fc(f_output)
+        f_output = summand_up + summand_down
 
         return f_output
 
 
 class SimpleHamiltonianModel(torch.nn.Module):
-    def __init__(self, irreps_in, irreps_intermediate, hidden_layers) -> None:
+    def __init__(
+        self, irreps_in, irreps_intermediate, hidden_layers, num_basis, max_radius
+    ) -> None:
         super().__init__()
 
         self.conv = EquivariantConv(
             irreps_in=irreps_in,
             irreps_out=irreps_intermediate,
             hidden_layers=hidden_layers,
+            num_basis=num_basis,
+            max_radius=max_radius,
         )
 
     def forward(self, data):
@@ -169,9 +193,11 @@ class SimpleHamiltonianModel(torch.nn.Module):
         f_edges_FS = data.edge_attr_final_state
         edge_index_IS = data.edge_index
         edge_index_FS = data.edge_index_final_state
+        pos_IS = data.pos
+        pos_FS = data.pos_final_state
 
-        f_output_IS = self.conv(f_nodes_IS, f_edges_IS, edge_index_IS)
-        f_output_FS = self.conv(f_nodes_FS, f_edges_FS, edge_index_FS)
+        f_output_IS = self.conv(f_nodes_IS, f_edges_IS, edge_index_IS, pos_IS)
+        f_output_FS = self.conv(f_nodes_FS, f_edges_FS, edge_index_FS, pos_FS)
 
         # Scatter the outputs to the nodes
         f_output_IS = scatter(

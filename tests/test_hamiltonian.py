@@ -82,10 +82,12 @@ def test_EquivariantConv(sn2_reaction_input, tmp_path):
             irreps_in="1x0e+1x2e+1x4e+1x6e+1x8e",
             irreps_out="5x0e+4x1e+12x2e+10x3e+16x4e",
             hidden_layers=64,
+            num_basis=10,
+            max_radius=4.0,
         )
-        output = conv(data.x, data.edge_attr, data.edge_index)
+        output = conv(data.x, data.edge_attr, data.edge_index, data.pos)
 
-        assert output.shape == (data.num_edges, 2, 45)
+        assert output.shape == (data.num_edges, 291)
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -108,6 +110,8 @@ def test_SimpleHamiltonianModel(sn2_reaction_input, tmp_path):
             irreps_in="1x0e+1x2e+1x4e+1x6e+1x8e",
             irreps_intermediate="5x0e+4x1e+12x2e+10x3e+16x4e",
             hidden_layers=64,
+            num_basis=10,
+            max_radius=4.0,
         )
         output = model(data)
 

@@ -49,7 +49,11 @@ parser.add_argument(
     action="store_true",
     help="If set, the best configuration is used based on ray tune run.",
 )
-
+parser.add_argument(
+    "--reprocess_dataset",
+    action="store_true",
+    help="If set, the dataset is reprocessed.",
+)
 args = parser.parse_args()
 
 
@@ -154,14 +158,16 @@ if __name__ == "__main__":
         filename=train_json_filename,
         basis_file=inputs["basis_file"],
     )
-    train_dataset.process()
+    if args.reprocess_dataset:
+        train_dataset.process()
 
     validate_dataset = HamiltonianDataset(
         root=get_validation_data_path(),
         filename=validate_json_filename,
         basis_file=inputs["basis_file"],
     )
-    validate_dataset.process()
+    if args.reprocess_dataset:
+        validate_dataset.process()
 
     # Create a dataloader for the train_dataset
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -180,6 +186,8 @@ if __name__ == "__main__":
         irreps_in="1x0e+1x2e+1x4e+1x6e+1x8e",
         irreps_intermediate="5x0e+4x1e+12x2e+10x3e+16x4e",
         hidden_layers=inputs["hidden_layers"],
+        num_basis=inputs["num_basis"],
+        max_radius=inputs["max_radius"],
     )
     model = model.to(DEVICE)
 
