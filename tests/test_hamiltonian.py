@@ -21,6 +21,7 @@ from minimal_basis.model.model_hamiltonian import (
 from e3nn.util.test import assert_equivariant, assert_auto_jitable
 
 
+@pytest.mark.filterwarnings("ignore::FutureWarning")
 def test_hamiltonian_dataset(sn2_reaction_input, tmp_path):
     """Test the HamiltonianDataset class."""
 
@@ -43,8 +44,11 @@ def test_hamiltonian_dataset(sn2_reaction_input, tmp_path):
         assert data.x.shape == (num_nodes, 162)
         assert data.edge_attr.shape == (num_edges, 162)
         assert data.edge_index.shape == (2, num_edges)
+        assert data.edge_index_interpolated_TS.shape == (2, num_edges)
+        assert data.edge_index_final_state.shape == (2, num_edges)
         assert data.global_attr.shape == (num_global_features,)
         assert data.y.shape == (1,)
+        assert data.pos.shape == (num_nodes, 3)
 
         assert isinstance(data.x, torch.Tensor)
         assert isinstance(data.edge_attr, torch.Tensor)
@@ -63,6 +67,7 @@ def test_generate_equi_rep_from_matrix():
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
+@pytest.mark.filterwarnings("ignore::FutureWarning")
 def test_EquivariantConv(sn2_reaction_input, tmp_path):
     """Test the EquivariantConv class."""
 
@@ -91,6 +96,7 @@ def test_EquivariantConv(sn2_reaction_input, tmp_path):
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
+@pytest.mark.filterwarnings("ignore::FutureWarning")
 def test_SimpleHamiltonianModel(sn2_reaction_input, tmp_path):
     """Test the SimpleHamiltonianModel class."""
 

@@ -41,20 +41,31 @@ def sn2_reaction_input(tmp_path):
 
         datapoints = []
 
+        coords = np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [0.629118, 0.629118, 0.629118],
+                [-0.629118, -0.629118, 0.629118],
+                [0.629118, -0.629118, -0.629118],
+                [-0.629118, 0.629118, -0.629118],
+            ]
+        )
+        # add some random noise to the coordinates
+
         for attacking_group, leaving_group in product(attacking_groups, leaving_groups):
 
             # Generate the initial state
             initial_state_structure = Molecule(
                 species=["C", "H", "H", attacking_group, leaving_group],
-                coords=[[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0], [1, 1, 1]],
+                coords=coords + np.random.rand(*coords.shape) * 0.1,
             )
             final_state_structure = Molecule(
-                species=["C", "H", "H", leaving_group, attacking_group],
-                coords=[[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0], [0.5, 1, 1]],
+                species=["C", "H", "H", attacking_group, leaving_group],
+                coords=coords + np.random.rand(*coords.shape) * 0.1,
             )
             transition_state_structure = Molecule(
                 species=["C", "H", "H", attacking_group, leaving_group],
-                coords=[[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0], [0.75, 1, 1]],
+                coords=coords + np.random.rand(*coords.shape) * 0.1,
             )
             structures = [
                 initial_state_structure,

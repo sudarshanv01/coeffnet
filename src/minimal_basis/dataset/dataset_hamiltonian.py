@@ -41,14 +41,7 @@ def interpolate_midpoint_zmat(
 ) -> List:
     """Generate the intepolated structures using the midpoint Z-matrix."""
 
-    try:
-        reactant_zmat = cc.Cartesian.from_pymatgen_molecule(
-            reactant_structure
-        ).get_zmat()
-    except Exception as e:
-        logger.exception(e)
-        logger.warning("Could not get reactant Z-matrix")
-        return
+    reactant_zmat = cc.Cartesian.from_pymatgen_molecule(reactant_structure).get_zmat()
 
     reactant_c_table = reactant_zmat.loc[:, ["b", "a", "d"]]
     product_zmat = cc.Cartesian.from_pymatgen_molecule(product_structure).get_zmat(
@@ -311,11 +304,16 @@ class HamiltonianDataset(InMemoryDataset):
 
             # Interpolate the initial and final state structures to get the
             # approximate transition state structure
-            initial_states_structure = structures[states.index("initial_states")]
-            final_states_structure = structures[states.index("final_states")]
+            initial_states_structure = structures[states.index("initial_state")]
+            final_states_structure = structures[states.index("final_state")]
             interpolated_transition_state_structure = interpolate_midpoint_zmat(
                 initial_states_structure, final_states_structure
             )
+            if interpolated_transition_state_structure is None:
+                logger.warning(
+                    "Could not interpolate the initial and final state structures."
+                )
+                continue
             # Create a MoleculeGraph object for the interpolated transition state structure
             interpolated_transition_state_structure_graph = (
                 MoleculeGraph.with_local_env_strategy(

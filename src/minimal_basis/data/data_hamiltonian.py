@@ -39,6 +39,7 @@ class HamiltonianDataPoint(Data):
         pos: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
         global_attr: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
         y: Union[npt.ArrayLike, List[float]] = None,
+        edge_index_interpolated_TS: Union[npt.ArrayLike, List[int]] = None,
         **kwargs
     ):
         if pos is not None:
@@ -75,6 +76,11 @@ class HamiltonianDataPoint(Data):
             edge_index_initial_state = None
             edge_index_final_state = None
 
+        if edge_index_interpolated_TS is not None:
+            edge_index_interpolated_TS = convert_to_tensor(
+                edge_index_interpolated_TS, dtype=DTYPE_INT
+            )
+
         if edge_attr is not None:
             edge_attr_initial_state, edge_attr_final_state = (
                 edge_attr["initial_state"],
@@ -105,6 +111,7 @@ class HamiltonianDataPoint(Data):
             x_final_state=x_final_state,
             edge_index=edge_index_initial_state,
             edge_index_final_state=edge_index_final_state,
+            edge_index_interpolated_TS=edge_index_interpolated_TS,
             edge_attr=edge_attr_initial_state,
             edge_attr_final_state=edge_attr_final_state,
             pos=pos_initial_state,
