@@ -15,6 +15,8 @@ from pymatgen.core.structure import Molecule
 from pymatgen.analysis.graphs import MoleculeGraph
 from pymatgen.analysis.local_env import OpenBabelNN
 
+import chemcoord as cc
+
 import torch
 
 from torch_geometric.data import InMemoryDataset
@@ -26,6 +28,45 @@ import itertools
 from minimal_basis.data.data_hamiltonian import HamiltonianDataPoint as DataPoint
 
 logger = logging.getLogger(__name__)
+
+
+def get_pymatgen_molecule(cartesian: cc.Cartesian) -> Molecule:
+    """Get a pymatgen molecule from a chemcoord.Cartesian object."""
+    cartesian = cartesian.sort_index()
+    return cartesian.get_pymatgen_molecule()
+
+
+def interpolate_midpoint_zmat(
+    reactant_structure: Molecule, product_structure: Molecule
+) -> List:
+    """Generate the intepolated structures using the midpoint Z-matrix."""
+
+    try:
+        reactant_zmat = cc.Cartesian.from_pymatgen_molecule(
+            reactant_structure
+        ).get_zmat()
+    except Exception as e:
+        logger.exception(e)
+        logger.warning("Could not get reactant Z-matrix")
+        return
+
+    reactant_c_table = reactant_zmat.loc[:, ["b", "a", "d"]]
+    product_zmat = cc.Cartesian.from_pymatgen_molecule(product_structure).get_zmat(
+        construction_table=reactant_c_table
+    )
+
+    with cc.TestOperators(False):
+        difference_zmat = product_zmat - reactant_zmat
+        difference_zmat = difference_zmat.minimize_dihedrals()
+
+        interpolated_ts_zmat = (
+            reactant_zmat + difference_zmat.minimize_dihedrals() * 0.5
+        )
+        cartesian = interpolated_ts_zmat.get_cartesian()
+        pymatgen_molecule = get_pymatgen_molecule(cartesian)
+        interpolated_molecule = pymatgen_molecule
+
+    return interpolated_molecule
 
 
 class HamiltonianDataset(InMemoryDataset):
@@ -194,6 +235,7 @@ class HamiltonianDataset(InMemoryDataset):
             overlap_matrices = input_data["overlap_matrices"]
             eigenvalues = input_data["eigenvalues"]
             final_energy = input_data["final_energy"]
+            states = input_data["state"]
 
             fock_matrices = np.array(fock_matrices)
             overlap_matrices = np.array(overlap_matrices)
@@ -207,7 +249,7 @@ class HamiltonianDataset(InMemoryDataset):
             # The basis is assumed to be the same across all structures
             all_basis_idx, basis_atom = self.get_basis_index(structures[0])
 
-            for idx_state, state in enumerate(input_data["state"]):
+            for idx_state, state in enumerate(states):
 
                 if state == "transition_state":
                     y = final_energy[idx_state]
@@ -267,6 +309,28 @@ class HamiltonianDataset(InMemoryDataset):
 
                 data_to_store["edge_features"][state] = edge_features_mb.tolist()
 
+            # Interpolate the initial and final state structures to get the
+            # approximate transition state structure
+            initial_states_structure = structures[states.index("initial_states")]
+            final_states_structure = structures[states.index("final_states")]
+            interpolated_transition_state_structure = interpolate_midpoint_zmat(
+                initial_states_structure, final_states_structure
+            )
+            # Create a MoleculeGraph object for the interpolated transition state structure
+            interpolated_transition_state_structure_graph = (
+                MoleculeGraph.with_local_env_strategy(
+                    interpolated_transition_state_structure, OpenBabelNN()
+                )
+            )
+            # Get the edge_index for the interpolated transition state structure
+            edges_for_graph = interpolated_transition_state_structure_graph.graph.edges
+            interpolated_transition_state_structure_edge_index = [
+                list(edge[:-1]) for edge in edges_for_graph
+            ]
+            interpolated_transition_state_structure_edge_index = np.array(
+                interpolated_transition_state_structure_edge_index
+            ).T
+
             datapoint = DataPoint(
                 pos=data_to_store["pos"],
                 edge_index=data_to_store["edge_index"],
@@ -278,6 +342,7 @@ class HamiltonianDataset(InMemoryDataset):
                 num_global_features=data_to_store["num_global_features"][
                     "initial_state"
                 ],
+                edge_index_interpolated_TS=interpolated_transition_state_structure_edge_index,
             )
 
             logging.debug("Datapoint:")
