@@ -13,6 +13,8 @@ import numpy as np
 from monty.serialization import loadfn, dumpfn
 from pymatgen.core.structure import Molecule
 
+from e3nn import o3
+
 
 @pytest.fixture()
 def sn2_reaction_input(tmp_path):
@@ -129,6 +131,160 @@ def sn2_reaction_input(tmp_path):
     dumpfn(input_data, input_json_file)
 
     return input_json_file
+
+
+def rotate_three_dimensions(alpha, beta, gamma):
+    """Rotate the molecule by arbitrary angles alpha
+    beta and gamma."""
+    cos = np.cos
+    sin = np.sin
+
+    r_matrix = [
+        [
+            cos(alpha) * cos(beta),
+            cos(alpha) * sin(beta) * sin(gamma) - sin(alpha) * cos(gamma),
+            cos(alpha) * sin(beta) * cos(gamma) + sin(alpha) * sin(gamma),
+        ],
+        [
+            sin(alpha) * cos(beta),
+            sin(alpha) * sin(beta) * sin(gamma) + cos(alpha) * cos(gamma),
+            sin(alpha) * sin(beta) * cos(gamma) - cos(alpha) * sin(gamma),
+        ],
+        [-sin(beta), cos(beta) * sin(gamma), cos(beta) * cos(gamma)],
+    ]
+
+    return r_matrix
+
+
+@pytest.fixture()
+def rotation_sn2_input(tmp_path):
+    BASIS_FUNCTION_ATOM = {
+        "sto-3g": {
+            "H": 1,
+            "C": 1 + 1 + 3,
+            "F": 1 + 1 + 3,
+            "Cl": 1 + 1 + 3 + 1 + 3,
+            "Br": 1 + 1 + 3 + 1 + 3 + 1 + 3 + 5,
+        }
+    }
+
+    def _rotation_sn2_input(basis_set):
+        """Create a series of rotated sn2 reaction data files. Useful
+        for testing equivariance of the Hamiltonian."""
+
+        attacking_group = "H"
+
+        leaving_group = "F"
+
+        irreps_rot = o3.Irreps("2x0e + 1x1o + 2x0e + 2x0e + 1x1o")
+
+        states = ["initial_state", "transition_state", "final_state"]
+
+        species = ["C", "H", "H", attacking_group, leaving_group]
+
+        num_nodes = len(species)
+
+        num_basis_functions = np.sum(
+            [BASIS_FUNCTION_ATOM[basis_set][atom.symbol] for atom in species]
+        )
+
+        initial_state_coords = np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [0.629118, 0.629118, 0.629118],
+                [-0.629118, -0.629118, 0.629118],
+                [0.629118, -0.629118, -0.629118],
+                [-0.629118, 0.629118, -0.629118],
+            ]
+        )
+
+        transition_state_coords = initial_state_coords + 0.1 * np.random.rand(
+            *initial_state_coords.shape
+        )
+        final_coords = initial_state_coords + 0.1 * np.random.rand(
+            *initial_state_coords.shape
+        )
+
+        fock_matrices = np.random.rand(len(states), num_nodes, 2, 9, 9)
+        fock_matrices = (fock_matrices + fock_matrices.transpose(0, 1, 3, 2)) / 2
+
+        initial_state_eigenvalues = np.random.rand(num_nodes, num_basis_functions)
+        transition_state_eigenvalues = np.random.rand(num_nodes, num_basis_functions)
+        final_state_eigenvalues = np.random.rand(num_nodes, num_basis_functions)
+
+        initial_state_overlap_matrices = np.random.rand(num_nodes, 2, 9, 9)
+        initial_state_overlap_matrices = (
+            initial_state_overlap_matrices
+            + initial_state_overlap_matrices.transpose(0, 1, 3, 2)
+        ) / 2
+
+        transition_state_overlap_matrices = np.random.rand(num_nodes, 2, 9, 9)
+        transition_state_overlap_matrices = (
+            transition_state_overlap_matrices
+            + transition_state_overlap_matrices.transpose(0, 1, 3, 2)
+        ) / 2
+
+        final_state_overlap_matrices = np.random.rand(num_nodes, 2, 9, 9)
+        final_state_overlap_matrices = (
+            final_state_overlap_matrices
+            + final_state_overlap_matrices.transpose(0, 1, 3, 2)
+        ) / 2
+
+        rotation_angles = 2 * np.pi * np.random.rand(3)
+
+        for idx, (alpha, beta, gamma) in enumerate(rotation_angles):
+
+            r_matrix = rotate_three_dimensions(alpha, beta, gamma)
+
+            # Reference all the rotations to the first rotation
+            if idx == 0:
+                r_matrix_0 = r_matrix
+
+            # Rotate the rotation matrix
+            r_matrix = r_matrix @ r_matrix_0.T
+            D_matrix = irreps_rot.D_from_matrix(r_matrix)
+            D_matrix = D_matrix.detach().numpy()
+
+            rotated_initial_state_coords = np.array(
+                [np.dot(r_matrix, coord) for coord in initial_state_coords]
+            )
+            rotated_transition_state_coords = np.array(
+                [np.dot(r_matrix, coord) for coord in transition_state_coords]
+            )
+            rotated_final_coords = np.array(
+                [np.dot(r_matrix, coord) for coord in final_coords]
+            )
+
+            rotated_initial_state_fock_matrices = (
+                D_matrix @ initial_state_fock_matrices @ D_matrix.T
+            )
+            rotated_transition_state_fock_matrices = (
+                D_matrix @ transition_state_fock_matrices @ D_matrix.T
+            )
+            rotated_final_state_fock_matrices = (
+                D_matrix @ final_state_fock_matrices @ D_matrix.T
+            )
+
+            rotated_initial_state_overlap_matrices = (
+                D_matrix @ initial_state_overlap_matrices @ D_matrix.T
+            )
+            rotated_transition_state_overlap_matrices = (
+                D_matrix @ transition_state_overlap_matrices @ D_matrix.T
+            )
+            rotated_final_state_overlap_matrices = (
+                D_matrix @ final_state_overlap_matrices @ D_matrix.T
+            )
+
+            datapoint = {
+                "fock_matrices": fock_matrices,
+                "eigenvalues": eigenvalues,
+                "overlap_matrices": overlap_matrices,
+                "state": states,
+                "final_energy": final_energy,
+                "structures": structures,
+            }
+
+            datapoints.append(datapoint)
 
 
 @pytest.fixture()
