@@ -153,6 +153,8 @@ def rotate_three_dimensions(alpha, beta, gamma):
         [-sin(beta), cos(beta) * sin(gamma), cos(beta) * cos(gamma)],
     ]
 
+    r_matrix = np.array(r_matrix)
+
     return r_matrix
 
 
@@ -182,8 +184,6 @@ def rotation_sn2_input(tmp_path):
 
         species = ["C", "H", "H", attacking_group, leaving_group]
 
-        num_nodes = len(species)
-
         num_basis_functions = np.sum(
             [BASIS_FUNCTION_ATOM[basis_set][atom.symbol] for atom in species]
         )
@@ -205,32 +205,25 @@ def rotation_sn2_input(tmp_path):
             *initial_state_coords.shape
         )
 
-        fock_matrices = np.random.rand(len(states), num_nodes, 2, 9, 9)
+        final_energy = np.random.rand()
+
+        fock_matrices = np.random.rand(
+            len(states), 2, num_basis_functions, num_basis_functions
+        )
         fock_matrices = (fock_matrices + fock_matrices.transpose(0, 1, 3, 2)) / 2
 
-        initial_state_eigenvalues = np.random.rand(num_nodes, num_basis_functions)
-        transition_state_eigenvalues = np.random.rand(num_nodes, num_basis_functions)
-        final_state_eigenvalues = np.random.rand(num_nodes, num_basis_functions)
+        eigenvalues = np.random.rand(len(states), 2, num_basis_functions)
 
-        initial_state_overlap_matrices = np.random.rand(num_nodes, 2, 9, 9)
-        initial_state_overlap_matrices = (
-            initial_state_overlap_matrices
-            + initial_state_overlap_matrices.transpose(0, 1, 3, 2)
+        overlap_matrices = np.random.rand(
+            len(states), num_basis_functions, num_basis_functions
+        )
+        overlap_matrices = (
+            overlap_matrices + overlap_matrices.transpose(0, 1, 3, 2)
         ) / 2
 
-        transition_state_overlap_matrices = np.random.rand(num_nodes, 2, 9, 9)
-        transition_state_overlap_matrices = (
-            transition_state_overlap_matrices
-            + transition_state_overlap_matrices.transpose(0, 1, 3, 2)
-        ) / 2
+        rotation_angles = 2 * np.pi * np.random.rand(4, 3)
 
-        final_state_overlap_matrices = np.random.rand(num_nodes, 2, 9, 9)
-        final_state_overlap_matrices = (
-            final_state_overlap_matrices
-            + final_state_overlap_matrices.transpose(0, 1, 3, 2)
-        ) / 2
-
-        rotation_angles = 2 * np.pi * np.random.rand(3)
+        datapoints = []
 
         for idx, (alpha, beta, gamma) in enumerate(rotation_angles):
 
@@ -255,36 +248,54 @@ def rotation_sn2_input(tmp_path):
                 [np.dot(r_matrix, coord) for coord in final_coords]
             )
 
-            rotated_initial_state_fock_matrices = (
-                D_matrix @ initial_state_fock_matrices @ D_matrix.T
+            initial_structure = Molecule(
+                species=species, coords=rotated_initial_state_coords
             )
-            rotated_transition_state_fock_matrices = (
-                D_matrix @ transition_state_fock_matrices @ D_matrix.T
+            transition_structure = Molecule(
+                species=species, coords=rotated_transition_state_coords
             )
-            rotated_final_state_fock_matrices = (
-                D_matrix @ final_state_fock_matrices @ D_matrix.T
+            final_structure = Molecule(species=species, coords=rotated_final_coords)
+
+            structures = [initial_structure, transition_structure, final_structure]
+
+            rotated_fock_matrices = np.einsum("ij,klj->kli", D_matrix, fock_matrices)
+            rotated_fock_matrices = np.einsum(
+                "ij,klj->kli", D_matrix, rotated_fock_matrices
             )
 
-            rotated_initial_state_overlap_matrices = (
-                D_matrix @ initial_state_overlap_matrices @ D_matrix.T
+            rotated_overlap_matrices = np.einsum(
+                "ij,klj->kli", D_matrix, overlap_matrices
             )
-            rotated_transition_state_overlap_matrices = (
-                D_matrix @ transition_state_overlap_matrices @ D_matrix.T
-            )
-            rotated_final_state_overlap_matrices = (
-                D_matrix @ final_state_overlap_matrices @ D_matrix.T
+            rotated_overlap_matrices = np.einsum(
+                "ij,klj->kli", D_matrix, rotated_overlap_matrices
             )
 
             datapoint = {
-                "fock_matrices": fock_matrices,
+                "fock_matrices": rotated_fock_matrices,
                 "eigenvalues": eigenvalues,
-                "overlap_matrices": overlap_matrices,
+                "overlap_matrices": rotated_overlap_matrices,
                 "state": states,
                 "final_energy": final_energy,
                 "structures": structures,
             }
 
             datapoints.append(datapoint)
+
+        return datapoints
+
+    input_json_file = os.path.join(
+        tmp_path, "inputs", "rotated_sn2_test_data", "input.json"
+    )
+
+    os.makedirs(os.path.dirname(input_json_file), exist_ok=True)
+
+    basis_set = "sto-3g"
+
+    input_data = _rotation_sn2_input(basis_set=basis_set)
+
+    dumpfn(input_data, input_json_file)
+
+    return input_json_file
 
 
 @pytest.fixture()
