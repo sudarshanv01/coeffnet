@@ -99,6 +99,7 @@ def sn2_reaction_input(tmp_path):
             eigenvalues = eigenvalues.tolist()
 
             # Create a list of the overlap matrices for the initial, transition and final states
+            # making sure that the diagonal elements for the overlap matrix are always 1
             overlap_matrices = [
                 np.random.rand(2, num_basis_functions, num_basis_functions)
                 for _ in range(3)
@@ -107,7 +108,6 @@ def sn2_reaction_input(tmp_path):
             overlap_matrices = (
                 overlap_matrices + overlap_matrices.transpose(0, 1, 3, 2)
             ) / 2
-            overlap_matrices = overlap_matrices.tolist()
 
             datapoint = {
                 "fock_matrices": fock_matrices,

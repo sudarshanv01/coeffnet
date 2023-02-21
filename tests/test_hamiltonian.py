@@ -22,6 +22,22 @@ from e3nn.util.test import assert_equivariant, assert_auto_jitable
 
 
 @pytest.mark.filterwarnings("ignore::FutureWarning")
+def test_irreps_from_maxbasis(sn2_reaction_input, tmp_path):
+    """Test the irreps_from_maxbasis function."""
+    dataset = HamiltonianDataset(
+        root=tmp_path,
+        filename=sn2_reaction_input,
+        basis_file=get_basis_file_info(),
+    )
+
+    all_basis, all_irreps = dataset.get_irreps_from_maxbasis("3d")
+    correct_all_basis = ["1s", "2s", "2p", "3s", "3p", "3d"]
+
+    assert all_irreps == "1x0e+1x0e+1x1o+1x0e+1x1o+1x2e"
+    assert set(all_basis) == set(correct_all_basis)
+
+
+@pytest.mark.filterwarnings("ignore::FutureWarning")
 def test_hamiltonian_dataset(sn2_reaction_input, tmp_path):
     """Test the HamiltonianDataset class."""
 

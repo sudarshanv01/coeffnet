@@ -8,6 +8,7 @@ import copy
 from collections import defaultdict
 
 import numpy as np
+import numpy.typing as npt
 
 from ase import data as ase_data
 
@@ -24,6 +25,8 @@ from torch_geometric.data import InMemoryDataset
 from monty.serialization import loadfn
 
 import itertools
+
+from e3nn import o3
 
 from minimal_basis.data.data_hamiltonian import HamiltonianDataPoint as DataPoint
 
@@ -62,6 +65,36 @@ def interpolate_midpoint_zmat(
     return interpolated_molecule
 
 
+def subdiagonalize_matrix(
+    indices: List[int], matrix_H: npt.ArrayLike, matrix_S: npt.ArrayLike
+) -> Tuple[npt.ArrayLike, npt.ArrayLike, npt.ArrayLike]:
+    """Subdiagonalise the matrix in non-orthonormal basis."""
+    sub_matrix_H = matrix_H.take(indices, axis=0).take(indices, axis=1)
+    sub_matrix_S = matrix_S.take(indices, axis=0).take(indices, axis=1)
+
+    eigenval, eigenvec = np.linalg.eig(np.linalg.solve(sub_matrix_S, sub_matrix_H))
+
+    # Normalise the eigenvectors
+    for col in eigenvec.T:
+        normalisation = np.dot(col.conj(), np.dot(sub_matrix_S, col))
+        col /= np.sqrt(np.dot(col.conj(), np.dot(sub_matrix_S, col)))
+
+    t_matrix = np.identity(matrix_H.shape[0], dtype=complex)
+
+    for i in range(len(indices)):
+        for j in range(len(indices)):
+            t_matrix[indices[i], indices[j]] = eigenvec[i, j]
+
+    # We are dealing with real matrices, so the imaginary part should be zero
+    t_matrix = t_matrix.real
+
+    # Unitary transform to get the rearranged Hamiltonian and overlap
+    H_r = np.dot(np.transpose(np.conj(t_matrix)), np.dot(matrix_H, t_matrix))
+    S_r = np.dot(np.transpose(np.conj(t_matrix)), np.dot(matrix_S, t_matrix))
+
+    return H_r, S_r, eigenval
+
+
 class HamiltonianDataset(InMemoryDataset):
     """Dataset for the Hamiltonian for all species in a reaction."""
 
@@ -81,15 +114,17 @@ class HamiltonianDataset(InMemoryDataset):
 
     def __init__(
         self,
-        filename: Union[str, Path],
-        basis_file: Union[str, Path],
-        root: str,
+        filename: Union[str, Path] = None,
+        basis_file: Union[str, Path] = None,
+        root: str = None,
         transform: str = None,
         pre_transform: bool = None,
         pre_filter: bool = None,
+        max_basis: str = "3d",
     ):
         self.filename = filename
         self.basis_file = basis_file
+        self.max_basis = max_basis
 
         super().__init__(
             root=root,
@@ -100,7 +135,6 @@ class HamiltonianDataset(InMemoryDataset):
 
         self.data, self.slices = torch.load(self.processed_paths[0])
 
-        # Find the number of global features based on the first data
         self.num_global_features = self.data.num_global_features[0].item()
 
     @property
@@ -207,6 +241,24 @@ class HamiltonianDataset(InMemoryDataset):
 
         return all_basis_idx, basis_atom
 
+    def get_irreps_from_maxbasis(cls, max_basis: str) -> Tuple[List[str], str]:
+        """Define the irreps from a string of the maximal basis set."""
+        # Split max_basis into n and l
+        max_n, max_l = max_basis[0], max_basis[1]
+        possible_l = {0: "s", 1: "p", 2: "d", 3: "f"}
+        possible_ln = {"s": 0, "p": 1, "d": 2, "f": 3}
+        all_basis = []
+        all_irreps = ""
+        for _n in range(1, int(max_n) + 1):
+            for key in possible_l:
+                if key < int(_n):
+                    all_basis.append(f"{_n}{possible_l[key]}")
+                    parity = "e" if possible_l[key] in ["s", "d"] else "o"
+                    all_irreps += f"+1x{key}{parity}"
+        all_irreps = all_irreps[1:]
+        all_irreps = o3.Irreps(all_irreps)
+        return all_basis, all_irreps
+
     def process(self):
         """Store the following information.
         1. (node features) Flattened list of the Hamiltonian matrix of diagonal-block elements.
@@ -270,37 +322,44 @@ class HamiltonianDataset(InMemoryDataset):
                 data_to_store["edge_index"][state] = edge_index
 
                 fock_matrix_state = fock_matrices[idx_state]
+                overlap_matrix_state = overlap_matrices[idx_state]
 
-                intra_atomic, coupling = self._split_hamiltonian(
-                    fock_matrix_state, *all_basis_idx
-                )
+                subdiag_fock = fock_matrix_state.copy()
+                subdiag_overlap = overlap_matrix_state.copy()
+                coupling = np.zeros_like(fock_matrix_state)
 
-                intra_atomic_mb = self.get_intra_atomic_mb(
-                    intra_atomic, basis_atom, *all_basis_idx
-                )
+                for _basis_atom in basis_atom:
+                    for spin in range(2):
+                        (
+                            subdiag_fock[spin],
+                            subdiag_overlap[spin],
+                            _,
+                        ) = subdiagonalize_matrix(
+                            indices=_basis_atom,
+                            matrix_H=subdiag_fock[spin],
+                            matrix_S=subdiag_overlap[spin],
+                        )
 
-                # Flatten the dimensions of the intra_atomic_mb aside from the first dimension
-                intra_atomic_mb = intra_atomic_mb.reshape(intra_atomic_mb.shape[0], -1)
+                diagonal_fock = np.diagonal(fock_matrix_state, axis1=1, axis2=2)
+                diagonal_fock = np.mean(diagonal_fock, axis=0)
 
-                data_to_store["node_features"][state] = intra_atomic_mb.tolist()
+                # Get the irrep of the max_basis
+                _, node_irrep = self.get_irreps_from_maxbasis(self.max_basis)
+                required_node_dim = node_irrep.dim
+
+                node_features = np.zeros((len(basis_atom), required_node_dim))
+
+                for idx_atom, _basis_atom in enumerate(basis_atom):
+                    _node_features = diagonal_fock[_basis_atom]
+                    node_features[idx_atom, : len(_node_features)] = _node_features
+
+                data_to_store["node_features"][state] = diagonal_fock.tolist()
 
                 # Store the s,p and d basis functions for this atom
                 data_to_store["basis_index"][state] = all_basis_idx
 
                 # Store the atom basis index grouping
                 data_to_store["atom_basis_index"][state] = basis_atom
-
-                # Generate the minimal basis representation of the edge attributes
-                edge_features_mb = self.get_edge_features_mb(
-                    coupling, edge_index, *all_basis_idx
-                )
-
-                # Flatten the dimensions of the edge_features_mb aside from the first dimension
-                edge_features_mb = edge_features_mb.reshape(
-                    edge_features_mb.shape[0], -1
-                )
-
-                data_to_store["edge_features"][state] = edge_features_mb.tolist()
 
             # Interpolate the initial and final state structures to get the
             # approximate transition state structure
@@ -333,7 +392,6 @@ class HamiltonianDataset(InMemoryDataset):
                 pos=data_to_store["pos"],
                 edge_index=data_to_store["edge_index"],
                 x=data_to_store["node_features"],
-                edge_attr=data_to_store["edge_features"],
                 global_attr=data_to_store["global_attr"],
                 y=y,
                 all_basis_idx=all_basis_idx,
