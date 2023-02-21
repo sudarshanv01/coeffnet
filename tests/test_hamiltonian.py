@@ -6,7 +6,7 @@ import torch
 
 from e3nn import o3
 
-from conftest import sn2_reaction_input, get_basis_file_info
+from conftest import sn2_reaction_input, rotation_sn2_input, get_basis_file_info
 
 from torch_geometric.loader import DataLoader
 
@@ -103,6 +103,38 @@ def test_SimpleHamiltonianModel(sn2_reaction_input, tmp_path):
     dataset = HamiltonianDataset(
         root=tmp_path,
         filename=sn2_reaction_input,
+        basis_file=get_basis_file_info(),
+    )
+
+    # Create the dataloader
+    loader = DataLoader(dataset, batch_size=1, shuffle=True)
+
+    # Loop over the data
+    for data in loader:
+
+        model = SimpleHamiltonianModel(
+            irreps_in="1x0e+1x2e+1x4e+1x6e+1x8e",
+            irreps_intermediate="5x0e+4x1e+12x2e+10x3e+16x4e",
+            hidden_layers=64,
+            num_basis=10,
+            max_radius=4.0,
+        )
+        output = model(data)
+
+        # Make sure that the output is a scalar
+        assert output.shape == (1,)
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+@pytest.mark.filterwarnings("ignore::FutureWarning")
+def test_rotated_conftest(rotation_sn2_input, tmp_path):
+    """Test the rotation conftest."""
+
+    rotation_input, rotation_angles = rotation_sn2_input
+
+    dataset = HamiltonianDataset(
+        root=tmp_path,
+        filename=rotation_input,
         basis_file=get_basis_file_info(),
     )
 

@@ -13,6 +13,8 @@ import numpy as np
 from monty.serialization import loadfn, dumpfn
 from pymatgen.core.structure import Molecule
 
+import torch
+
 from e3nn import o3
 
 
@@ -178,14 +180,14 @@ def rotation_sn2_input(tmp_path):
 
         leaving_group = "F"
 
-        irreps_rot = o3.Irreps("2x0e + 1x1o + 2x0e + 2x0e + 1x1o")
+        irreps_rot = o3.Irreps("2x0e + 1x1o + 2x0e + 1x0e + 2x0e + 1x1o")
 
         states = ["initial_state", "transition_state", "final_state"]
 
         species = ["C", "H", "H", attacking_group, leaving_group]
 
         num_basis_functions = np.sum(
-            [BASIS_FUNCTION_ATOM[basis_set][atom.symbol] for atom in species]
+            [BASIS_FUNCTION_ATOM[basis_set][atom] for atom in species]
         )
 
         initial_state_coords = np.array(
@@ -205,7 +207,7 @@ def rotation_sn2_input(tmp_path):
             *initial_state_coords.shape
         )
 
-        final_energy = np.random.rand()
+        final_energy = [random.random() for _ in range(3)]
 
         fock_matrices = np.random.rand(
             len(states), 2, num_basis_functions, num_basis_functions
@@ -215,7 +217,7 @@ def rotation_sn2_input(tmp_path):
         eigenvalues = np.random.rand(len(states), 2, num_basis_functions)
 
         overlap_matrices = np.random.rand(
-            len(states), num_basis_functions, num_basis_functions
+            len(states), 2, num_basis_functions, num_basis_functions
         )
         overlap_matrices = (
             overlap_matrices + overlap_matrices.transpose(0, 1, 3, 2)
@@ -235,6 +237,7 @@ def rotation_sn2_input(tmp_path):
 
             # Rotate the rotation matrix
             r_matrix = r_matrix @ r_matrix_0.T
+            r_matrix = torch.tensor(r_matrix)
             D_matrix = irreps_rot.D_from_matrix(r_matrix)
             D_matrix = D_matrix.detach().numpy()
 
@@ -258,16 +261,10 @@ def rotation_sn2_input(tmp_path):
 
             structures = [initial_structure, transition_structure, final_structure]
 
-            rotated_fock_matrices = np.einsum("ij,klj->kli", D_matrix, fock_matrices)
-            rotated_fock_matrices = np.einsum(
-                "ij,klj->kli", D_matrix, rotated_fock_matrices
-            )
+            rotated_fock_matrices = D_matrix @ fock_matrices[..., :, :] @ D_matrix.T
 
-            rotated_overlap_matrices = np.einsum(
-                "ij,klj->kli", D_matrix, overlap_matrices
-            )
-            rotated_overlap_matrices = np.einsum(
-                "ij,klj->kli", D_matrix, rotated_overlap_matrices
+            rotated_overlap_matrices = (
+                D_matrix @ overlap_matrices[..., :, :] @ D_matrix.T
             )
 
             datapoint = {
@@ -281,7 +278,7 @@ def rotation_sn2_input(tmp_path):
 
             datapoints.append(datapoint)
 
-        return datapoints
+        return datapoints, rotation_angles
 
     input_json_file = os.path.join(
         tmp_path, "inputs", "rotated_sn2_test_data", "input.json"
@@ -291,11 +288,11 @@ def rotation_sn2_input(tmp_path):
 
     basis_set = "sto-3g"
 
-    input_data = _rotation_sn2_input(basis_set=basis_set)
+    input_data, rotation_angles = _rotation_sn2_input(basis_set=basis_set)
 
     dumpfn(input_data, input_json_file)
 
-    return input_json_file
+    return input_json_file, rotation_angles
 
 
 @pytest.fixture()
