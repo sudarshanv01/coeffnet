@@ -141,8 +141,8 @@ def test_rotated_conftest(rotation_sn2_input, tmp_path):
     # Create the dataloader
     loader = DataLoader(dataset, batch_size=1, shuffle=True)
 
-    irreps_in = o3.Irreps("1x0e+1x2e+1x4e+1x6e+1x8e")
-    irreps_out = o3.Irreps("5x0e+4x1e+12x2e+10x3e+16x4e")
+    irreps_in = o3.Irreps("3x0e+2x1o+1x2o+3x2e+1x3o+1x4e")
+    irreps_out = o3.Irreps("6x0o+25x0e+38x1o+22x1e+34x2o+50x2e")
 
     # Loop over the data
     for idx, data in enumerate(loader):
@@ -156,14 +156,25 @@ def test_rotated_conftest(rotation_sn2_input, tmp_path):
         )
         output = conv(data.x, data.edge_attr, data.edge_index, data.pos)
 
-        assert output.shape == (data.num_edges, 291)
+        assert output.shape == (data.num_edges, irreps_out.dim)
 
-        # Rotate the output
-        D_prime_g = irreps_out.D_from_matrix(torch.tensor(rotation_matrix))
-        print(D_prime_g.shape)
-        print(output.shape)
+        if idx == 0:
+            # This output will serve as a reference for the other outputs
+            output_ref = output
 
-        output_rotated = D_prime_g @ output
+        D_prime_g = irreps_out.D_from_matrix(torch.tensor(rotation_matrix[idx]))
+        D_prime_g = torch.tensor(D_prime_g, dtype=torch.float32)
 
-        print(output_rotated.shape)
-        asdas
+        output_rotated = torch.zeros_like(output)
+
+        for i in range(output.shape[0]):
+            output_rotated[i] = D_prime_g @ output_ref[i]
+
+        # Make sure that `output_rotated` matches `output`
+        assert output.shape == output_rotated.shape
+
+        print(output)
+        print(output_rotated)
+        print(torch.max(torch.abs(output - output_rotated)))
+
+        assert torch.allclose(output, output_rotated, atol=1e-3)
