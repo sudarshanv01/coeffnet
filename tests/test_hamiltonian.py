@@ -130,7 +130,7 @@ def test_SimpleHamiltonianModel(sn2_reaction_input, tmp_path):
 def test_rotated_conftest(rotation_sn2_input, tmp_path):
     """Test the rotation conftest."""
 
-    rotation_input, rotation_angles = rotation_sn2_input
+    rotation_input, rotation_matrix = rotation_sn2_input
 
     dataset = HamiltonianDataset(
         root=tmp_path,
@@ -141,17 +141,29 @@ def test_rotated_conftest(rotation_sn2_input, tmp_path):
     # Create the dataloader
     loader = DataLoader(dataset, batch_size=1, shuffle=True)
 
-    # Loop over the data
-    for data in loader:
+    irreps_in = o3.Irreps("1x0e+1x2e+1x4e+1x6e+1x8e")
+    irreps_out = o3.Irreps("5x0e+4x1e+12x2e+10x3e+16x4e")
 
-        model = SimpleHamiltonianModel(
-            irreps_in="1x0e+1x2e+1x4e+1x6e+1x8e",
-            irreps_intermediate="5x0e+4x1e+12x2e+10x3e+16x4e",
+    # Loop over the data
+    for idx, data in enumerate(loader):
+
+        conv = EquivariantConv(
+            irreps_in=irreps_in,
+            irreps_out=irreps_out,
             hidden_layers=64,
             num_basis=10,
             max_radius=4.0,
         )
-        output = model(data)
+        output = conv(data.x, data.edge_attr, data.edge_index, data.pos)
 
-        # Make sure that the output is a scalar
-        assert output.shape == (1,)
+        assert output.shape == (data.num_edges, 291)
+
+        # Rotate the output
+        D_prime_g = irreps_out.D_from_matrix(torch.tensor(rotation_matrix))
+        print(D_prime_g.shape)
+        print(output.shape)
+
+        output_rotated = D_prime_g @ output
+
+        print(output_rotated.shape)
+        asdas

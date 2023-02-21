@@ -225,6 +225,8 @@ def rotation_sn2_input(tmp_path):
 
         rotation_angles = 2 * np.pi * np.random.rand(4, 3)
 
+        r_matrices = []
+
         datapoints = []
 
         for idx, (alpha, beta, gamma) in enumerate(rotation_angles):
@@ -237,6 +239,8 @@ def rotation_sn2_input(tmp_path):
 
             # Rotate the rotation matrix
             r_matrix = r_matrix @ r_matrix_0.T
+            r_matrices.append(r_matrix)
+
             r_matrix = torch.tensor(r_matrix)
             D_matrix = irreps_rot.D_from_matrix(r_matrix)
             D_matrix = D_matrix.detach().numpy()
@@ -278,7 +282,9 @@ def rotation_sn2_input(tmp_path):
 
             datapoints.append(datapoint)
 
-        return datapoints, rotation_angles
+        r_matrices = np.array(r_matrices)
+
+        return datapoints, r_matrices
 
     input_json_file = os.path.join(
         tmp_path, "inputs", "rotated_sn2_test_data", "input.json"
@@ -288,11 +294,11 @@ def rotation_sn2_input(tmp_path):
 
     basis_set = "sto-3g"
 
-    input_data, rotation_angles = _rotation_sn2_input(basis_set=basis_set)
+    input_data, r_matrices = _rotation_sn2_input(basis_set=basis_set)
 
     dumpfn(input_data, input_json_file)
 
-    return input_json_file, rotation_angles
+    return input_json_file, r_matrices
 
 
 @pytest.fixture()
