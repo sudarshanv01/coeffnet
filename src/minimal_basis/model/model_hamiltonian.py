@@ -103,9 +103,6 @@ def generate_equi_rep_from_matrix(matrix):
 
 
 class EquivariantConv(torch.nn.Module):
-
-    minimal_basis_size = 9
-
     def __init__(
         self, irreps_in, irreps_out, num_basis, max_radius, hidden_layers
     ) -> None:
@@ -129,7 +126,7 @@ class EquivariantConv(torch.nn.Module):
             [self.num_basis, hidden_layers, self.tp.weight_numel], torch.relu
         )
 
-    def forward(self, f_nodes, f_edges, edge_index, pos):
+    def forward(self, f_1, f_2, edge_index, pos):
         """Forward pass of Equivariant convolution."""
 
         row, col = edge_index
@@ -146,25 +143,7 @@ class EquivariantConv(torch.nn.Module):
         )
         weights_from_embedding = self.fc(edge_length_embedding)
 
-        f_nodes_matrix = f_nodes.reshape(
-            -1, 2, self.minimal_basis_size, self.minimal_basis_size
-        )
-        f_edges_matrix = f_edges.reshape(
-            -1, 2, self.minimal_basis_size, self.minimal_basis_size
-        )
-
-        f_nodes_matrix = generate_equi_rep_from_matrix(f_nodes_matrix)
-        f_nodes_matrix = f_nodes_matrix[row]
-        f_edges_matrix = generate_equi_rep_from_matrix(f_edges_matrix)
-
-        summand_up = self.tp(
-            f_nodes_matrix[:, 0, :], f_edges_matrix[:, 0, :], weights_from_embedding
-        )
-        summand_down = self.tp(
-            f_nodes_matrix[:, 1, :], f_edges_matrix[:, 1, :], weights_from_embedding
-        )
-
-        f_output = summand_up + summand_down
+        f_output = self.tp(f_1[row], f_2[row], weights_from_embedding)
 
         return f_output
 
@@ -189,29 +168,18 @@ class SimpleHamiltonianModel(torch.nn.Module):
         # Parse data from the data object
         f_nodes_IS = data.x
         f_nodes_FS = data.x_final_state
-        f_edges_IS = data.edge_attr
-        f_edges_FS = data.edge_attr_final_state
+
         edge_index_IS = data.edge_index
         edge_index_FS = data.edge_index_final_state
+        edge_index_TS_interp = data.edge_index_interpolated_TS
+
         pos_IS = data.pos
         pos_FS = data.pos_final_state
+        pos_TS_interp = data.pos_interpolated_TS
 
-        f_output_IS = self.conv(f_nodes_IS, f_edges_IS, edge_index_IS, pos_IS)
-        f_output_FS = self.conv(f_nodes_FS, f_edges_FS, edge_index_FS, pos_FS)
-
-        # Scatter the outputs to the nodes
-        f_output_IS = scatter(
-            f_output_IS, edge_index_IS[0], dim=0, dim_size=f_nodes_IS.size(0)
+        f_output = self.conv(
+            f_nodes_IS, f_nodes_FS, edge_index_TS_interp, pos_TS_interp
         )
-        f_output_FS = scatter(
-            f_output_FS, edge_index_FS[0], dim=0, dim_size=f_nodes_FS.size(0)
-        )
-
-        # Subtract the final state from the initial state
-        f_output = f_output_IS - f_output_FS
-
-        # Mean over all dimensions except the batch dimension
-        f_output = f_output.mean(dim=tuple(range(1, f_output.dim())))
 
         # Scatter the output such that there is one output per graph
         f_output = scatter(f_output, data.batch, dim=0, reduce="mean")

@@ -111,15 +111,21 @@ def test_EquivariantConv(sn2_reaction_input, tmp_path):
     for data in loader:
 
         conv = EquivariantConv(
-            irreps_in="1x0e+1x2e+1x4e+1x6e+1x8e",
-            irreps_out="5x0e+4x1e+12x2e+10x3e+16x4e",
+            irreps_in=data.irreps_node_features[0],
+            irreps_out=data.irreps_node_features[0],
             hidden_layers=64,
             num_basis=10,
             max_radius=4.0,
         )
-        output = conv(data.x, data.edge_attr, data.edge_index, data.pos)
 
-        assert output.shape == (data.num_edges, 291)
+        output = conv(
+            data.x,
+            data.x_final_state,
+            data.edge_index_interpolated_TS,
+            data.pos_interpolated_TS,
+        )
+
+        assert output.shape == (data.num_edges, data.irreps_node_features[0].dim)
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")

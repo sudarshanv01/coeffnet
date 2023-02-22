@@ -383,11 +383,17 @@ class HamiltonianDataset(InMemoryDataset):
             interpolated_transition_state_structure = interpolate_midpoint_zmat(
                 initial_states_structure, final_states_structure
             )
+
             if interpolated_transition_state_structure is None:
                 logger.warning(
                     "Could not interpolate the initial and final state structures."
                 )
                 continue
+
+            interpolated_transition_state_pos = (
+                interpolated_transition_state_structure.cart_coords
+            )
+
             # Create a MoleculeGraph object for the interpolated transition state structure
             interpolated_transition_state_structure_graph = (
                 MoleculeGraph.with_local_env_strategy(
@@ -414,6 +420,7 @@ class HamiltonianDataset(InMemoryDataset):
                 y=y,
                 all_basis_idx=all_basis_idx,
                 edge_index_interpolated_TS=interpolated_transition_state_structure_edge_index,
+                pos_interpolated_TS=interpolated_transition_state_pos,
                 global_attr=data_to_store["global_attr"],
                 num_global_features=data_to_store["matrix_dim_global_attr"],
                 irreps_node_features=node_irrep,
