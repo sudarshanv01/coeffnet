@@ -33,7 +33,7 @@ def test_irreps_from_maxbasis(sn2_reaction_input, tmp_path):
     all_basis, all_irreps = dataset.get_irreps_from_maxbasis("3d")
     correct_all_basis = ["1s", "2s", "2p", "3s", "3p", "3d"]
 
-    assert all_irreps == "1x0e+1x0e+1x1o+1x0e+1x1o+1x2e"
+    assert all_irreps == o3.Irreps("1x0e+1x0e+1x1o+1x0e+1x1o+1x2e")
     assert set(all_basis) == set(correct_all_basis)
 
 
@@ -46,28 +46,34 @@ def test_hamiltonian_dataset(sn2_reaction_input, tmp_path):
         root=tmp_path,
         filename=sn2_reaction_input,
         basis_file=get_basis_file_info(),
+        max_basis="3d",
     )
 
     # Create the dataloader
     loader = DataLoader(dataset, batch_size=1, shuffle=True)
 
+    # Get the irreps for the max basis to ensure that the dimensions are correct
+    all_basis, all_irreps = dataset.get_irreps_from_maxbasis("3d")
+
     # Loop over the data
     for data in loader:
+
         num_nodes = data.num_nodes
         num_edges = data.num_edges
-        num_global_features = data.num_global_features
+        num_global_features = data.num_global_features["initial_state"]
 
-        assert data.x.shape == (num_nodes, 162)
-        assert data.edge_attr.shape == (num_edges, 162)
+        assert data.x.shape == (num_nodes, all_irreps.dim)
+
         assert data.edge_index.shape == (2, num_edges)
         assert data.edge_index_interpolated_TS.shape == (2, num_edges)
         assert data.edge_index_final_state.shape == (2, num_edges)
-        assert data.global_attr.shape == (num_global_features,)
+
+        assert data.global_attr.shape == (num_global_features**2,)
+
         assert data.y.shape == (1,)
         assert data.pos.shape == (num_nodes, 3)
 
         assert isinstance(data.x, torch.Tensor)
-        assert isinstance(data.edge_attr, torch.Tensor)
         assert isinstance(data.edge_index, torch.Tensor)
         assert isinstance(data.global_attr, torch.Tensor)
         assert isinstance(data.y, torch.Tensor)

@@ -51,6 +51,15 @@ def get_cli_args():
         "--debug",
         action="store_true",
     )
+    parser.add_argument(
+        "--pytest", action="store_true", help="Create dataset for pytest."
+    )
+    parser.add_argument(
+        "--pytest_inputdir",
+        type=str,
+        default="../tests/inputs",
+        help="Directory to save the pytest input files.",
+    )
     args = parser.parse_args()
     return args
 
@@ -66,6 +75,8 @@ if __name__ == "__main__":
     # Get all entries in this collection as a list
     if args.debug:
         cursor = collection.find().limit(100)
+    elif args.pytest:
+        cursor = collection.find().limit(10)
     else:
         cursor = collection.find()
 
@@ -82,6 +93,15 @@ if __name__ == "__main__":
         dumpfn(test_data, "input_files/debug_test_data_interp_minimal_basis.json")
         dumpfn(
             validate_data, "input_files/debug_validate_data_interp_minimal_basis.json"
+        )
+    elif args.pytest:
+        dumpfn(
+            train_data, f"{args.pytest_inputdir}/train_data_interp_minimal_basis.json"
+        )
+        dumpfn(test_data, f"{args.pytest_inputdir}/test_data_interp_minimal_basis.json")
+        dumpfn(
+            validate_data,
+            f"{args.pytest_inputdir}/validate_data_interp_minimal_basis.json",
         )
     else:
         dumpfn(train_data, "input_files/train_data_interp_minimal_basis.json")

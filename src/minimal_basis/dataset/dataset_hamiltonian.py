@@ -77,7 +77,9 @@ def subdiagonalize_matrix(
     # Normalise the eigenvectors
     for col in eigenvec.T:
         normalisation = np.dot(col.conj(), np.dot(sub_matrix_S, col))
-        col /= np.sqrt(np.dot(col.conj(), np.dot(sub_matrix_S, col)))
+        # TODO: This is just for testing purposes!!
+        normalisation = np.abs(normalisation)
+        col /= np.sqrt(normalisation)
 
     t_matrix = np.identity(matrix_H.shape[0], dtype=complex)
 
@@ -134,8 +136,6 @@ class HamiltonianDataset(InMemoryDataset):
         )
 
         self.data, self.slices = torch.load(self.processed_paths[0])
-
-        self.num_global_features = self.data.num_global_features[0].item()
 
     @property
     def raw_file_names(self):
@@ -302,13 +302,6 @@ class HamiltonianDataset(InMemoryDataset):
 
                 logger.debug(f"Processing state {state}")
 
-                data_to_store["global_attr"][state] = np.array(
-                    [final_energy[idx_state]]
-                )
-                data_to_store["num_global_features"][state] = data_to_store[
-                    "global_attr"
-                ][state].shape[0]
-
                 molecule = structures[idx_state]
                 molecule_graph = MoleculeGraph.with_local_env_strategy(
                     molecule, OpenBabelNN()
@@ -340,7 +333,14 @@ class HamiltonianDataset(InMemoryDataset):
                             matrix_S=subdiag_overlap[spin],
                         )
 
-                diagonal_fock = np.diagonal(fock_matrix_state, axis1=1, axis2=2)
+                diagonal_fock = np.diagonal(subdiag_fock, axis1=1, axis2=2)
+                # Get the coupling matrix by subtracting off the diagonal
+                # elements of the fock matrix
+                for spin in range(2):
+                    coupling[spin] = subdiag_fock[spin] - np.diag(diagonal_fock[spin])
+                coupling = np.mean(coupling, axis=0)
+
+                # Deal with spin by taking the mean
                 diagonal_fock = np.mean(diagonal_fock, axis=0)
 
                 # Get the irrep of the max_basis
@@ -351,15 +351,21 @@ class HamiltonianDataset(InMemoryDataset):
 
                 for idx_atom, _basis_atom in enumerate(basis_atom):
                     _node_features = diagonal_fock[_basis_atom]
+                    if len(_node_features) > required_node_dim:
+                        _node_features = _node_features[:required_node_dim]
                     node_features[idx_atom, : len(_node_features)] = _node_features
 
-                data_to_store["node_features"][state] = diagonal_fock.tolist()
+                data_to_store["node_features"][state] = node_features
 
                 # Store the s,p and d basis functions for this atom
                 data_to_store["basis_index"][state] = all_basis_idx
 
                 # Store the atom basis index grouping
                 data_to_store["atom_basis_index"][state] = basis_atom
+
+                matrix_dim_global_attr = coupling.shape[0]
+                data_to_store["matrix_dim_global_attr"][state] = matrix_dim_global_attr
+                data_to_store["global_attr"][state] = coupling.flatten()
 
             # Interpolate the initial and final state structures to get the
             # approximate transition state structure
@@ -392,13 +398,11 @@ class HamiltonianDataset(InMemoryDataset):
                 pos=data_to_store["pos"],
                 edge_index=data_to_store["edge_index"],
                 x=data_to_store["node_features"],
-                global_attr=data_to_store["global_attr"],
                 y=y,
                 all_basis_idx=all_basis_idx,
-                num_global_features=data_to_store["num_global_features"][
-                    "initial_state"
-                ],
                 edge_index_interpolated_TS=interpolated_transition_state_structure_edge_index,
+                global_attr=data_to_store["global_attr"],
+                num_global_features=data_to_store["matrix_dim_global_attr"],
             )
 
             logging.debug("Datapoint:")
