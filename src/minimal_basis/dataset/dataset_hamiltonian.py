@@ -199,6 +199,9 @@ class HamiltonianDataset(InMemoryDataset):
         # Store the grouping of the basis index of each atom in the molecule
         basis_atom = []
 
+        # Store the irreps
+        irreps = ""
+
         tot_basis_idx = 0
         for atom_name in molecule.species:
 
@@ -219,14 +222,17 @@ class HamiltonianDataset(InMemoryDataset):
                     range_idx = list(range(tot_basis_idx, tot_basis_idx + 1))
                     basis_s_.append(range_idx)
                     tot_basis_idx += 1
+                    irreps += "+1x0e"
                 elif basis_function == "p":
                     range_idx = list(range(tot_basis_idx, tot_basis_idx + 3))
                     basis_p_.append(range_idx)
                     tot_basis_idx += 3
+                    irreps += "+1x1o"
                 elif basis_function == "d":
                     range_idx = list(range(tot_basis_idx, tot_basis_idx + 5))
                     basis_d_.append(range_idx)
                     tot_basis_idx += 5
+                    irreps += "+1x2e"
 
             # Store the basis index for this atom
             basis_atom.append(list(range(counter_tot_basis_idx, tot_basis_idx)))
@@ -239,7 +245,10 @@ class HamiltonianDataset(InMemoryDataset):
         # Split the Hamilonian into node and edge features
         all_basis_idx = [basis_s, basis_p, basis_d]
 
-        return all_basis_idx, basis_atom
+        irreps = irreps[1:]
+        irreps = o3.Irreps(irreps)
+
+        return all_basis_idx, basis_atom, irreps
 
     def get_irreps_from_maxbasis(cls, max_basis: str) -> Tuple[List[str], str]:
         """Define the irreps from a string of the maximal basis set."""
@@ -292,7 +301,7 @@ class HamiltonianDataset(InMemoryDataset):
                 structures = [Molecule.from_dict(structure) for structure in structures]
 
             # The basis is assumed to be the same across all structures
-            all_basis_idx, basis_atom = self.get_basis_index(structures[0])
+            all_basis_idx, basis_atom, irreps_fock = self.get_basis_index(structures[0])
 
             for idx_state, state in enumerate(states):
 
@@ -394,6 +403,10 @@ class HamiltonianDataset(InMemoryDataset):
                 interpolated_transition_state_structure_edge_index
             ).T
 
+            # Get the irreps of the global attr
+            rtp = o3.ReducedTensorProducts("ij=ji", i=irreps_fock)
+            irreps_global_attr = rtp.irreps_out
+
             datapoint = DataPoint(
                 pos=data_to_store["pos"],
                 edge_index=data_to_store["edge_index"],
@@ -403,6 +416,8 @@ class HamiltonianDataset(InMemoryDataset):
                 edge_index_interpolated_TS=interpolated_transition_state_structure_edge_index,
                 global_attr=data_to_store["global_attr"],
                 num_global_features=data_to_store["matrix_dim_global_attr"],
+                irreps_node_features=node_irrep,
+                irreps_global_attr=irreps_global_attr,
             )
 
             logging.debug("Datapoint:")

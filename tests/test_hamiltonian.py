@@ -37,6 +37,7 @@ def test_irreps_from_maxbasis(sn2_reaction_input, tmp_path):
     assert set(all_basis) == set(correct_all_basis)
 
 
+@pytest.mark.filterwarnings("ignore::UserWarning")
 @pytest.mark.filterwarnings("ignore::FutureWarning")
 def test_hamiltonian_dataset(sn2_reaction_input, tmp_path):
     """Test the HamiltonianDataset class."""
@@ -62,7 +63,11 @@ def test_hamiltonian_dataset(sn2_reaction_input, tmp_path):
         num_edges = data.num_edges
         num_global_features = data.num_global_features["initial_state"]
 
+        irreps_node_features = data.irreps_node_features[0]
+        irreps_global_attr = data.irreps_global_attr
+
         assert data.x.shape == (num_nodes, all_irreps.dim)
+        assert data.x.shape == (num_nodes, irreps_node_features.dim)
 
         assert data.edge_index.shape == (2, num_edges)
         assert data.edge_index_interpolated_TS.shape == (2, num_edges)
