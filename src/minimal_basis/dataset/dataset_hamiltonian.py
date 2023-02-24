@@ -307,6 +307,7 @@ class HamiltonianDataset(InMemoryDataset):
                 angles = None
 
             structures = input_data["structures"]
+
             if isinstance(structures, dict):
                 structures = [Molecule.from_dict(structure) for structure in structures]
 
@@ -353,6 +354,7 @@ class HamiltonianDataset(InMemoryDataset):
                         )
 
                 diagonal_fock = np.diagonal(subdiag_fock, axis1=1, axis2=2)
+
                 # Get the coupling matrix by subtracting off the diagonal
                 # elements of the fock matrix
                 for spin in range(2):
@@ -414,14 +416,25 @@ class HamiltonianDataset(InMemoryDataset):
 
                 # Make a fock matrix with only the minimal basis as the rows and columns
                 idx_fock = np.ix_(range(2), minimal_basis_idx, minimal_basis_idx)
+
                 fock_matrix_minimal = fock_matrix_state[idx_fock]
-                data_to_store["fock_matrix"][state] = fock_matrix_minimal
+                data_to_store["minimal_fock_matrix"][state] = fock_matrix_minimal
+
                 overlap_matrices_minimal = overlap_matrix_state[idx_fock]
+                data_to_store["minimal_overlap_matrix"][
+                    state
+                ] = overlap_matrices_minimal
 
                 # Get the eigenvalues of the minimal basis fock matrix
                 eigenvalues_minimal = np.linalg.eigvalsh(fock_matrix_minimal)
-
-                data_to_store["global_attr"][state] = eigenvalues_minimal.flatten()
+                dim_global_attr = required_node_dim
+                eigenvalues_minimal = np.mean(eigenvalues_minimal, axis=0)
+                accepted_eigenvalues = eigenvalues_minimal[
+                    np.argsort(np.abs(eigenvalues_minimal))
+                ]
+                accepted_eigenvalues = np.sort(accepted_eigenvalues)
+                accepted_eigenvalues = accepted_eigenvalues[:dim_global_attr]
+                data_to_store["global_attr"][state] = accepted_eigenvalues
 
             # Interpolate the initial and final state structures to get the
             # approximate transition state structure
@@ -468,6 +481,7 @@ class HamiltonianDataset(InMemoryDataset):
                 global_attr=data_to_store["global_attr"],
                 angles=angles,
                 irreps_minimal_basis=irreps_minimal_basis,
+                minimal_fock_matrix=data_to_store["minimal_fock_matrix"],
             )
 
             logging.debug("Datapoint:")
