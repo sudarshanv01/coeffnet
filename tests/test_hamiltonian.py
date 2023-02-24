@@ -189,16 +189,18 @@ def test_rotated_conftest(rotation_sn2_input, tmp_path):
     # Create the dataloader
     loader = DataLoader(dataset, batch_size=1, shuffle=True)
 
+    irreps_in = o3.Irreps(f"{dataset[0].irreps_node_features.dim}x0e")
+
+    conv = EquivariantConv(
+        irreps_in=irreps_in,
+        irreps_out=dataset[0].irreps_node_features,
+        hidden_layers=64,
+        num_basis=10,
+        max_radius=4.0,
+    )
+
     # Loop over the data
     for idx, data in enumerate(loader):
-
-        conv = EquivariantConv(
-            irreps_in=data.irreps_node_features[0],
-            irreps_out=data.irreps_node_features[0],
-            hidden_layers=64,
-            num_basis=10,
-            max_radius=4.0,
-        )
 
         output = conv(
             data.x,
@@ -221,7 +223,7 @@ def test_rotated_conftest(rotation_sn2_input, tmp_path):
         output_rotated = torch.zeros_like(output)
 
         for i in range(output.shape[0]):
-            output_rotated[i] = D_prime_g @ output_ref[i]
+            output_rotated[i] = output_ref[i] @ D_prime_g
 
         # Make sure that `output_rotated` matches `output`
         assert output.shape == output_rotated.shape

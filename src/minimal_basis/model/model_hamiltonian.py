@@ -108,6 +108,11 @@ class EquivariantConv(torch.nn.Module):
     ) -> None:
         super().__init__()
 
+        if isinstance(irreps_in, str):
+            irreps_in = e3nn.o3.Irreps(irreps_in)
+        if isinstance(irreps_out, str):
+            irreps_out = e3nn.o3.Irreps(irreps_out)
+
         self.tp = FullyConnectedTensorProduct(
             irreps_in1=irreps_in,
             irreps_in2=irreps_in,
@@ -115,13 +120,9 @@ class EquivariantConv(torch.nn.Module):
             shared_weights=False,
         )
 
-        if isinstance(irreps_in, str):
-            irreps_in = e3nn.o3.Irreps(irreps_in)
-        if isinstance(irreps_out, str):
-            irreps_out = e3nn.o3.Irreps(irreps_out)
-
         self.num_basis = num_basis
         self.max_radius = max_radius
+
         self.fc = FullyConnectedNet(
             [self.num_basis, hidden_layers, self.tp.weight_numel], torch.relu
         )
@@ -133,6 +134,7 @@ class EquivariantConv(torch.nn.Module):
 
         # Create the edge length embeddings
         edge_vec = pos[row] - pos[col]
+
         edge_length_embedding = soft_one_hot_linspace(
             edge_vec.norm(dim=1),
             start=0.0,
@@ -141,6 +143,7 @@ class EquivariantConv(torch.nn.Module):
             basis="smooth_finite",
             cutoff=True,
         )
+
         weights_from_embedding = self.fc(edge_length_embedding)
 
         f_output = self.tp(f_1[row], f_2[row], weights_from_embedding)
