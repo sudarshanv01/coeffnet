@@ -169,12 +169,8 @@ class SimpleHamiltonianModel(torch.nn.Module):
         f_nodes_IS = data.x
         f_nodes_FS = data.x_final_state
 
-        edge_index_IS = data.edge_index
-        edge_index_FS = data.edge_index_final_state
         edge_index_TS_interp = data.edge_index_interpolated_TS
 
-        pos_IS = data.pos
-        pos_FS = data.pos_final_state
         pos_TS_interp = data.pos_interpolated_TS
 
         f_output = self.conv(

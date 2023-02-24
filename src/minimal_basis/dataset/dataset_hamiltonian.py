@@ -10,6 +10,8 @@ from collections import defaultdict
 import numpy as np
 import numpy.typing as npt
 
+from scipy.linalg import eigh
+
 from ase import data as ase_data
 
 from pymatgen.core.structure import Molecule
@@ -296,6 +298,14 @@ class HamiltonianDataset(InMemoryDataset):
             eigenvalues = np.array(eigenvalues)
             final_energy = np.array(final_energy)
 
+            if "tags" in input_data_:
+                if "angles" in input_data_["tags"]:
+                    angles = input_data_["tags"]["angles"]
+                else:
+                    angles = None
+            else:
+                angles = None
+
             structures = input_data["structures"]
             if isinstance(structures, dict):
                 structures = [Molecule.from_dict(structure) for structure in structures]
@@ -347,7 +357,6 @@ class HamiltonianDataset(InMemoryDataset):
                 # elements of the fock matrix
                 for spin in range(2):
                     coupling[spin] = subdiag_fock[spin] - np.diag(diagonal_fock[spin])
-                coupling = np.mean(coupling, axis=0)
 
                 # Deal with spin by taking the mean
                 diagonal_fock = np.mean(diagonal_fock, axis=0)
@@ -372,9 +381,47 @@ class HamiltonianDataset(InMemoryDataset):
                 # Store the atom basis index grouping
                 data_to_store["atom_basis_index"][state] = basis_atom
 
-                matrix_dim_global_attr = coupling.shape[0]
-                data_to_store["matrix_dim_global_attr"][state] = matrix_dim_global_attr
-                data_to_store["global_attr"][state] = coupling.flatten()
+                # Make the fock matrix into minimal basis, i.e. only one
+                # of s and p throughout the matrix
+                basis_s, basis_p, basis_d = all_basis_idx
+                # For the above list of lists, keep only one element in the list
+                minimal_s = []
+                minimal_p = []
+                minimal_d = []
+                irreps_minimal_basis = ""
+                for _basis_s in basis_s:
+                    if len(_basis_s) > 0:
+                        minimal_s.extend(_basis_s[0])
+                        irreps_minimal_basis += "+1x0e"
+                for _basis_p in basis_p:
+                    if len(_basis_p) > 0:
+                        minimal_p.extend(_basis_p[0])
+                        irreps_minimal_basis += "+1x1o"
+                for _basis_d in basis_d:
+                    if len(_basis_d) > 0:
+                        minimal_d.extend(_basis_d[0])
+                        irreps_minimal_basis += "+1x2e"
+                irreps_minimal_basis = irreps_minimal_basis[1:]
+                irreps_minimal_basis = o3.Irreps(irreps_minimal_basis)
+
+                minimal_basis_idx = [minimal_s + minimal_p + minimal_d]
+                minimal_basis_idx = [
+                    item for sublist in minimal_basis_idx for item in sublist
+                ]
+
+                # Sort the minimal basis in ascending order
+                minimal_basis_idx = sorted(minimal_basis_idx)
+
+                # Make a fock matrix with only the minimal basis as the rows and columns
+                idx_fock = np.ix_(range(2), minimal_basis_idx, minimal_basis_idx)
+                fock_matrix_minimal = fock_matrix_state[idx_fock]
+                data_to_store["fock_matrix"][state] = fock_matrix_minimal
+                overlap_matrices_minimal = overlap_matrix_state[idx_fock]
+
+                # Get the eigenvalues of the minimal basis fock matrix
+                eigenvalues_minimal = np.linalg.eigvalsh(fock_matrix_minimal)
+
+                data_to_store["global_attr"][state] = eigenvalues_minimal.flatten()
 
             # Interpolate the initial and final state structures to get the
             # approximate transition state structure
@@ -409,10 +456,6 @@ class HamiltonianDataset(InMemoryDataset):
                 interpolated_transition_state_structure_edge_index
             ).T
 
-            # Get the irreps of the global attr
-            rtp = o3.ReducedTensorProducts("ij=ji", i=irreps_fock)
-            irreps_global_attr = rtp.irreps_out
-
             datapoint = DataPoint(
                 pos=data_to_store["pos"],
                 edge_index=data_to_store["edge_index"],
@@ -421,10 +464,10 @@ class HamiltonianDataset(InMemoryDataset):
                 all_basis_idx=all_basis_idx,
                 edge_index_interpolated_TS=interpolated_transition_state_structure_edge_index,
                 pos_interpolated_TS=interpolated_transition_state_pos,
-                global_attr=data_to_store["global_attr"],
-                num_global_features=data_to_store["matrix_dim_global_attr"],
                 irreps_node_features=node_irrep,
-                irreps_global_attr=irreps_global_attr,
+                global_attr=data_to_store["global_attr"],
+                angles=angles,
+                irreps_minimal_basis=irreps_minimal_basis,
             )
 
             logging.debug("Datapoint:")

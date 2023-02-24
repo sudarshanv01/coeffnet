@@ -21,6 +21,7 @@ from minimal_basis.model.model_hamiltonian import (
 from e3nn.util.test import assert_equivariant, assert_auto_jitable
 
 
+@pytest.mark.filterwarnings("ignore::UserWarning")
 @pytest.mark.filterwarnings("ignore::FutureWarning")
 def test_irreps_from_maxbasis(sn2_reaction_input, tmp_path):
     """Test the irreps_from_maxbasis function."""
@@ -46,6 +47,50 @@ def test_hamiltonian_dataset(sn2_reaction_input, tmp_path):
     dataset = HamiltonianDataset(
         root=tmp_path,
         filename=sn2_reaction_input,
+        basis_file=get_basis_file_info(),
+        max_basis="3d",
+    )
+
+    # Create the dataloader
+    loader = DataLoader(dataset, batch_size=1, shuffle=True)
+
+    # Get the irreps for the max basis to ensure that the dimensions are correct
+    all_basis, all_irreps = dataset.get_irreps_from_maxbasis("3d")
+
+    # Loop over the data
+    for data in loader:
+
+        num_nodes = data.num_nodes
+        num_edges = data.num_edges
+
+        irreps_node_features = data.irreps_node_features[0]
+
+        assert data.x.shape == (num_nodes, all_irreps.dim)
+        assert data.x.shape == (num_nodes, irreps_node_features.dim)
+
+        assert data.edge_index.shape == (2, num_edges)
+        assert data.edge_index_interpolated_TS.shape == (2, num_edges)
+        assert data.edge_index_final_state.shape == (2, num_edges)
+
+        assert data.y.shape == (1,)
+        assert data.pos.shape == (num_nodes, 3)
+
+        assert isinstance(data.x, torch.Tensor)
+        assert isinstance(data.edge_index, torch.Tensor)
+        assert isinstance(data.y, torch.Tensor)
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+@pytest.mark.filterwarnings("ignore::FutureWarning")
+def test_rotation_dataset(rotation_sn2_input, tmp_path):
+    """Test the HamiltonianDataset class."""
+
+    rotation_input, rotation_matrix = rotation_sn2_input
+
+    # Create the dataset
+    dataset = HamiltonianDataset(
+        root=tmp_path,
+        filename=rotation_input,
         basis_file=get_basis_file_info(),
         max_basis="3d",
     )
@@ -130,36 +175,6 @@ def test_EquivariantConv(sn2_reaction_input, tmp_path):
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
 @pytest.mark.filterwarnings("ignore::FutureWarning")
-def test_SimpleHamiltonianModel(sn2_reaction_input, tmp_path):
-    """Test the SimpleHamiltonianModel class."""
-
-    dataset = HamiltonianDataset(
-        root=tmp_path,
-        filename=sn2_reaction_input,
-        basis_file=get_basis_file_info(),
-    )
-
-    # Create the dataloader
-    loader = DataLoader(dataset, batch_size=1, shuffle=True)
-
-    # Loop over the data
-    for data in loader:
-
-        model = SimpleHamiltonianModel(
-            irreps_in="1x0e+1x2e+1x4e+1x6e+1x8e",
-            irreps_intermediate="5x0e+4x1e+12x2e+10x3e+16x4e",
-            hidden_layers=64,
-            num_basis=10,
-            max_radius=4.0,
-        )
-        output = model(data)
-
-        # Make sure that the output is a scalar
-        assert output.shape == (1,)
-
-
-@pytest.mark.filterwarnings("ignore::UserWarning")
-@pytest.mark.filterwarnings("ignore::FutureWarning")
 def test_rotated_conftest(rotation_sn2_input, tmp_path):
     """Test the rotation conftest."""
 
@@ -174,28 +189,33 @@ def test_rotated_conftest(rotation_sn2_input, tmp_path):
     # Create the dataloader
     loader = DataLoader(dataset, batch_size=1, shuffle=True)
 
-    irreps_in = o3.Irreps("3x0e+2x1o+1x2o+3x2e+1x3o+1x4e")
-    irreps_out = o3.Irreps("6x0o+25x0e+38x1o+22x1e+34x2o+50x2e")
-
     # Loop over the data
     for idx, data in enumerate(loader):
 
         conv = EquivariantConv(
-            irreps_in=irreps_in,
-            irreps_out=irreps_out,
+            irreps_in=data.irreps_node_features[0],
+            irreps_out=data.irreps_node_features[0],
             hidden_layers=64,
             num_basis=10,
             max_radius=4.0,
         )
-        output = conv(data.x, data.edge_attr, data.edge_index, data.pos)
 
-        assert output.shape == (data.num_edges, irreps_out.dim)
+        output = conv(
+            data.x,
+            data.x_final_state,
+            data.edge_index_interpolated_TS,
+            data.pos_interpolated_TS,
+        )
+
+        assert output.shape == (data.num_edges, data.irreps_node_features[0].dim)
 
         if idx == 0:
             # This output will serve as a reference for the other outputs
             output_ref = output
 
-        D_prime_g = irreps_out.D_from_matrix(torch.tensor(rotation_matrix[idx]))
+        D_prime_g = data.irreps_node_features[0].D_from_matrix(
+            torch.tensor(rotation_matrix[idx])
+        )
         D_prime_g = torch.tensor(D_prime_g, dtype=torch.float32)
 
         output_rotated = torch.zeros_like(output)
