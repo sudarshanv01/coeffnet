@@ -72,6 +72,8 @@ def test_hamiltonian_dataset(sn2_reaction_input, tmp_path):
         assert data.edge_index_interpolated_TS.shape == (2, num_edges)
         assert data.edge_index_final_state.shape == (2, num_edges)
 
+        assert data.global_attr.shape == (irreps_node_features.dim,)
+
         assert data.y.shape == (1,)
         assert data.pos.shape == (num_nodes, 3)
 
@@ -106,10 +108,8 @@ def test_rotation_dataset(rotation_sn2_input, tmp_path):
 
         num_nodes = data.num_nodes
         num_edges = data.num_edges
-        num_global_features = data.num_global_features["initial_state"]
 
         irreps_node_features = data.irreps_node_features[0]
-        irreps_global_attr = data.irreps_global_attr
 
         assert data.x.shape == (num_nodes, all_irreps.dim)
         assert data.x.shape == (num_nodes, irreps_node_features.dim)
@@ -118,7 +118,7 @@ def test_rotation_dataset(rotation_sn2_input, tmp_path):
         assert data.edge_index_interpolated_TS.shape == (2, num_edges)
         assert data.edge_index_final_state.shape == (2, num_edges)
 
-        assert data.global_attr.shape == (num_global_features**2,)
+        assert data.global_attr.shape == (irreps_node_features.dim,)
 
         assert data.y.shape == (1,)
         assert data.pos.shape == (num_nodes, 3)
@@ -225,9 +225,5 @@ def test_rotated_conftest(rotation_sn2_input, tmp_path):
 
         # Make sure that `output_rotated` matches `output`
         assert output.shape == output_rotated.shape
-
-        print(output)
-        print(output_rotated)
-        print(torch.max(torch.abs(output - output_rotated)))
 
         assert torch.allclose(output, output_rotated, atol=1e-3)

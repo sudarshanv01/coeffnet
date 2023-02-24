@@ -434,6 +434,12 @@ class HamiltonianDataset(InMemoryDataset):
                 ]
                 accepted_eigenvalues = np.sort(accepted_eigenvalues)
                 accepted_eigenvalues = accepted_eigenvalues[:dim_global_attr]
+                if len(accepted_eigenvalues) < dim_global_attr:
+                    accepted_eigenvalues = np.pad(
+                        accepted_eigenvalues,
+                        (0, dim_global_attr - len(accepted_eigenvalues)),
+                        "constant",
+                    )
                 data_to_store["global_attr"][state] = accepted_eigenvalues
 
             # Interpolate the initial and final state structures to get the
