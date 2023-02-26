@@ -183,7 +183,7 @@ if __name__ == "__main__":
 
     # Create the optimizer
     model = SimpleHamiltonianModel(
-        irreps_in=inputs["irreps_in"],
+        irreps_in=f"{train_dataset[0].irreps_node_features.dim}x0e",
         irreps_intermediate=inputs["irreps_intermediate"],
         hidden_layers=inputs["hidden_layers"],
         num_basis=inputs["num_basis"],

@@ -148,6 +148,9 @@ class EquivariantConv(torch.nn.Module):
 
         f_output = self.tp(f_1[row], f_2[row], weights_from_embedding)
 
+        # Mean the output over the edges to get one output per node
+        f_output = scatter_mean(f_output, col, dim=0)
+
         return f_output
 
 
@@ -173,17 +176,25 @@ class SimpleHamiltonianModel(torch.nn.Module):
         f_nodes_FS = data.x_final_state
 
         edge_index_TS_interp = data.edge_index_interpolated_TS
+        edge_index_IS = data.edge_index
 
         pos_TS_interp = data.pos_interpolated_TS
+        pos = data.pos
 
         f_output = self.conv(
             f_nodes_IS, f_nodes_FS, edge_index_TS_interp, pos_TS_interp
         )
 
-        # Scatter the output such that there is one output per graph
-        f_output = scatter(f_output, data.batch, dim=0, reduce="mean")
+        f_output_IS = self.conv(f_nodes_IS, f_nodes_IS, edge_index_IS, pos)
 
-        return f_output
+        delta_f_output = f_output - f_output_IS
+        # Mean out the -1 dimension
+        delta_f_output = delta_f_output.mean(dim=-1)
+
+        # Return one output per graph
+        delta_f_output = scatter(delta_f_output, data.batch, dim=0, reduce="mean")
+
+        return delta_f_output
 
 
 class NodeModel(torch.nn.Module):

@@ -319,6 +319,8 @@ class HamiltonianDataset(InMemoryDataset):
                 if state == "transition_state":
                     y = final_energy[idx_state]
                     continue
+                elif state == "initial_state":
+                    y_IS = final_energy[idx_state]
 
                 logger.debug(f"Processing state {state}")
 
@@ -479,7 +481,7 @@ class HamiltonianDataset(InMemoryDataset):
                 pos=data_to_store["pos"],
                 edge_index=data_to_store["edge_index"],
                 x=data_to_store["node_features"],
-                y=y,
+                y=y - y_IS,
                 all_basis_idx=all_basis_idx,
                 edge_index_interpolated_TS=interpolated_transition_state_structure_edge_index,
                 pos_interpolated_TS=interpolated_transition_state_pos,
