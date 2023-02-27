@@ -30,7 +30,8 @@ import itertools
 
 from e3nn import o3
 
-from minimal_basis.data.data_reaction import ReactionDataPoint as DataPoint
+from minimal_basis.data.data_hamiltonian import HamiltonianDataPoint as DataPoint
+from minimal_basis.predata.predata_classifier import GenerateParametersClassifier
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +116,10 @@ class HamiltonianDataset(InMemoryDataset):
 
     # minimal_basis_size is the number of basis functions in the minimal basis
     minimal_basis_size = 9
+
+    mu = 0.5
+    sigma = 0.25
+    alpha = 1.0
 
     def __init__(
         self,
@@ -318,9 +323,12 @@ class HamiltonianDataset(InMemoryDataset):
 
                 if state == "transition_state":
                     y = final_energy[idx_state]
+                    pos_real_ts = structures[idx_state].cart_coords
                     continue
                 elif state == "initial_state":
                     y_IS = final_energy[idx_state]
+                elif state == "final_state":
+                    y_FS = final_energy[idx_state]
 
                 logger.debug(f"Processing state {state}")
 
@@ -448,18 +456,24 @@ class HamiltonianDataset(InMemoryDataset):
             # approximate transition state structure
             initial_states_structure = structures[states.index("initial_state")]
             final_states_structure = structures[states.index("final_state")]
-            interpolated_transition_state_structure = interpolate_midpoint_zmat(
-                initial_states_structure, final_states_structure
+
+            instance_generate = GenerateParametersClassifier()
+            interpolated_transition_state_pos = (
+                instance_generate.get_interpolated_transition_state_positions(
+                    initial_states_structure.cart_coords,
+                    final_states_structure.cart_coords,
+                    mu=self.mu,
+                    sigma=self.sigma,
+                    deltaG=y_FS - y_IS,
+                    alpha=self.alpha,
+                )
             )
 
-            if interpolated_transition_state_structure is None:
-                logger.warning(
-                    "Could not interpolate the initial and final state structures."
-                )
-                continue
-
-            interpolated_transition_state_pos = (
-                interpolated_transition_state_structure.cart_coords
+            interpolated_transition_state_structure = Molecule(
+                initial_states_structure.species,
+                interpolated_transition_state_pos,
+                charge=initial_states_structure.charge,
+                spin_multiplicity=initial_states_structure.spin_multiplicity,
             )
 
             # Create a MoleculeGraph object for the interpolated transition state structure
@@ -468,6 +482,7 @@ class HamiltonianDataset(InMemoryDataset):
                     interpolated_transition_state_structure, OpenBabelNN()
                 )
             )
+
             # Get the edge_index for the interpolated transition state structure
             edges_for_graph = interpolated_transition_state_structure_graph.graph.edges
             interpolated_transition_state_structure_edge_index = [
@@ -485,6 +500,7 @@ class HamiltonianDataset(InMemoryDataset):
                 all_basis_idx=all_basis_idx,
                 edge_index_interpolated_TS=interpolated_transition_state_structure_edge_index,
                 pos_interpolated_TS=interpolated_transition_state_pos,
+                pos_real_TS=pos_real_ts,
                 irreps_node_features=node_irrep,
                 global_attr=data_to_store["global_attr"],
                 angles=angles,
