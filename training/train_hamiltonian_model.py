@@ -127,12 +127,6 @@ if __name__ == "__main__":
         args.hidden_channels = best_config["hidden_channels"]
         args.num_layers = best_config["num_layers"]
 
-        if args.use_equivariant:
-            args.num_basis = best_config["num_basis"]
-            args.num_targets = best_config["num_targets"]
-            args.max_radius = best_config["max_radius"]
-            args.num_layers = best_config["num_layers"]
-            args.hidden_channels = best_config["hidden_channels"]
     else:
         batch_size = inputs["batch_size"]
         learning_rate = inputs["learning_rate"]
@@ -210,38 +204,12 @@ if __name__ == "__main__":
             wandb.log({"train_loss": train_loss})
             wandb.log({"val_loss": validate_loss})
 
-    # Plot the comparison between the predicted and actual activation energies
-    # model.eval()
-    # predicted_energies = []
-    # actual_energies = []
-    # for val_batch in validate_loader:
-    #     data = val_batch.to(DEVICE)
-    #     predicted_y = model(data)
-    #     predicted_energies.extend(predicted_y.detach().cpu().numpy())
-    #     actual_energies.extend(data.y.cpu().numpy())
-    # # Get the training loader as well
-    # train_predicted_energies = []
-    # train_actual_energies = []
-    # for train_batch in train_loader:
-    #     data = train_batch.to(DEVICE)
-    #     predicted_y = model(data)
-    #     train_predicted_energies.extend(predicted_y.detach().cpu().numpy())
-    #     train_actual_energies.extend(data.y.cpu().numpy())
-    # # Plot the training and validation data
-    # fig, ax = plt.subplots(1, 1, figsize=(5, 5), constrained_layout=True)
-    # ax.scatter(train_actual_energies, train_predicted_energies, label="Training Data")
-    # ax.scatter(actual_energies, predicted_energies, label="Validation Data")
+    # Save the model
+    torch.save(model, "output/hamiltonian_model.pt")
 
-    # ax.set_xlabel("DFT Activation Energy (Ha)")
-    # ax.set_ylabel("Predicted Activation Energy (Ha)")
-
-    # # Plot the 1:1 line
-    # x_min = min(min(train_actual_energies), min(actual_energies))
-    # x_max = max(max(train_actual_energies), max(actual_energies))
-    # ax.plot([x_min, x_max], [x_min, x_max], color="black", linestyle="--")
-
-    # ax.legend()
-    # if args.use_equivariant:
-    #     fig.savefig("output/equi_hamiltonian_model.png", dpi=300)
-    # else:
-    #     fig.savefig("output/hamiltonian_model.png", dpi=300)
+    # Store wandb model as artifact
+    if args.use_wandb:
+        artifact = wandb.Artifact("hamiltonian_model", type="model")
+        artifact.add_file("output/hamiltonian_model.pt")
+        wandb.run.log_artifact(artifact)
+        wandb.finish()

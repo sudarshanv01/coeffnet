@@ -9,7 +9,7 @@ batch_size: 35
 learning_rate: 0.001
 epochs: 250
 basis_file: "./input_files/6-31G_star.json"
-hidden_layers: 25
+hidden_layers: 64
 num_basis: 10
 max_radius: 4
 irreps_intermediate: "20x0e"

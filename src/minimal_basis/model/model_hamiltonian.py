@@ -185,9 +185,10 @@ class SimpleHamiltonianModel(torch.nn.Module):
             f_nodes_IS, f_nodes_FS, edge_index_TS_interp, pos_TS_interp
         )
 
-        f_output_IS = self.conv(f_nodes_IS, f_nodes_IS, edge_index_IS, pos)
+        f_output_IS = self.conv(f_nodes_IS, f_nodes_FS, edge_index_IS, pos)
 
         delta_f_output = f_output - f_output_IS
+
         # Mean out the -1 dimension
         delta_f_output = delta_f_output.mean(dim=-1)
 
