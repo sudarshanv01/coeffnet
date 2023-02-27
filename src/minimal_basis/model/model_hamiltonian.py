@@ -187,7 +187,7 @@ class SimpleHamiltonianModel(torch.nn.Module):
         f_output = self.conv(
             f_nodes_IS, f_nodes_FS, edge_index_TS_interp, pos_TS_interp
         )
-        g_output = self.conv_global(
+        g_output = self.conv(
             f_global_IS[data.batch],
             f_global_FS[data.batch],
             edge_index_TS_interp,
