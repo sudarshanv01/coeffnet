@@ -450,7 +450,8 @@ class HamiltonianDataset(InMemoryDataset):
                         (0, dim_global_attr - len(accepted_eigenvalues)),
                         "constant",
                     )
-                data_to_store["global_attr"][state] = accepted_eigenvalues
+                global_attr = accepted_eigenvalues.reshape(1, -1)
+                data_to_store["global_attr"][state] = global_attr
 
             # Interpolate the initial and final state structures to get the
             # approximate transition state structure

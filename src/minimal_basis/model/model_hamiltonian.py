@@ -168,12 +168,23 @@ class SimpleHamiltonianModel(torch.nn.Module):
             max_radius=max_radius,
         )
 
+        self.conv_global = EquivariantConv(
+            irreps_in=irreps_in,
+            irreps_out=irreps_intermediate,
+            hidden_layers=hidden_layers,
+            num_basis=num_basis,
+            max_radius=max_radius,
+        )
+
     def forward(self, data):
         """Forward pass of the Hamiltonian model."""
 
         # Parse data from the data object
         f_nodes_IS = data.x
         f_nodes_FS = data.x_final_state
+
+        f_global_IS = data.global_attr
+        f_global_FS = data.global_attr_final_state
 
         edge_index_TS_interp = data.edge_index_interpolated_TS
         edge_index_IS = data.edge_index
@@ -184,18 +195,28 @@ class SimpleHamiltonianModel(torch.nn.Module):
         f_output = self.conv(
             f_nodes_IS, f_nodes_FS, edge_index_TS_interp, pos_TS_interp
         )
+        g_output = self.conv_global(
+            f_global_IS[data.batch],
+            f_global_FS[data.batch],
+            edge_index_TS_interp,
+            pos_TS_interp,
+        )
 
-        f_output_IS = self.conv(f_nodes_IS, f_nodes_FS, edge_index_IS, pos)
+        f_output_IS = self.conv(f_nodes_IS, f_nodes_IS, edge_index_IS, pos)
+        g_output_IS = self.conv_global(
+            f_global_IS[data.batch], f_global_IS[data.batch], edge_index_IS, pos
+        )
 
         delta_f_output = f_output - f_output_IS
+        delta_g_output = g_output - g_output_IS
 
         # Mean out the -1 dimension
         delta_f_output = delta_f_output.mean(dim=-1)
+        delta_g_output = delta_g_output.mean(dim=-1)
 
-        # Return one output per graph
-        delta_f_output = scatter(delta_f_output, data.batch, dim=0, reduce="mean")
+        output = torch.cat([delta_f_output, delta_g_output], dim=-1)
 
-        return delta_f_output
+        return output
 
 
 class NodeModel(torch.nn.Module):
