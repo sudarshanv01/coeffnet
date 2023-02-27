@@ -208,9 +208,6 @@ class SimpleHamiltonianModel(torch.nn.Module):
 
         output = scatter_mean(output, data.batch, dim=0)
 
-        output = output.reshape(-1, 1)
-        print(f"Shape of output after mean: {output.shape}")
-
         return output
 
 
