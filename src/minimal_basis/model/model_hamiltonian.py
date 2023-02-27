@@ -214,7 +214,16 @@ class SimpleHamiltonianModel(torch.nn.Module):
         delta_f_output = delta_f_output.mean(dim=-1)
         delta_g_output = delta_g_output.mean(dim=-1)
 
+        # Mean each node's contribution to the global output
+        delta_g_output = scatter_mean(delta_g_output, data.batch, dim=0)
+        delta_f_output = scatter_mean(delta_f_output, data.batch, dim=0)
+
+        # Report the output between delta_f_output and delta_g_output
+        # reporting only one per graph
         output = torch.cat([delta_f_output, delta_g_output], dim=-1)
+        output = output.mean(dim=0)
+        # Report in the right dimensions
+        output = output.unsqueeze(0)
 
         return output
 
