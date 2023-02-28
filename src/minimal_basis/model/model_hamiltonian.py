@@ -167,6 +167,13 @@ class SimpleHamiltonianModel(torch.nn.Module):
             num_basis=num_basis,
             max_radius=max_radius,
         )
+        self.conv_global = EquivariantConv(
+            irreps_in=irreps_in,
+            irreps_out=irreps_intermediate,
+            hidden_layers=hidden_layers,
+            num_basis=num_basis,
+            max_radius=max_radius,
+        )
 
     def forward(self, data):
         """Forward pass of the Hamiltonian model."""
@@ -187,7 +194,7 @@ class SimpleHamiltonianModel(torch.nn.Module):
         f_output = self.conv(
             f_nodes_IS, f_nodes_FS, edge_index_TS_interp, pos_TS_interp
         )
-        g_output = self.conv(
+        g_output = self.conv_global(
             f_global_IS[data.batch],
             f_global_FS[data.batch],
             edge_index_TS_interp,
@@ -195,7 +202,7 @@ class SimpleHamiltonianModel(torch.nn.Module):
         )
 
         f_output_IS = self.conv(f_nodes_IS, f_nodes_IS, edge_index_IS, pos)
-        g_output_IS = self.conv(
+        g_output_IS = self.conv_global(
             f_global_IS[data.batch], f_global_IS[data.batch], edge_index_IS, pos
         )
 
