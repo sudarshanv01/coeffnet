@@ -7,6 +7,9 @@ import torch
 from torch_geometric.data import Data
 from torch_geometric.typing import OptTensor
 
+from pymatgen.core.structure import Molecule
+from pymatgen.analysis.graphs import MoleculeGraph
+
 from minimal_basis.data._dtype import (
     DTYPE,
     DTYPE_INT,
@@ -125,3 +128,48 @@ class HamiltonianDataPoint(Data):
             pos_interpolated_TS=pos_interpolated_TS,
             **kwargs
         )
+
+
+class MatrixSplitAtoms:
+    def __init__(
+        self,
+        matrix: npt.ArrayLike,
+        molecule_graph: MoleculeGraph,
+        basis_info_atom: Dict,
+        **kwargs
+    ):
+        """Split an atomic matrix into node and edge features."""
+
+        atom_basis = [
+            basis_info_atom[atom.species_string] for atom in molecule_graph.molecule
+        ]
+        atom_basis = np.cumsum(atom_basis)
+        # Starting form 0, build the index as a range based on the end
+        # of the basis
+        atom_basis = np.insert(atom_basis, 0, 0)
+        atom_basis = [
+            list(range(atom_basis[i], atom_basis[i + 1]))
+            for i in range(len(atom_basis) - 1)
+        ]
+        self.atom_basis = atom_basis
+
+        # The dimensionality of the node and edge features wil be different
+        # for now
+        node_features = []
+        edge_features = []
+
+        for atom_idx, atom in enumerate(molecule_graph.molecule):
+            _atom_basis = atom_basis[atom_idx]
+            diagonal_block = matrix.take(_atom_basis, axis=1).take(_atom_basis, axis=2)
+            node_features.append(diagonal_block)
+
+        for (src, dst, _) in molecule_graph.graph.edges:
+            _src_basis = atom_basis[src]
+            _dst_basis = atom_basis[dst]
+            off_diagonal_block = matrix.take(_src_basis, axis=1).take(
+                _dst_basis, axis=2
+            )
+            edge_features.append(off_diagonal_block)
+
+        self.node_features = node_features
+        self.edge_features = edge_features

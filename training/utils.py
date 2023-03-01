@@ -1,6 +1,8 @@
 import os
 import datetime
 
+import numpy as np
+
 import torch
 import logging
 
@@ -70,3 +72,52 @@ def get_validation_data_path():
     if not os.path.exists(validation_data_path):
         os.makedirs(validation_data_path, exist_ok=True)
     return validation_data_path
+
+
+def rotate_three_dimensions(alpha, beta, gamma):
+    """Rotate the molecule by arbitrary angles alpha
+    beta and gamma."""
+    cos = np.cos
+    sin = np.sin
+
+    r_matrix = [
+        [
+            cos(alpha) * cos(beta),
+            cos(alpha) * sin(beta) * sin(gamma) - sin(alpha) * cos(gamma),
+            cos(alpha) * sin(beta) * cos(gamma) + sin(alpha) * sin(gamma),
+        ],
+        [
+            sin(alpha) * cos(beta),
+            sin(alpha) * sin(beta) * sin(gamma) + cos(alpha) * cos(gamma),
+            sin(alpha) * sin(beta) * cos(gamma) - cos(alpha) * sin(gamma),
+        ],
+        [-sin(beta), cos(beta) * sin(gamma), cos(beta) * cos(gamma)],
+    ]
+
+    r_matrix = np.array(r_matrix)
+
+    return r_matrix
+
+
+def subdiagonalize_matrix(indices, matrix_H, matrix_S):
+    """Subdiagonalise the matrix."""
+    sub_matrix_H = matrix_H.take(indices, axis=0).take(indices, axis=1)
+    sub_matrix_S = matrix_S.take(indices, axis=0).take(indices, axis=1)
+
+    eigenval, eigenvec = np.linalg.eig(np.linalg.solve(sub_matrix_S, sub_matrix_H))
+
+    # Normalise the eigenvectors
+    for col in eigenvec.T:
+        col /= np.sqrt(np.dot(col.conj(), np.dot(sub_matrix_S, col)))
+
+    t_matrix = np.identity(matrix_H.shape[0])
+
+    for i in range(len(indices)):
+        for j in range(len(indices)):
+            t_matrix[indices[i], indices[j]] = eigenvec[i, j]
+
+    # Unitary transform to get the rearranged Hamiltonian and overlap
+    H_r = np.dot(np.transpose(np.conj(t_matrix)), np.dot(matrix_H, t_matrix))
+    S_r = np.dot(np.transpose(np.conj(t_matrix)), np.dot(matrix_S, t_matrix))
+
+    return H_r, S_r, eigenval
