@@ -144,8 +144,7 @@ class MatrixSplitAtoms:
             basis_info_atom[atom.species_string] for atom in molecule_graph.molecule
         ]
         atom_basis = np.cumsum(atom_basis)
-        # Starting form 0, build the index as a range based on the end
-        # of the basis
+
         atom_basis = np.insert(atom_basis, 0, 0)
         atom_basis = [
             list(range(atom_basis[i], atom_basis[i + 1]))
@@ -153,8 +152,6 @@ class MatrixSplitAtoms:
         ]
         self.atom_basis = atom_basis
 
-        # The dimensionality of the node and edge features wil be different
-        # for now
         node_features = []
         edge_features = []
 
