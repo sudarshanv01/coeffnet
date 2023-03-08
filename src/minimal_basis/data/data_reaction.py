@@ -38,9 +38,7 @@ def convert_to_tensor(
     return x
 
 
-class HamiltonianDataPoint(Data):
-    """Store the Hamiltonian data for the initial_state and final_state."""
-
+class ReactionDataPoint(Data):
     def __init__(
         self,
         x: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
@@ -53,6 +51,7 @@ class HamiltonianDataPoint(Data):
         pos_interpolated_TS: Union[npt.ArrayLike, List[float]] = None,
         **kwargs,
     ):
+        """General purpose data class for reaction data."""
         if pos is not None:
             pos_initial_state, pos_final_state = (
                 pos["initial_state"],
@@ -151,7 +150,7 @@ class CoefficientMatrix:
         set_to_absolute: bool = False,
         **kwargs,
     ):
-        """Store the coefficient matrix and provides some utilities manipulate it."""
+        """Store the coefficient matrix and provides some utilities to manipulate it."""
 
         if store_idx_only is not None:
             self.coefficient_matrix = coefficient_matrix[:, store_idx_only]
@@ -230,8 +229,9 @@ class CoefficientMatrix:
         basis_atom = []
         irreps_all_atom = []
 
-        tot_basis_idx = 0
         for atom in self.molecule_graph.molecule:
+
+            atom_basis_counter = 0
 
             # Store the irreps
             irreps_atom = ""
@@ -246,29 +246,29 @@ class CoefficientMatrix:
             basis_d_ = []
 
             # Store the initial basis functions
-            counter_tot_basis_idx = tot_basis_idx
+            counter_tot_basis_idx = atom_basis_counter
 
             for basis_function in basis_functions:
                 if basis_function == "s":
-                    range_idx = list(range(tot_basis_idx, tot_basis_idx + 1))
+                    range_idx = list(range(atom_basis_counter, atom_basis_counter + 1))
                     basis_s_.append(range_idx)
-                    tot_basis_idx += 1
+                    atom_basis_counter += 1
                     irreps_atom += "+1x0e"
                 elif basis_function == "p":
-                    range_idx = list(range(tot_basis_idx, tot_basis_idx + 3))
+                    range_idx = list(range(atom_basis_counter, atom_basis_counter + 3))
                     basis_p_.append(range_idx)
-                    tot_basis_idx += 3
+                    atom_basis_counter += 3
                     irreps_atom += "+1x1o"
                 elif basis_function == "d":
-                    range_idx = list(range(tot_basis_idx, tot_basis_idx + 5))
+                    range_idx = list(range(atom_basis_counter, atom_basis_counter + 5))
                     basis_d_.append(range_idx)
-                    tot_basis_idx += 5
+                    atom_basis_counter += 5
                     irreps_atom += "+1x2e"
 
             irreps_atom = irreps_atom[1:]
             irreps_all_atom.append(irreps_atom)
 
-            basis_atom.append(list(range(counter_tot_basis_idx, tot_basis_idx)))
+            basis_atom.append(list(range(counter_tot_basis_idx, atom_basis_counter)))
 
             basis_idx_s.append(basis_s_)
             basis_idx_p.append(basis_p_)
@@ -310,3 +310,96 @@ class CoefficientMatrix:
                 self.coefficient_matrix_atom_centers_padded.append(
                     self.coefficient_matrix_atom[atom_idx]
                 )
+
+
+class ModifiedCoefficientMatrix(CoefficientMatrix):
+    def __init__(
+        self,
+        molecule_graph: MoleculeGraph,
+        basis_info_raw: Dict[str, Any],
+        coefficient_matrix: npt.ArrayLike,
+        store_idx_only: int = None,
+        set_to_absolute: bool = False,
+        **kwargs,
+    ):
+        """Modify the coefficient matrix representing each atom by a fixed basis."""
+        super().__init__(
+            molecule_graph=molecule_graph,
+            basis_info_raw=basis_info_raw,
+            coefficient_matrix=coefficient_matrix,
+            store_idx_only=store_idx_only,
+            set_to_absolute=set_to_absolute,
+            **kwargs,
+        )
+
+    def pad_split_coefficient_matrix(self):
+        raise NotImplementedError(
+            "This method is not implemented for this class\
+                                  as the coefficient matrix for each atom is already\
+                                  represented by a fixed basis and hence has the same \
+                                  dimensions."
+        )
+
+    def get_minimal_basis_representation(self):
+        """Return the minimal basis representation of the coefficient matrix."""
+        self.separate_coeff_matrix_to_atom_centers()
+        self.generate_minimal_basis_representation()
+        return self.coefficient_matrix_minimal_basis
+
+    def get_minimal_basis_representation_atom(self, atom_idx):
+        """Return the minimal basis representation of the coefficient matrix for a given atom."""
+        self.separate_coeff_matrix_to_atom_centers()
+        self.generate_minimal_basis_representation()
+        return self.coefficient_matrix_minimal_basis[atom_idx]
+
+    def generate_minimal_basis_representation(self):
+        """Create a minimal basis representation of the coefficient matrix.
+        This representation is created by summing up the s, p components of
+        each atom.
+        """
+
+        self.coefficient_matrix_minimal_basis = np.zeros(
+            [
+                len(self.molecule_graph.molecule),
+                4,  # 1 s + 3 p
+                self.coefficient_matrix.shape[1],
+            ],
+        )
+
+        for atom_idx, atom in enumerate(self.molecule_graph.molecule):
+
+            _s_basis_idx = self.basis_idx_s[atom_idx]
+            _s_basis_idx = np.array(_s_basis_idx)
+            _s_basis_idx = _s_basis_idx.flatten()
+
+            _p_basis_idx = self.basis_idx_p[atom_idx]
+            _p_basis_idx = np.array(_p_basis_idx)
+            if _p_basis_idx.size == 0:
+                _pfunctions_exist = False
+            else:
+                _pfunctions_exist = True
+                _px_basis_idx, _py_basis_idx, _pz_basis_idx = _p_basis_idx.T
+
+            _s_coeff = np.sum(
+                self.coefficient_matrix_atom[atom_idx][_s_basis_idx, :], axis=0
+            )
+            if _pfunctions_exist:
+                _px_coeff = np.sum(
+                    self.coefficient_matrix_atom[atom_idx][_px_basis_idx, :], axis=0
+                )
+                _py_coeff = np.sum(
+                    self.coefficient_matrix_atom[atom_idx][_py_basis_idx, :], axis=0
+                )
+                _pz_coeff = np.sum(
+                    self.coefficient_matrix_atom[atom_idx][_pz_basis_idx, :], axis=0
+                )
+            else:
+                # Populate the p functions with zeros
+                _px_coeff = np.zeros(self.coefficient_matrix_atom[atom_idx].shape[1])
+                _py_coeff = np.zeros(self.coefficient_matrix_atom[atom_idx].shape[1])
+                _pz_coeff = np.zeros(self.coefficient_matrix_atom[atom_idx].shape[1])
+
+            self.coefficient_matrix_minimal_basis[atom_idx] = np.vstack(
+                (_s_coeff, _px_coeff, _py_coeff, _pz_coeff)
+            )
+        print(self.coefficient_matrix_minimal_basis.shape)

@@ -10,7 +10,10 @@ from pymatgen.core.structure import Molecule
 from pymatgen.analysis.local_env import OpenBabelNN
 from pymatgen.analysis.graphs import MoleculeGraph
 
-from minimal_basis.data.data_hamiltonian import CoefficientMatrix
+from minimal_basis.data.data_reaction import (
+    CoefficientMatrix,
+    ModifiedCoefficientMatrix,
+)
 
 
 @pytest.fixture()
@@ -160,3 +163,27 @@ def test_get_padded_coefficient_matrix(rotated_waters_dataset, basis_set, tmp_pa
                 padded_coeff_matrix[atom_irrep.dim :, :],
                 np.zeros_like(padded_coeff_matrix[atom_irrep.dim :, :]),
             )
+
+
+def test_get_minimal_basis_representation(rotated_waters_dataset, basis_set, tmp_path):
+    """Test the minimal basis representation function of ModifiedCoefficientMatrix."""
+    json_dataset = rotated_waters_dataset
+    for data in json_dataset:
+        molecule = data["structures"][0]
+        molecule_graph = MoleculeGraph.with_local_env_strategy(molecule, OpenBabelNN())
+
+        alpha_coeff_matrix = data["coeff_matrices"][0][0]
+        alpha_coeff_matrix = np.array(alpha_coeff_matrix)
+
+        coeff_matrix = ModifiedCoefficientMatrix(
+            molecule_graph=molecule_graph,
+            basis_info_raw=basis_set,
+            coefficient_matrix=alpha_coeff_matrix,
+        )
+
+        minimal_basis_representation = coeff_matrix.get_minimal_basis_representation()
+        assert minimal_basis_representation.shape == (
+            len(molecule_graph.molecule),
+            4,
+            alpha_coeff_matrix.shape[1],
+        )
