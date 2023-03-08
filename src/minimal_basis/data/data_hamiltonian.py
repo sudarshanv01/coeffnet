@@ -13,6 +13,8 @@ from torch_geometric.typing import OptTensor
 from pymatgen.core.structure import Molecule
 from pymatgen.analysis.graphs import MoleculeGraph
 
+from e3nn import o3
+
 from minimal_basis.data._dtype import (
     DTYPE,
     DTYPE_INT,
@@ -135,7 +137,11 @@ class HamiltonianDataPoint(Data):
         )
 
 
-class CoefficientMatrixToAtoms:
+class CoefficientMatrix:
+
+    l_to_n_basis = {"s": 0, "p": 1, "d": 2, "f": 3, "g": 4, "h": 5}
+    n_to_l_basis = {0: "s", 1: "p", 2: "d", 3: "f", 4: "g", 5: "h"}
+
     def __init__(
         self,
         molecule_graph: MoleculeGraph,
@@ -145,14 +151,45 @@ class CoefficientMatrixToAtoms:
         **kwargs,
     ):
         """Store the coefficient matrix and provides some utilities manipulate it."""
-        if store_idx_only:
+
+        if store_idx_only is not None:
             self.coefficient_matrix = coefficient_matrix[:, store_idx_only]
-            self.coefficient_matrix = self.coefficient_matrix[:, np.newaxis, :]
+            self.coefficient_matrix = self.coefficient_matrix[:, np.newaxis]
         else:
             self.coefficient_matrix = coefficient_matrix
 
         self.molecule_graph = molecule_graph
         self.basis_info_raw = basis_info_raw
+
+        self.parse_basis_data()
+        self.get_basis_index()
+
+    def get_coefficient_matrix(self):
+        return self.coefficient_matrix
+
+    def get_coefficient_matrix_for_basis_function(self, basis_idx: int):
+        """Return the coefficient matrix for a given basis_function."""
+        return self.coefficient_matrix[basis_idx, :]
+
+    def get_coefficient_matrix_for_eigenstate(self, eigenstate_idx: int):
+        """Return the coefficient matrix for a given eigenstate."""
+        return self.coefficient_matrix[:, eigenstate_idx]
+
+    def get_coefficient_matrix_for_atom(self, atom_idx: int):
+        """Return the coefficient matrix for a given atom."""
+        self.separate_coeff_matrix_to_atom_centers()
+        return self.coefficient_matrix_atom[atom_idx]
+
+    def get_irreps_for_atom(self, atom_idx: int):
+        """Return the irreps for a given atom."""
+        self.separate_coeff_matrix_to_atom_centers()
+        return o3.Irreps(self.irreps_all_atom[atom_idx])
+
+    def get_padded_coefficient_matrix_for_atom(self, atom_idx: int):
+        """Return the coefficient matrix for a given atom."""
+        self.separate_coeff_matrix_to_atom_centers()
+        self.pad_split_coefficient_matrix()
+        return self.coefficient_matrix_atom_centers_padded[atom_idx]
 
     def parse_basis_data(self):
         """Parse the basis information from data from basissetexchange.org
@@ -160,15 +197,15 @@ class CoefficientMatrixToAtoms:
         for each atom. The resulting dictionary, self.basis_info contains the
         total set of basis functions for each atom.
         """
-        # Create a new dict with the basis information
-        logger.info(f"Parsing basis information from {self.basis_file}")
+
+        logger.info(f"Parsing basis information from {self.basis_info_raw}")
 
         self.basis_info = {}
 
         for atom_number in self.basis_info_raw["elements"]:
             angular_momentum_all = []
             for basis_index, basis_functions in enumerate(
-                self.basis_info_raw[atom_number]["electron_shells"]
+                self.basis_info_raw["elements"][atom_number]["electron_shells"]
             ):
                 angular_momentum_all.extend(basis_functions["angular_momentum"])
             angular_momentum_all = [
@@ -180,26 +217,23 @@ class CoefficientMatrixToAtoms:
         """Get the atomic number of an element based on the symbol."""
         return ase_data.atomic_numbers[symbol]
 
-    def get_basis_index(self, molecule):
+    def get_basis_index(self):
         """Get the basis index for each atom in the atom in the molecule."""
 
-        # Basis information
-        basis_s = []
-        basis_p = []
-        basis_d = []
-
-        # Store the grouping of the basis index of each atom in the molecule
+        basis_idx_s = []
+        basis_idx_p = []
+        basis_idx_d = []
         basis_atom = []
         irreps_all_atom = []
 
         tot_basis_idx = 0
-        for atom_name in molecule.species:
+        for atom in self.molecule_graph.molecule:
 
             # Store the irreps
             irreps_atom = ""
 
             # Get the basis functions for this atom
-            atomic_number = self._get_atomic_number(atom_name.symbol)
+            atomic_number = self._get_atomic_number(atom.species_string)
             basis_functions = self.basis_info[atomic_number]
 
             # Get the atom specific list
@@ -230,55 +264,45 @@ class CoefficientMatrixToAtoms:
             irreps_atom = irreps_atom[1:]
             irreps_all_atom.append(irreps_atom)
 
-            # Store the basis index for this atom
             basis_atom.append(list(range(counter_tot_basis_idx, tot_basis_idx)))
 
-            # Store the s,p and d basis functions for this atom
-            basis_s.append(basis_s_)
-            basis_p.append(basis_p_)
-            basis_d.append(basis_d_)
+            basis_idx_s.append(basis_s_)
+            basis_idx_p.append(basis_p_)
+            basis_idx_d.append(basis_d_)
 
-        # Split the Hamilonian into node and edge features
-        all_basis_idx = [basis_s, basis_p, basis_d]
+        self.basis_idx_s = basis_idx_s
+        self.basis_idx_p = basis_idx_p
+        self.basis_idx_d = basis_idx_d
+        self.basis_atom = basis_atom
+        self.irreps_all_atom = irreps_all_atom
 
+    def separate_coeff_matrix_to_atom_centers(self):
+        """Split the coefficients to the atoms they belong to."""
 
-class MatrixSplitAtoms:
-    def __init__(
-        self,
-        matrix: npt.ArrayLike,
-        molecule_graph: MoleculeGraph,
-        basis_info_atom: Dict,
-        **kwargs,
-    ):
-        """Split an atomic matrix into node and edge features."""
+        self.coefficient_matrix_atom = []
+        for atom_idx, atom in enumerate(self.molecule_graph.molecule):
+            _atom_basis = self.basis_atom[atom_idx]
+            self.coefficient_matrix_atom.append(self.coefficient_matrix[_atom_basis, :])
 
-        atom_basis = [
-            basis_info_atom[atom.species_string] for atom in molecule_graph.molecule
-        ]
-        atom_basis = np.cumsum(atom_basis)
+    def pad_split_coefficient_matrix(self):
+        """Once split, pad the coefficient matrix to the maximum number of basis."""
 
-        atom_basis = np.insert(atom_basis, 0, 0)
-        atom_basis = [
-            list(range(atom_basis[i], atom_basis[i + 1]))
-            for i in range(len(atom_basis) - 1)
-        ]
-        self.atom_basis = atom_basis
+        max_basis = max([len(atom) for atom in self.basis_atom])
 
-        node_features = []
-        edge_features = []
+        self.coefficient_matrix_atom_centers_padded = []
 
-        for atom_idx, atom in enumerate(molecule_graph.molecule):
-            _atom_basis = atom_basis[atom_idx]
-            diagonal_block = matrix.take(_atom_basis, axis=1).take(_atom_basis, axis=2)
-            node_features.append(diagonal_block)
-
-        for (src, dst, _) in molecule_graph.graph.edges:
-            _src_basis = atom_basis[src]
-            _dst_basis = atom_basis[dst]
-            off_diagonal_block = matrix.take(_src_basis, axis=1).take(
-                _dst_basis, axis=2
-            )
-            edge_features.append(off_diagonal_block)
-
-        self.node_features = node_features
-        self.edge_features = edge_features
+        for atom_idx, atom in enumerate(self.molecule_graph.molecule):
+            _atom_basis = self.basis_atom[atom_idx]
+            if len(_atom_basis) < max_basis:
+                pad = max_basis - len(_atom_basis)
+                self.coefficient_matrix_atom_centers_padded.append(
+                    np.pad(
+                        self.coefficient_matrix_atom[atom_idx],
+                        ((0, pad), (0, 0)),
+                        "constant",
+                    )
+                )
+            else:
+                self.coefficient_matrix_atom_centers_padded.append(
+                    self.coefficient_matrix_atom[atom_idx]
+                )
