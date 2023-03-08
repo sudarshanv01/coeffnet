@@ -151,7 +151,12 @@ def test_get_padded_coefficient_matrix(rotated_waters_dataset, basis_set, tmp_pa
                 max_dim = irrep.dim
 
         for atom_idx, atom in enumerate(molecule_graph.molecule):
+            atom_irrep = coeff_matrix.get_irreps_for_atom(atom_idx)
             padded_coeff_matrix = coeff_matrix.get_padded_coefficient_matrix_for_atom(
                 atom_idx=atom_idx
             )
             assert padded_coeff_matrix.shape == (max_dim, alpha_coeff_matrix.shape[1])
+            assert np.allclose(
+                padded_coeff_matrix[atom_irrep.dim :, :],
+                np.zeros_like(padded_coeff_matrix[atom_irrep.dim :, :]),
+            )

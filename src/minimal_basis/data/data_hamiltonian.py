@@ -148,6 +148,7 @@ class CoefficientMatrix:
         basis_info_raw: Dict[str, Any],
         coefficient_matrix: npt.ArrayLike,
         store_idx_only: int = None,
+        set_to_absolute: bool = False,
         **kwargs,
     ):
         """Store the coefficient matrix and provides some utilities manipulate it."""
@@ -157,6 +158,9 @@ class CoefficientMatrix:
             self.coefficient_matrix = self.coefficient_matrix[:, np.newaxis]
         else:
             self.coefficient_matrix = coefficient_matrix
+
+        if set_to_absolute:
+            self.coefficient_matrix = np.abs(self.coefficient_matrix)
 
         self.molecule_graph = molecule_graph
         self.basis_info_raw = basis_info_raw
