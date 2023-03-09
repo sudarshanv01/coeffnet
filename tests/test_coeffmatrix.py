@@ -10,6 +10,10 @@ from pymatgen.core.structure import Molecule
 from pymatgen.analysis.local_env import OpenBabelNN
 from pymatgen.analysis.graphs import MoleculeGraph
 
+import torch
+
+from e3nn import o3
+
 from minimal_basis.data.data_reaction import (
     CoefficientMatrix,
     ModifiedCoefficientMatrix,
@@ -186,4 +190,77 @@ def test_get_minimal_basis_representation(rotated_waters_dataset, basis_set, tmp
             len(molecule_graph.molecule),
             4,
             alpha_coeff_matrix.shape[1],
+        )
+
+
+def rotate_three_dimensions(alpha, beta, gamma):
+    """Rotate the molecule by arbitrary angles alpha
+    beta and gamma."""
+    cos = np.cos
+    sin = np.sin
+
+    r_matrix = [
+        [
+            cos(alpha) * cos(beta),
+            cos(alpha) * sin(beta) * sin(gamma) - sin(alpha) * cos(gamma),
+            cos(alpha) * sin(beta) * cos(gamma) + sin(alpha) * sin(gamma),
+        ],
+        [
+            sin(alpha) * cos(beta),
+            sin(alpha) * sin(beta) * sin(gamma) + cos(alpha) * cos(gamma),
+            sin(alpha) * sin(beta) * cos(gamma) - cos(alpha) * sin(gamma),
+        ],
+        [-sin(beta), cos(beta) * sin(gamma), cos(beta) * cos(gamma)],
+    ]
+
+    r_matrix = np.array(r_matrix)
+
+    return r_matrix
+
+
+def test_equivariance_minimal_basis_representation(
+    rotated_waters_dataset, basis_set, tmp_path
+):
+    """Test the equivariance of the minimal basis representation."""
+    json_dataset = rotated_waters_dataset
+    atom_idx = 0
+
+    for idx, data in enumerate(json_dataset):
+        molecule = data["structures"][0]
+        molecule_graph = MoleculeGraph.with_local_env_strategy(molecule, OpenBabelNN())
+
+        alpha_coeff_matrix = data["coeff_matrices"][0][0]
+        alpha_coeff_matrix = np.array(alpha_coeff_matrix)
+
+        alpha, beta, gamma = data["angles"]
+
+        rotation_matrix = rotate_three_dimensions(alpha, beta, gamma)
+        rotation_matrix = torch.tensor(rotation_matrix)
+
+        coeff_matrix = ModifiedCoefficientMatrix(
+            molecule_graph=molecule_graph,
+            basis_info_raw=basis_set,
+            coefficient_matrix=alpha_coeff_matrix,
+            store_idx_only=0,
+            set_to_absolute=True,
+        )
+        minimal_basis_representation = (
+            coeff_matrix.get_minimal_basis_representation_atom(atom_idx)
+        )
+
+        if idx == 0:
+            orig_minimal_basis_representation = minimal_basis_representation
+            rotation_matrix_0 = rotation_matrix
+
+        rotation_matrix = rotation_matrix @ rotation_matrix_0.T
+        irreps_output = o3.Irreps("1x0e+1x1o")
+        D_matrix = irreps_output.D_from_matrix(rotation_matrix)
+        D_matrix = D_matrix.detach().numpy()
+
+        rotated_coeff_matrix = orig_minimal_basis_representation.T @ D_matrix.T
+        rotated_coeff_matrix = rotated_coeff_matrix.T
+        rotated_coeff_matrix = np.abs(rotated_coeff_matrix)
+
+        assert np.allclose(
+            minimal_basis_representation, rotated_coeff_matrix, atol=1e-3
         )

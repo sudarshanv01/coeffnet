@@ -402,4 +402,3 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
             self.coefficient_matrix_minimal_basis[atom_idx] = np.vstack(
                 (_s_coeff, _px_coeff, _py_coeff, _pz_coeff)
             )
-        print(self.coefficient_matrix_minimal_basis.shape)
