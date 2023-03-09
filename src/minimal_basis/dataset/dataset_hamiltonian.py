@@ -30,7 +30,7 @@ import itertools
 
 from e3nn import o3
 
-from minimal_basis.data.data_hamiltonian import HamiltonianDataPoint as DataPoint
+from minimal_basis.data.data_reaction import HamiltonianDataPoint as DataPoint
 from minimal_basis.predata.predata_classifier import GenerateParametersClassifier
 
 logger = logging.getLogger(__name__)

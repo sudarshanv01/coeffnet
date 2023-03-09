@@ -43,95 +43,101 @@ class ReactionDataPoint(Data):
         self,
         x: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
         edge_index: Dict[str, Union[npt.ArrayLike, List[int]]] = None,
-        edge_attr: Dict[str, Union[npt.ArrayLike, List[int]]] = None,
         pos: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
-        global_attr: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
-        y: Union[npt.ArrayLike, List[float]] = None,
-        edge_index_interpolated_TS: Union[npt.ArrayLike, List[int]] = None,
-        pos_interpolated_TS: Union[npt.ArrayLike, List[float]] = None,
+        total_energies: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
         **kwargs,
     ):
         """General purpose data class for reaction data."""
+
         if pos is not None:
-            pos_initial_state, pos_final_state = (
-                pos["initial_state"],
-                pos["final_state"],
-            )
+            pos_initial_state = pos["initial_state"]
+            pos_final_state = pos["final_state"]
+            pos_interpolated_transition_state = pos["interpolated_transition_state"]
+            pos_transition_state = pos["transition_state"]
+
             pos_initial_state = convert_to_tensor(pos_initial_state)
             pos_final_state = convert_to_tensor(pos_final_state)
-            pos_interpolated_TS = convert_to_tensor(pos_interpolated_TS)
+            pos_interpolated_transition_state = convert_to_tensor(
+                pos_interpolated_transition_state
+            )
+            pos_transition_state = convert_to_tensor(pos_transition_state)
         else:
             pos_initial_state = None
             pos_final_state = None
-            pos_interpolated_TS = None
+            pos_interpolated_transition_state = None
+            pos_transition_state = None
 
         if x is not None:
-            x_initial_state, x_final_state = x["initial_state"], x["final_state"]
+            x_initial_state = x["initial_state"]
+            x_final_state = x["final_state"]
+            x_transition_state = x["transition_state"]
+
             x_initial_state = convert_to_tensor(x_initial_state)
             x_final_state = convert_to_tensor(x_final_state)
+            x_transition_state = convert_to_tensor(x_transition_state)
+
         else:
             x_initial_state = None
             x_final_state = None
+            x_transition_state = None
 
         if edge_index is not None:
-            edge_index_initial_state, edge_index_final_state = (
-                edge_index["initial_state"],
-                edge_index["final_state"],
-            )
+            edge_index_initial_state = edge_index["initial_state"]
+            edge_index_final_state = edge_index["final_state"]
+            edge_index_interpolated_transition_state = edge_index[
+                "interpolated_transition_state"
+            ]
+            edge_index_transition_state = edge_index["transition_state"]
+
             edge_index_initial_state = convert_to_tensor(
                 edge_index_initial_state, dtype=DTYPE_INT
             )
             edge_index_final_state = convert_to_tensor(
                 edge_index_final_state, dtype=DTYPE_INT
             )
+            edge_index_interpolated_transition_state = convert_to_tensor(
+                edge_index_interpolated_transition_state, dtype=DTYPE_INT
+            )
+            edge_index_transition_state = convert_to_tensor(
+                edge_index_transition_state, dtype=DTYPE_INT
+            )
         else:
             edge_index_initial_state = None
             edge_index_final_state = None
+            edge_index_interpolated_transition_state = None
+            edge_index_transition_state = None
 
-        if edge_index_interpolated_TS is not None:
-            edge_index_interpolated_TS = convert_to_tensor(
-                edge_index_interpolated_TS, dtype=DTYPE_INT
+        if total_energies is not None:
+            total_energy_initial_state = total_energies["initial_state"]
+            total_energy_final_state = total_energies["final_state"]
+            total_energy_transition_state = total_energies["transition_state"]
+
+            total_energy_initial_state = convert_to_tensor(total_energy_initial_state)
+            total_energy_final_state = convert_to_tensor(total_energy_final_state)
+            total_energy_transition_state = convert_to_tensor(
+                total_energy_transition_state
             )
 
-        if edge_attr is not None:
-            edge_attr_initial_state, edge_attr_final_state = (
-                edge_attr["initial_state"],
-                edge_attr["final_state"],
-            )
-            edge_attr_initial_state = convert_to_tensor(edge_attr_initial_state)
-            edge_attr_final_state = convert_to_tensor(edge_attr_final_state)
         else:
-            edge_attr_initial_state = None
-            edge_attr_final_state = None
-
-        if global_attr is not None:
-            global_attr_initial_state, global_attr_final_state = (
-                global_attr["initial_state"],
-                global_attr["final_state"],
-            )
-            global_attr_initial_state = convert_to_tensor(global_attr_initial_state)
-            global_attr_final_state = convert_to_tensor(global_attr_final_state)
-        else:
-            global_attr_initial_state = None
-            global_attr_final_state = None
-
-        if y is not None:
-            y = convert_to_tensor(y)
+            total_energy_initial_state = None
+            total_energy_final_state = None
+            total_energy_transition_state = None
 
         super().__init__(
             x=x_initial_state,
             x_final_state=x_final_state,
-            edge_index=edge_index_initial_state,
-            edge_index_final_state=edge_index_final_state,
-            edge_index_interpolated_TS=edge_index_interpolated_TS,
-            edge_attr=edge_attr_initial_state,
-            edge_attr_final_state=edge_attr_final_state,
+            x_transition_state=x_transition_state,
             pos=pos_initial_state,
             pos_final_state=pos_final_state,
-            global_attr=global_attr_initial_state,
-            global_attr_final_state=global_attr_final_state,
-            y=y,
-            pos_interpolated_TS=pos_interpolated_TS,
+            pos_interpolated_transition_state=pos_interpolated_transition_state,
+            pos_transition_state=pos_transition_state,
+            edge_index=edge_index_initial_state,
+            edge_index_final_state=edge_index_final_state,
+            edge_index_interpolated_transition_state=edge_index_interpolated_transition_state,
+            edge_index_transition_state=edge_index_transition_state,
+            total_energy=total_energy_initial_state,
+            total_energy_final_state=total_energy_final_state,
+            total_energy_transition_state=total_energy_transition_state,
             **kwargs,
         )
 
@@ -201,7 +207,7 @@ class CoefficientMatrix:
         total set of basis functions for each atom.
         """
 
-        logger.info(f"Parsing basis information from {self.basis_info_raw}")
+        logger.debug(f"Parsing basis information from {self.basis_info_raw}")
 
         self.basis_info = {}
 
@@ -313,6 +319,9 @@ class CoefficientMatrix:
 
 
 class ModifiedCoefficientMatrix(CoefficientMatrix):
+
+    minimal_basis_irrep = o3.Irreps("1x0e+1x1o")
+
     def __init__(
         self,
         molecule_graph: MoleculeGraph,

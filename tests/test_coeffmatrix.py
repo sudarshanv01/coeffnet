@@ -19,139 +19,109 @@ from minimal_basis.data.data_reaction import (
     ModifiedCoefficientMatrix,
 )
 
-
-@pytest.fixture()
-def rotated_waters_dataset(tmp_path):
-    """Read in the rotated waters dataset and return it."""
-    basedir = Path(__file__).parent
-    json_dataset = loadfn(basedir / "inputs" / "rotated_waters_dataset.json")
-    return json_dataset
+from conftest import create_CoeffMatrix
 
 
-@pytest.fixture()
-def basis_set(tmp_path):
-    """Read in the basis set and return it."""
-    basedir = Path(__file__).parent
-    basis_set = loadfn(basedir / "inputs" / "sto-3g.json")
-    return basis_set
-
-
-def test_get_coefficient_matrix(rotated_waters_dataset, basis_set, tmp_path):
+@pytest.mark.dataset("rotated_waters")
+def test_get_coefficient_matrix_rotated_waters(create_CoeffMatrix):
     """Test return coefficient matrix."""
-    json_dataset = rotated_waters_dataset
-    for data in json_dataset:
-        molecule = data["structures"][0]
-        molecule_graph = MoleculeGraph.with_local_env_strategy(molecule, OpenBabelNN())
 
-        alpha_coeff_matrix = data["coeff_matrices"][0][0]
+    coeff_data = create_CoeffMatrix
 
-        coeff_matrix = CoefficientMatrix(
-            molecule_graph=molecule_graph,
-            basis_info_raw=basis_set,
-            coefficient_matrix=alpha_coeff_matrix,
-        )
+    for _coeff_data in coeff_data:
+        coeff_matrix = _coeff_data["coeff_matrix"]
+        alpha_coeff_matrix = _coeff_data["alpha_coeff_matrix"]
         assert np.allclose(coeff_matrix.get_coefficient_matrix(), alpha_coeff_matrix)
 
 
-def test_get_coefficient_matrix_single_eigenvalue(
-    rotated_waters_dataset, basis_set, tmp_path
-):
+@pytest.mark.dataset("rotated_sn2")
+def test_get_coefficient_matrix_rotated_sn2(create_CoeffMatrix):
+    """Test return coefficient matrix."""
+
+    coeff_data = create_CoeffMatrix
+
+    for _coeff_data in coeff_data:
+        coeff_matrix = _coeff_data["coeff_matrix"]
+        alpha_coeff_matrix = _coeff_data["alpha_coeff_matrix"]
+        assert np.allclose(coeff_matrix.get_coefficient_matrix(), alpha_coeff_matrix)
+
+
+@pytest.mark.dataset("rotated_waters")
+@pytest.mark.eigenvalue_number("single")
+def test_get_coefficient_matrix_single_eigenvalue_rotated_waters(create_CoeffMatrix):
     """Take the coefficient matrix and return the single eigenvalue."""
-    json_dataset = rotated_waters_dataset
-    for data in json_dataset:
-        molecule = data["structures"][0]
-        molecule_graph = MoleculeGraph.with_local_env_strategy(molecule, OpenBabelNN())
+    coeff_data = create_CoeffMatrix
 
-        alpha_coeff_matrix = data["coeff_matrices"][0][0]
-        alpha_coeff_matrix = np.array(alpha_coeff_matrix)
-        idx_eigenvalue = 0
-        single_eigenval_alpha_coeff_matrix = alpha_coeff_matrix[:, idx_eigenvalue]
-        single_eigenval_alpha_coeff_matrix = single_eigenval_alpha_coeff_matrix[
-            :, np.newaxis
-        ]
+    for _coeff_data in coeff_data:
+        coeff_matrix = _coeff_data["coeff_matrix"]
+        alpha_coeff_matrix = _coeff_data["alpha_coeff_matrix"]
 
-        coeff_matrix = CoefficientMatrix(
-            molecule_graph=molecule_graph,
-            basis_info_raw=basis_set,
-            coefficient_matrix=alpha_coeff_matrix,
-            store_idx_only=idx_eigenvalue,
-        )
         assert np.allclose(
-            coeff_matrix.get_coefficient_matrix(), single_eigenval_alpha_coeff_matrix
+            coeff_matrix.get_coefficient_matrix(),
+            alpha_coeff_matrix,
         )
 
 
-def test_get_coefficient_matrix_for_atom(rotated_waters_dataset, basis_set, tmp_path):
+@pytest.mark.dataset("rotated_sn2")
+@pytest.mark.eigenvalue_number("single")
+def test_get_coefficient_matrix_single_eigenvalue_rotated_sn2(create_CoeffMatrix):
+    """Take the coefficient matrix and return the single eigenvalue."""
+    coeff_data = create_CoeffMatrix
+
+    for _coeff_data in coeff_data:
+        coeff_matrix = _coeff_data["coeff_matrix"]
+        alpha_coeff_matrix = _coeff_data["alpha_coeff_matrix"]
+
+        assert np.allclose(
+            coeff_matrix.get_coefficient_matrix(),
+            alpha_coeff_matrix,
+        )
+
+
+@pytest.mark.dataset("rotated_waters")
+def test_get_coefficient_matrix_for_atom_rotated_waters(create_CoeffMatrix):
     """Take the coefficient matrix and return the coefficient matrix for a single atom."""
-    json_dataset = rotated_waters_dataset
-    for data in json_dataset:
-        molecule = data["structures"][0]
-        molecule_graph = MoleculeGraph.with_local_env_strategy(molecule, OpenBabelNN())
+    coeff_data = create_CoeffMatrix
+    idx_atom = 0
 
-        alpha_coeff_matrix = data["coeff_matrices"][0][0]
-        alpha_coeff_matrix = np.array(alpha_coeff_matrix)
+    for _coeff_data in coeff_data:
+        coeff_matrix = _coeff_data["coeff_matrix"]
+        alpha_coeff_matrix = _coeff_data["alpha_coeff_matrix"]
 
-        coeff_matrix = CoefficientMatrix(
-            molecule_graph=molecule_graph,
-            basis_info_raw=basis_set,
-            coefficient_matrix=alpha_coeff_matrix,
-        )
-
-        idx_atom = 0
         atom_coeff_matrix = coeff_matrix.get_coefficient_matrix_for_atom(idx_atom)
         atom_irrep = coeff_matrix.get_irreps_for_atom(idx_atom)
 
         assert atom_coeff_matrix.shape == (atom_irrep.dim, alpha_coeff_matrix.shape[1])
 
 
-def test_get_coefficient_matrix_for_atom_single_eigenvalue(
-    rotated_waters_dataset, basis_set, tmp_path
-):
+@pytest.mark.dataset("rotated_sn2")
+def test_get_coefficient_matrix_for_atom_rotated_sn2(create_CoeffMatrix):
     """Take the coefficient matrix and return the coefficient matrix for a single atom."""
-    json_dataset = rotated_waters_dataset
-    for data in json_dataset:
-        molecule = data["structures"][0]
-        molecule_graph = MoleculeGraph.with_local_env_strategy(molecule, OpenBabelNN())
+    coeff_data = create_CoeffMatrix
+    idx_atom = 0
 
-        alpha_coeff_matrix = data["coeff_matrices"][0][0]
-        alpha_coeff_matrix = np.array(alpha_coeff_matrix)
-        idx_eigenvalue = 0
-        single_eigenval_alpha_coeff_matrix = alpha_coeff_matrix[:, idx_eigenvalue]
-        single_eigenval_alpha_coeff_matrix = single_eigenval_alpha_coeff_matrix[
-            :, np.newaxis
-        ]
+    for _coeff_data in coeff_data:
+        coeff_matrix = _coeff_data["coeff_matrix"]
+        alpha_coeff_matrix = _coeff_data["alpha_coeff_matrix"]
 
-        coeff_matrix = CoefficientMatrix(
-            molecule_graph=molecule_graph,
-            basis_info_raw=basis_set,
-            coefficient_matrix=alpha_coeff_matrix,
-            store_idx_only=idx_eigenvalue,
-        )
-
-        idx_atom = 0
         atom_coeff_matrix = coeff_matrix.get_coefficient_matrix_for_atom(idx_atom)
         atom_irrep = coeff_matrix.get_irreps_for_atom(idx_atom)
 
-        assert atom_coeff_matrix.shape == (atom_irrep.dim, 1)
+        assert atom_coeff_matrix.shape == (atom_irrep.dim, alpha_coeff_matrix.shape[1])
 
 
-def test_get_padded_coefficient_matrix(rotated_waters_dataset, basis_set, tmp_path):
+@pytest.mark.dataset("rotated_waters")
+def test_get_padded_coefficient_matrix(create_CoeffMatrix):
     """Take the coefficient matrix and return the padded coefficient matrix."""
-    json_dataset = rotated_waters_dataset
-    for data in json_dataset:
-        molecule = data["structures"][0]
-        molecule_graph = MoleculeGraph.with_local_env_strategy(molecule, OpenBabelNN())
+    coeff_data = create_CoeffMatrix
+    idx_atom = 0
 
-        alpha_coeff_matrix = data["coeff_matrices"][0][0]
-        alpha_coeff_matrix = np.array(alpha_coeff_matrix)
-
-        coeff_matrix = CoefficientMatrix(
-            molecule_graph=molecule_graph,
-            basis_info_raw=basis_set,
-            coefficient_matrix=alpha_coeff_matrix,
-        )
-
+    for _coeff_data in coeff_data:
+        coeff_matrix = _coeff_data["coeff_matrix"]
+        alpha_coeff_matrix = _coeff_data["alpha_coeff_matrix"]
+        molecule_graph = _coeff_data["molecule_graph"]
         max_dim = 0
+
         for atom_idx, atom in enumerate(molecule_graph.molecule):
             irrep = coeff_matrix.get_irreps_for_atom(atom_idx)
             if irrep.dim > max_dim:
@@ -169,21 +139,16 @@ def test_get_padded_coefficient_matrix(rotated_waters_dataset, basis_set, tmp_pa
             )
 
 
-def test_get_minimal_basis_representation(rotated_waters_dataset, basis_set, tmp_path):
+@pytest.mark.dataset("rotated_waters")
+@pytest.mark.type_coeff_matrix("modified")
+def test_get_minimal_basis_representation(create_CoeffMatrix):
     """Test the minimal basis representation function of ModifiedCoefficientMatrix."""
-    json_dataset = rotated_waters_dataset
-    for data in json_dataset:
-        molecule = data["structures"][0]
-        molecule_graph = MoleculeGraph.with_local_env_strategy(molecule, OpenBabelNN())
+    coeff_data = create_CoeffMatrix
 
-        alpha_coeff_matrix = data["coeff_matrices"][0][0]
-        alpha_coeff_matrix = np.array(alpha_coeff_matrix)
-
-        coeff_matrix = ModifiedCoefficientMatrix(
-            molecule_graph=molecule_graph,
-            basis_info_raw=basis_set,
-            coefficient_matrix=alpha_coeff_matrix,
-        )
+    for _coeff_data in coeff_data:
+        coeff_matrix = _coeff_data["coeff_matrix"]
+        alpha_coeff_matrix = _coeff_data["alpha_coeff_matrix"]
+        molecule_graph = _coeff_data["molecule_graph"]
 
         minimal_basis_representation = coeff_matrix.get_minimal_basis_representation()
         assert minimal_basis_representation.shape == (
@@ -218,32 +183,24 @@ def rotate_three_dimensions(alpha, beta, gamma):
     return r_matrix
 
 
-def test_equivariance_minimal_basis_representation(
-    rotated_waters_dataset, basis_set, tmp_path
-):
+@pytest.mark.dataset("rotated_waters")
+@pytest.mark.type_coeff_matrix("modified")
+@pytest.mark.set_absolute(True)
+@pytest.mark.eigenvalue_number("single")
+def test_equivariance_minimal_basis_representation_rotated_waters(create_CoeffMatrix):
     """Test the equivariance of the minimal basis representation."""
-    json_dataset = rotated_waters_dataset
+    coeff_data = create_CoeffMatrix
     atom_idx = 0
+    expected_irreps_output = o3.Irreps("1x0e+1x1o")
 
-    for idx, data in enumerate(json_dataset):
-        molecule = data["structures"][0]
-        molecule_graph = MoleculeGraph.with_local_env_strategy(molecule, OpenBabelNN())
+    for idx, _coeff_data in enumerate(coeff_data):
 
-        alpha_coeff_matrix = data["coeff_matrices"][0][0]
-        alpha_coeff_matrix = np.array(alpha_coeff_matrix)
-
-        alpha, beta, gamma = data["angles"]
+        coeff_matrix = _coeff_data["coeff_matrix"]
+        alpha, beta, gamma = _coeff_data["angles"]
 
         rotation_matrix = rotate_three_dimensions(alpha, beta, gamma)
         rotation_matrix = torch.tensor(rotation_matrix)
 
-        coeff_matrix = ModifiedCoefficientMatrix(
-            molecule_graph=molecule_graph,
-            basis_info_raw=basis_set,
-            coefficient_matrix=alpha_coeff_matrix,
-            store_idx_only=0,
-            set_to_absolute=True,
-        )
         minimal_basis_representation = (
             coeff_matrix.get_minimal_basis_representation_atom(atom_idx)
         )
@@ -253,8 +210,46 @@ def test_equivariance_minimal_basis_representation(
             rotation_matrix_0 = rotation_matrix
 
         rotation_matrix = rotation_matrix @ rotation_matrix_0.T
-        irreps_output = o3.Irreps("1x0e+1x1o")
-        D_matrix = irreps_output.D_from_matrix(rotation_matrix)
+        D_matrix = expected_irreps_output.D_from_matrix(rotation_matrix)
+        D_matrix = D_matrix.detach().numpy()
+
+        rotated_coeff_matrix = orig_minimal_basis_representation.T @ D_matrix.T
+        rotated_coeff_matrix = rotated_coeff_matrix.T
+        rotated_coeff_matrix = np.abs(rotated_coeff_matrix)
+
+        assert np.allclose(
+            minimal_basis_representation, rotated_coeff_matrix, atol=1e-3
+        )
+
+
+@pytest.mark.dataset("rotated_sn2")
+@pytest.mark.type_coeff_matrix("modified")
+@pytest.mark.set_absolute(True)
+@pytest.mark.eigenvalue_number("single")
+def test_equivariance_minimal_basis_representation_rotated_sn2(create_CoeffMatrix):
+    """Test the equivariance of the minimal basis representation."""
+    coeff_data = create_CoeffMatrix
+    atom_idx = 0
+    expected_irreps_output = o3.Irreps("1x0e+1x1o")
+
+    for idx, _coeff_data in enumerate(coeff_data):
+
+        coeff_matrix = _coeff_data["coeff_matrix"]
+        alpha, beta, gamma = _coeff_data["angles"]
+
+        rotation_matrix = rotate_three_dimensions(alpha, beta, gamma)
+        rotation_matrix = torch.tensor(rotation_matrix)
+
+        minimal_basis_representation = (
+            coeff_matrix.get_minimal_basis_representation_atom(atom_idx)
+        )
+
+        if idx == 0:
+            orig_minimal_basis_representation = minimal_basis_representation
+            rotation_matrix_0 = rotation_matrix
+
+        rotation_matrix = rotation_matrix @ rotation_matrix_0.T
+        D_matrix = expected_irreps_output.D_from_matrix(rotation_matrix)
         D_matrix = D_matrix.detach().numpy()
 
         rotated_coeff_matrix = orig_minimal_basis_representation.T @ D_matrix.T
