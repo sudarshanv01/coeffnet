@@ -121,6 +121,10 @@ class HamiltonianDataset(InMemoryDataset):
     sigma = 0.25
     alpha = 1.0
 
+    mu = 0.5
+    sigma = 0.25
+    alpha = 1.0
+
     def __init__(
         self,
         filename: Union[str, Path] = None,
@@ -324,6 +328,7 @@ class HamiltonianDataset(InMemoryDataset):
                 if state == "transition_state":
                     y = final_energy[idx_state]
                     pos_real_ts = structures[idx_state].cart_coords
+                    pos_real_ts = structures[idx_state].cart_coords
                     continue
                 elif state == "initial_state":
                     y_IS = final_energy[idx_state]
@@ -452,12 +457,15 @@ class HamiltonianDataset(InMemoryDataset):
                     )
                 global_attr = accepted_eigenvalues.reshape(1, -1)
                 data_to_store["global_attr"][state] = global_attr
+                global_attr = accepted_eigenvalues.reshape(1, -1)
+                data_to_store["global_attr"][state] = global_attr
 
             # Interpolate the initial and final state structures to get the
             # approximate transition state structure
             initial_states_structure = structures[states.index("initial_state")]
             final_states_structure = structures[states.index("final_state")]
 
+            instance_generate = GenerateParametersClassifier()
             instance_generate = GenerateParametersClassifier()
             interpolated_transition_state_pos = (
                 instance_generate.get_interpolated_transition_state_positions(
