@@ -120,6 +120,13 @@ class ReactionDataset(InMemoryDataset):
                 positions = molecule_graph.molecule.cart_coords
                 data_to_store["pos"][state] = positions
 
+                species_in_molecule = molecule_graph.molecule.species
+                species_in_molecule = [
+                    ase_data.chemical_symbols.index(species.symbol)
+                    for species in species_in_molecule
+                ]
+                data_to_store["species"][state] = species_in_molecule
+
                 edges_for_graph = molecule_graph.graph.edges
                 edges_for_graph = [list(edge[:-1]) for edge in edges_for_graph]
                 edge_index = np.array(edges_for_graph).T
@@ -200,6 +207,7 @@ class ReactionDataset(InMemoryDataset):
                 x=data_to_store["node_features"],
                 total_energies=data_to_store["total_energies"],
                 minimal_basis_irrep=minimal_basis_irrep,
+                species=data_to_store["species"],
             )
 
             datapoint_list.append(datapoint)

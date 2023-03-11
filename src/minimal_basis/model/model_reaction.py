@@ -5,6 +5,8 @@ import e3nn
 from e3nn import o3
 from e3nn.math import soft_one_hot_linspace
 
+from e3nn.nn.models.gate_points_2102 import Network
+
 
 class EquivariantConv(torch.nn.Module):
     def __init__(
@@ -102,6 +104,21 @@ class ReactionModel(torch.nn.Module):
             irreps_in=irreps_in,
             irreps_out=irreps_out,
         )
+
+        # self.network = Network(
+        #     irreps_in=None,
+        #     irreps_hidden="1x0e+1x1e",
+        #     irreps_out="1x0e+1x1e",
+        #     irreps_node_attr="1x0e+1x1e",
+        #     irreps_edge_attr="1x0e+1x1e+1x2e",
+        #     layers=hidden_layers,
+        #     max_radius=max_radius,
+        #     number_of_basis=num_basis,
+        #     radial_layers=hidden_layers,
+        #     radial_neurons=hidden_layers,
+        #     num_neighbors=typical_num_neighbors,
+        #     num_nodes=typical_num_nodes,
+        # )
 
     def forward(self, data):
         """Forward pass of the reaction model."""

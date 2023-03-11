@@ -45,6 +45,7 @@ class ReactionDataPoint(Data):
         edge_index: Dict[str, Union[npt.ArrayLike, List[int]]] = None,
         pos: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
         total_energies: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
+        species: Dict[str, Union[npt.ArrayLike, List[int]]] = None,
         **kwargs,
     ):
         """General purpose data class for reaction data."""
@@ -123,6 +124,26 @@ class ReactionDataPoint(Data):
             total_energy_final_state = None
             total_energy_transition_state = None
 
+        if species is not None:
+            species_initial_state = species["initial_state"]
+            species_final_state = species["final_state"]
+            species_transition_state = species["transition_state"]
+
+            species_initial_state = convert_to_tensor(
+                species_initial_state, dtype=DTYPE_INT
+            )
+            species_final_state = convert_to_tensor(
+                species_final_state, dtype=DTYPE_INT
+            )
+            species_transition_state = convert_to_tensor(
+                species_transition_state, dtype=DTYPE_INT
+            )
+
+        else:
+            species_initial_state = None
+            species_final_state = None
+            species_transition_state = None
+
         super().__init__(
             x=x_initial_state,
             x_final_state=x_final_state,
@@ -138,6 +159,9 @@ class ReactionDataPoint(Data):
             total_energy=total_energy_initial_state,
             total_energy_final_state=total_energy_final_state,
             total_energy_transition_state=total_energy_transition_state,
+            species_initial_state=species_initial_state,
+            species_final_state=species_final_state,
+            species_transition_state=species_transition_state,
             **kwargs,
         )
 
