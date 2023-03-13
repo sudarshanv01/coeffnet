@@ -1,6 +1,5 @@
 import os
 import logging
-import json
 
 import numpy as np
 
@@ -12,8 +11,6 @@ from torch_geometric.loader import DataLoader
 from minimal_basis.dataset.dataset_reaction import ReactionDataset as Dataset
 from minimal_basis.model.model_reaction import ReactionModel as Model
 
-from e3nn import o3
-
 from utils import (
     get_test_data_path,
     get_validation_data_path,
@@ -22,8 +19,6 @@ from utils import (
 )
 
 import torch.nn.functional as F
-
-import matplotlib.pyplot as plt
 
 LOGFILES_FOLDER = "log_files"
 logging.basicConfig(
@@ -68,9 +63,8 @@ def train(train_loader):
 
     model.train()
 
-    # Store all the loses
     losses = 0.0
-
+    num_graphs = 0
     for train_batch in train_loader:
         data = train_batch.to(DEVICE)
         optim.zero_grad()
@@ -78,18 +72,21 @@ def train(train_loader):
         predicted_y = model(data)
         real_y = data.x_transition_state
 
-        loss = F.mse_loss(predicted_y, real_y)
+        predicted_y = torch.abs(predicted_y)
+        loss = F.l1_loss(predicted_y, real_y, reduction="sum")
         loss.backward()
 
         # Add up the loss
-        losses += loss.item() * train_batch.num_graphs
+        losses += loss.item()
+
+        num_graphs += train_batch.num_graphs
 
         # Take an optimizer step
         optim.step()
 
-    rmse = np.sqrt(losses / len(train_loader))
+    output_metric = losses / num_graphs
 
-    return rmse
+    return output_metric
 
 
 @torch.no_grad()
@@ -119,31 +116,13 @@ if __name__ == "__main__":
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     logging.info(f"Device: {DEVICE}")
 
-    # --- Inputs
     inputs = read_inputs_yaml(os.path.join("input_files", "reaction_model.yaml"))
-
-    if args.use_best_config:
-        best_config = json.load(open("output/best_config_reaction.json", "r"))
-        batch_size = best_config["batch_size"]
-        learning_rate = best_config["learning_rate"]
-
-        # Replace args with best config
-        hidden_channels = best_config["hidden_channels"]
-        num_basis = best_config["num_basis"]
-
-    else:
-        batch_size = inputs["batch_size"]
-        learning_rate = inputs["learning_rate"]
-        hidden_channels = inputs["hidden_channels"]
-        num_basis = inputs["num_basis"]
-
-    epochs = inputs["epochs"]
 
     if args.use_wandb:
         wandb.config = {
-            "learning_rate": learning_rate,
-            "epochs": epochs,
-            "batch_size": batch_size,
+            "learning_rate": inputs["learning_rate"],
+            "epochs": inputs["epochs"],
+            "batch_size": inputs["batch_size"],
         }
 
     if args.debug:
@@ -153,7 +132,6 @@ if __name__ == "__main__":
         train_json_filename = inputs["train_json"]
         validate_json_filename = inputs["validate_json"]
 
-    # Create the training and test datasets
     train_dataset = Dataset(
         root=get_train_data_path(),
         filename=train_json_filename,
@@ -170,24 +148,32 @@ if __name__ == "__main__":
     if args.reprocess_dataset:
         validate_dataset.process()
 
-    # Create a dataloader for the train_dataset
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    train_loader = DataLoader(
+        train_dataset, batch_size=inputs["batch_size"], shuffle=True
+    )
     validate_loader = DataLoader(
         validate_dataset, batch_size=len(validate_dataset), shuffle=False
     )
-    # Figure out the number of features
-    num_node_features = train_dataset.num_node_features
-    num_edge_features = train_dataset.num_edge_features
-    print(f"Number of node features: {num_node_features}")
-    print(f"Number of edge features: {num_edge_features}")
+
+    typical_number_of_nodes = 0
+    for data in train_loader:
+        typical_number_of_nodes += data.x.shape[0]
+    typical_number_of_nodes = typical_number_of_nodes / len(train_dataset)
+    typical_number_of_nodes = int(typical_number_of_nodes)
 
     model = Model(
-        irreps_sh=inputs["irreps_sh"],
         irreps_in=inputs["irreps_in"],
+        irreps_hidden=inputs["irreps_hidden"],
         irreps_out=inputs["irreps_out"],
-        hidden_layers=hidden_channels,
-        num_basis=num_basis,
+        irreps_node_attr=inputs["irreps_node_attr"],
+        irreps_edge_attr=f"{inputs['num_basis']}x0e",
+        radial_layers=inputs["radial_layers"],
         max_radius=inputs["max_radius"],
+        num_basis=inputs["num_basis"],
+        radial_neurons=inputs["radial_neurons"],
+        num_neighbors=inputs["num_neighbors"],
+        typical_number_of_nodes=typical_number_of_nodes,
+        reduce_output=False,
     )
     model = model.to(DEVICE)
 
@@ -195,9 +181,9 @@ if __name__ == "__main__":
         wandb.watch(model)
 
     # Create the optimizer
-    optim = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    optim = torch.optim.Adam(model.parameters(), lr=inputs["learning_rate"])
 
-    for epoch in range(1, epochs):
+    for epoch in range(1, inputs["epochs"] + 1):
         # Train the model
         train_loss = train(train_loader=train_loader)
         print(f"Epoch: {epoch}, Train Loss: {train_loss}")

@@ -181,6 +181,11 @@ class ReactionDataset(InMemoryDataset):
                 charge=initial_states_structure.charge,
                 spin_multiplicity=initial_states_structure.spin_multiplicity,
             )
+
+            p, p_prime = instance_generate.get_p_and_pprime(
+                mu=self.mu, sigma=self.sigma, alpha=self.alpha
+            )
+
             data_to_store["pos"][
                 "interpolated_transition_state"
             ] = interpolated_transition_state_pos
@@ -210,6 +215,7 @@ class ReactionDataset(InMemoryDataset):
                 total_energies=data_to_store["total_energies"],
                 minimal_basis_irrep=minimal_basis_irrep,
                 species=data_to_store["species"],
+                p=p,
             )
 
             datapoint_list.append(datapoint)

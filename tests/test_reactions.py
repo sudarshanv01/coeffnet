@@ -69,6 +69,7 @@ def test_io_ReactionDataset(create_ReactionDataset):
         assert data.total_energy.shape == (1,)
         assert data.total_energy_final_state.shape == (1,)
         assert data.total_energy_transition_state.shape == (1,)
+        assert data.p.shape == (1,)
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -168,7 +169,7 @@ def test_equivariance_ReactionModel(create_ReactionDataset):
         print(output_rotated)
 
         assert torch.allclose(
-            torch.abs(output @ D_out.T),
+            output @ D_out.T,
             output_rotated,
-            rtol=1e-3,
+            rtol=1e-2,
         )

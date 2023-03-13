@@ -26,6 +26,8 @@ class ReactionModel(torch.nn.Module):
         """Initialize the reaction model."""
         super().__init__()
 
+        self.num_nodes = typical_number_of_nodes
+
         self.network_initial_state = Network(
             irreps_in=irreps_in,
             irreps_hidden=irreps_hidden,
@@ -95,9 +97,12 @@ class ReactionModel(torch.nn.Module):
             }
         )
 
+        p = data.p
+        p_prime = 1 - p
         x_interpolated_transition_state = (
-            output_network_initial_state + output_network_final_state
-        ) / 2
+            p[0] * output_network_initial_state
+            + p_prime[0] * output_network_final_state
+        )
 
         output_network_interpolated_transition_state = (
             self.network_interpolated_transition_state(
@@ -108,11 +113,6 @@ class ReactionModel(torch.nn.Module):
                     "batch": data.batch,
                 }
             )
-        )
-
-        # Store only the absolute values of the output
-        output_network_interpolated_transition_state = torch.abs(
-            output_network_interpolated_transition_state
         )
 
         return output_network_interpolated_transition_state
