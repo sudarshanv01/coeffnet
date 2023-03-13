@@ -129,15 +129,9 @@ class ReactionDataPoint(Data):
             species_final_state = species["final_state"]
             species_transition_state = species["transition_state"]
 
-            species_initial_state = convert_to_tensor(
-                species_initial_state, dtype=DTYPE_INT
-            )
-            species_final_state = convert_to_tensor(
-                species_final_state, dtype=DTYPE_INT
-            )
-            species_transition_state = convert_to_tensor(
-                species_transition_state, dtype=DTYPE_INT
-            )
+            species_initial_state = convert_to_tensor(species_initial_state)
+            species_final_state = convert_to_tensor(species_final_state)
+            species_transition_state = convert_to_tensor(species_transition_state)
 
         else:
             species_initial_state = None

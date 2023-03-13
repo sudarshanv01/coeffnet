@@ -125,6 +125,8 @@ class ReactionDataset(InMemoryDataset):
                     ase_data.chemical_symbols.index(species.symbol)
                     for species in species_in_molecule
                 ]
+                species_in_molecule = np.array(species_in_molecule)
+                species_in_molecule = species_in_molecule.reshape(-1, 1)
                 data_to_store["species"][state] = species_in_molecule
 
                 edges_for_graph = molecule_graph.graph.edges

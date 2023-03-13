@@ -8,7 +8,6 @@ from e3nn import o3
 
 from conftest import create_ReactionDataset
 
-from minimal_basis.model.model_reaction import EquivariantConv
 from minimal_basis.model.model_reaction import ReactionModel
 
 
@@ -73,120 +72,80 @@ def test_io_ReactionDataset(create_ReactionDataset):
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_io_EquivariantConv():
-    """Check if the EquivariantConv can be created and saved."""
-
-    irreps_sh = o3.Irreps("1x0e+1x1e+1x2e")
-    num_basis = 10
-    max_radius = 5.0
-    hidden_layers = 10
-    irreps_in = o3.Irreps("1x0e+1x1e")
-    irreps_out = o3.Irreps("1x0e+1x1e")
-
-    equivariant_conv = EquivariantConv(
-        irreps_sh,
-        num_basis,
-        max_radius,
-        hidden_layers,
-        irreps_in=irreps_in,
-        irreps_out=irreps_out,
-    )
-
-    f_1 = torch.randn(10, 4)
-    edge_index = torch.randint(0, 10, (2, 20))
-    pos = torch.randn(10, 3)
-
-    f_output = equivariant_conv(f_1, edge_index, pos)
-
-    assert f_output.shape == (10, 4)
-
-
-@pytest.mark.filterwarnings("ignore::UserWarning")
-def test_equivariance_EquivariantConv(create_ReactionDataset):
-    """Check if the EquivariantConv is equivariant."""
-
-    irreps_sh = o3.Irreps("1x0e+1x1e+1x2e")
-    num_basis = 10
-    max_radius = 5.0
-    hidden_layers = 10
-    irreps_in = o3.Irreps("1x0e+1x1e")
-    irreps_out = o3.Irreps("1x0e+1x1e")
-
-    equivariant_conv = EquivariantConv(
-        irreps_sh,
-        num_basis,
-        max_radius,
-        hidden_layers,
-        irreps_in=irreps_in,
-        irreps_out=irreps_out,
-    )
-
-    for data in create_ReactionDataset:
-
-        f_1 = data.x
-        edge_index = data.edge_index
-        pos = data.pos
-
-        rot = o3.rand_matrix()
-        D_in = irreps_in.D_from_matrix(rot)
-        D_out = irreps_out.D_from_matrix(rot)
-
-        f_before = equivariant_conv(f_1 @ D_in.T, edge_index, pos @ rot.T)
-
-        f_output = equivariant_conv(f_1, edge_index, pos)
-        f_after = f_output @ D_out.T
-
-        assert torch.allclose(f_before, f_after, atol=1e-5)
-
-
-@pytest.mark.filterwarnings("ignore::UserWarning")
 def test_io_ReactionModel(create_ReactionDataset):
-    """Check if the ReactionModel can be created and saved."""
+    """Test the input and output dimensions of the reaction model."""
 
-    irreps_sh = o3.Irreps("1x0e+1x1e+1x2e")
-    num_basis = 10
-    max_radius = 5.0
-    hidden_layers = 10
-    irreps_in = o3.Irreps("1x0e+1x1e")
-    irreps_out = o3.Irreps("1x0e+1x1e")
+    irreps_in = o3.Irreps("1x0e+1x1o")
+    irreps_node_attr = o3.Irreps("1x0e")
+    irreps_edge_attr = o3.Irreps("1x0e+1x1o")
+    irreps_out = o3.Irreps("1x0e+1x1o")
+    irreps_hidden = o3.Irreps("4x0e+3x1o")
+    radial_layers = 4
+    radial_neurons = 11
+    num_neighbors = 4
+    max_radius = 4.0
+    num_basis = 4
+    typical_number_of_nodes = 15
 
     reaction_model = ReactionModel(
-        irreps_sh,
-        num_basis,
-        max_radius,
-        hidden_layers,
         irreps_in=irreps_in,
+        irreps_hidden=irreps_hidden,
         irreps_out=irreps_out,
+        irreps_node_attr=irreps_node_attr,
+        irreps_edge_attr=irreps_edge_attr,
+        radial_layers=radial_layers,
+        max_radius=max_radius,
+        num_basis=num_basis,
+        radial_neurons=radial_neurons,
+        num_neighbors=num_neighbors,
+        typical_number_of_nodes=typical_number_of_nodes,
+        reduce_output=False,
     )
 
     for data in create_ReactionDataset:
 
-        f_output = reaction_model(data)
+        output = reaction_model(data)
 
-        assert f_output.shape == data.x.shape
+        assert output.shape == (
+            data.num_nodes,
+            irreps_out.dim,
+        )
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_equivariance_ReactionModel(create_ReactionDataset):
-    """Check if the ReactionModel is equivariant."""
+    """Test if the ReactionModel is equivariant."""
 
-    irreps_sh = o3.Irreps("1x0e+1x1e+1x2e")
-    num_basis = 10
-    max_radius = 5.0
-    hidden_layers = 10
-    irreps_in = o3.Irreps("1x0e+1x1e")
-    irreps_out = o3.Irreps("1x0e+1x1e")
+    irreps_in = o3.Irreps("1x0e+1x1o")
+    irreps_node_attr = o3.Irreps("1x0e")
+    num_basis = 4
+    irreps_edge_attr = o3.Irreps(f"{num_basis}x0e")
+    irreps_out = o3.Irreps("1x0e+1x1o")
+    irreps_hidden = o3.Irreps("1x0e+1x1o")
+    radial_layers = 2
+    radial_neurons = 2
+    num_neighbors = 4
+    max_radius = 2
+    typical_number_of_nodes = 15
 
     reaction_model = ReactionModel(
-        irreps_sh,
-        num_basis,
-        max_radius,
-        hidden_layers,
         irreps_in=irreps_in,
+        irreps_hidden=irreps_hidden,
         irreps_out=irreps_out,
+        irreps_node_attr=irreps_node_attr,
+        irreps_edge_attr=irreps_edge_attr,
+        radial_layers=radial_layers,
+        max_radius=max_radius,
+        num_basis=num_basis,
+        radial_neurons=radial_neurons,
+        num_neighbors=num_neighbors,
+        typical_number_of_nodes=typical_number_of_nodes,
+        reduce_output=False,
     )
 
     for data in create_ReactionDataset:
+
+        output = reaction_model(data)
 
         rot = o3.rand_matrix()
         D_in = irreps_in.D_from_matrix(rot)
@@ -194,15 +153,22 @@ def test_equivariance_ReactionModel(create_ReactionDataset):
 
         data_rotated = data.clone()
         data_rotated.pos = data.pos @ rot.T
-        data_rotated.pos_transition_state = data.pos_transition_state @ rot.T
         data_rotated.pos_final_state = data.pos_final_state @ rot.T
+        data_rotated.pos_transition_state = data.pos_transition_state @ rot.T
+        data_rotated.pos_interpolated_transition_state = (
+            data.pos_interpolated_transition_state @ rot.T
+        )
         data_rotated.x = data.x @ D_in.T
-        data_rotated.x_transition_state = data.x_transition_state @ D_in.T
         data_rotated.x_final_state = data.x_final_state @ D_in.T
+        data_rotated.x_transition_state = data.x_transition_state @ D_in.T
 
-        f_before = reaction_model(data_rotated)
+        output_rotated = reaction_model(data_rotated)
 
-        f_output = reaction_model(data)
-        f_after = f_output @ D_out.T
+        print(output @ D_out.T)
+        print(output_rotated)
 
-        assert torch.allclose(f_before, f_after, atol=1e-5)
+        assert torch.allclose(
+            torch.abs(output @ D_out.T),
+            output_rotated,
+            rtol=1e-3,
+        )

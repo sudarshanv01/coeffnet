@@ -1,136 +1,118 @@
+from typing import List, Tuple, Union, Any, Optional
+
 import torch
 from torch_scatter import scatter
 
-import e3nn
 from e3nn import o3
-from e3nn.math import soft_one_hot_linspace
-
 from e3nn.nn.models.gate_points_2102 import Network
-
-
-class EquivariantConv(torch.nn.Module):
-    def __init__(
-        self,
-        irreps_sh: str,
-        num_basis: int,
-        max_radius: float,
-        hidden_layers: int,
-        irreps_in: str = "1x0e+1x1e",
-        irreps_out: str = "1x0e+1x1e",
-    ) -> None:
-        super().__init__()
-
-        if isinstance(irreps_in, str):
-            irreps_in = o3.Irreps(irreps_in)
-        if isinstance(irreps_out, str):
-            irreps_out = o3.Irreps(irreps_out)
-        if isinstance(irreps_sh, str):
-            irreps_sh = o3.Irreps(irreps_sh)
-
-        self.irreps_sh = irreps_sh
-
-        self.tp = o3.FullyConnectedTensorProduct(
-            irreps_in1=irreps_in,
-            irreps_in2=irreps_sh,
-            irreps_out=irreps_out,
-            shared_weights=False,
-        )
-
-        self.num_basis = num_basis
-        self.max_radius = max_radius
-
-        self.fc = e3nn.nn.FullyConnectedNet(
-            [self.num_basis, hidden_layers, self.tp.weight_numel], torch.relu
-        )
-
-    def forward(self, f_1, edge_index, pos):
-        """Forward pass of Equivariant convolution."""
-
-        row, col = edge_index
-        num_nodes = f_1.shape[0]
-        num_neighbors = len(row) / num_nodes
-
-        edge_vec = pos[row] - pos[col]
-        sh = o3.spherical_harmonics(
-            self.irreps_sh, edge_vec, normalize=True, normalization="component"
-        )
-
-        edge_length_embedding = soft_one_hot_linspace(
-            edge_vec.norm(dim=1),
-            start=0.0,
-            end=self.max_radius,
-            number=self.num_basis,
-            basis="smooth_finite",
-            cutoff=True,
-        )
-
-        weights_from_embedding = self.fc(edge_length_embedding)
-
-        f_output = self.tp(f_1[row], sh, weights_from_embedding)
-        f_output = scatter(f_output, col, dim=0, dim_size=num_nodes).div(
-            num_neighbors**0.5
-        )
-
-        return f_output
 
 
 class ReactionModel(torch.nn.Module):
     def __init__(
         self,
-        irreps_sh: str,
-        num_basis: int,
+        irreps_in: Union[str, o3.Irreps],
+        irreps_hidden: Union[str, o3.Irreps],
+        irreps_out: Union[str, o3.Irreps],
+        irreps_node_attr: Union[str, o3.Irreps],
+        irreps_edge_attr: Union[str, o3.Irreps],
+        radial_layers: int,
         max_radius: float,
-        hidden_layers: int,
-        irreps_in: str = "1x0e+1x1e",
-        irreps_out: str = "1x0e+1x1e",
+        num_basis: int,
+        radial_neurons: int,
+        num_neighbors: int,
+        typical_number_of_nodes: int,
+        reduce_output: Optional[bool] = False,
     ) -> None:
         """Initialize the reaction model."""
         super().__init__()
 
-        self.equivariant_conv_IS = EquivariantConv(
-            irreps_sh,
-            num_basis,
-            max_radius,
-            hidden_layers,
+        self.network_initial_state = Network(
             irreps_in=irreps_in,
+            irreps_hidden=irreps_hidden,
             irreps_out=irreps_out,
+            irreps_node_attr=irreps_node_attr,
+            irreps_edge_attr=irreps_edge_attr,
+            layers=radial_layers,
+            max_radius=max_radius,
+            number_of_basis=num_basis,
+            radial_layers=radial_layers,
+            radial_neurons=radial_neurons,
+            num_neighbors=num_neighbors,
+            num_nodes=typical_number_of_nodes,
+            reduce_output=reduce_output,
         )
 
-        self.equivariant_conv_FS = EquivariantConv(
-            irreps_sh,
-            num_basis,
-            max_radius,
-            hidden_layers,
+        self.network_final_state = Network(
             irreps_in=irreps_in,
+            irreps_hidden=irreps_hidden,
             irreps_out=irreps_out,
+            irreps_node_attr=irreps_node_attr,
+            irreps_edge_attr=irreps_edge_attr,
+            layers=radial_layers,
+            max_radius=max_radius,
+            number_of_basis=num_basis,
+            radial_layers=radial_layers,
+            radial_neurons=radial_neurons,
+            num_neighbors=num_neighbors,
+            num_nodes=typical_number_of_nodes,
+            reduce_output=reduce_output,
         )
 
-        # self.network = Network(
-        #     irreps_in=None,
-        #     irreps_hidden="1x0e+1x1e",
-        #     irreps_out="1x0e+1x1e",
-        #     irreps_node_attr="1x0e+1x1e",
-        #     irreps_edge_attr="1x0e+1x1e+1x2e",
-        #     layers=hidden_layers,
-        #     max_radius=max_radius,
-        #     number_of_basis=num_basis,
-        #     radial_layers=hidden_layers,
-        #     radial_neurons=hidden_layers,
-        #     num_neighbors=typical_num_neighbors,
-        #     num_nodes=typical_num_nodes,
-        # )
+        self.network_interpolated_transition_state = Network(
+            irreps_in=irreps_in,
+            irreps_hidden=irreps_hidden,
+            irreps_out=irreps_out,
+            irreps_node_attr=irreps_node_attr,
+            irreps_edge_attr=irreps_edge_attr,
+            layers=radial_layers,
+            max_radius=max_radius,
+            number_of_basis=num_basis,
+            radial_layers=radial_layers,
+            radial_neurons=radial_neurons,
+            reduce_output=reduce_output,
+            num_nodes=typical_number_of_nodes,
+            num_neighbors=num_neighbors,
+        )
 
     def forward(self, data):
         """Forward pass of the reaction model."""
-        f_IS = data.x
-        f_FS = data.x_final_state
 
-        edge_index_interpolated_TS = data.edge_index_interpolated_transition_state
-        pos_TS = data.pos_transition_state
+        output_network_initial_state = self.network_initial_state(
+            {
+                "pos": data.pos,
+                "x": data.x,
+                "z": data.species_initial_state,
+                "batch": data.batch,
+            }
+        )
 
-        f_IS = self.equivariant_conv_IS(f_IS, edge_index_interpolated_TS, pos_TS)
-        f_FS = self.equivariant_conv_FS(f_FS, edge_index_interpolated_TS, pos_TS)
+        output_network_final_state = self.network_final_state(
+            {
+                "pos": data.pos_final_state,
+                "x": data.x_final_state,
+                "z": data.species_final_state,
+                "batch": data.batch,
+            }
+        )
 
-        f_TS = f_IS + f_FS
+        x_interpolated_transition_state = (
+            output_network_initial_state + output_network_final_state
+        ) / 2
 
-        return f_TS
+        output_network_interpolated_transition_state = (
+            self.network_interpolated_transition_state(
+                {
+                    "pos": data.pos_interpolated_transition_state,
+                    "x": x_interpolated_transition_state,
+                    "z": data.species_initial_state,
+                    "batch": data.batch,
+                }
+            )
+        )
+
+        # Store only the absolute values of the output
+        output_network_interpolated_transition_state = torch.abs(
+            output_network_interpolated_transition_state
+        )
+
+        return output_network_interpolated_transition_state
