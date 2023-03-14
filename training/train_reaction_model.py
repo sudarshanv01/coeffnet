@@ -176,6 +176,7 @@ if __name__ == "__main__":
         reduce_output=False,
     )
     model = model.to(DEVICE)
+    print(model)
 
     if args.use_wandb:
         wandb.watch(model)

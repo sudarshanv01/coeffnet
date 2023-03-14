@@ -2,10 +2,10 @@
 test_json: "/pscratch/sd/s/svijay/projects/18_SEI/minimal-basis/training/input_files/test_data_interp_minimal_basis.json" 
 train_json: "/pscratch/sd/s/svijay/projects/18_SEI/minimal-basis/training/input_files/train_data_interp_minimal_basis.json" 
 validate_json: "/pscratch/sd/s/svijay/projects/18_SEI/minimal-basis/training/input_files/validate_data_interp_minimal_basis.json" 
-debug_test_json: "/pscratch/sd/s/svijay/projects/18_SEI/minimal-basis/training/input_files/debug_test_data_interp_minimal_basis.json" 
-debug_train_json: "/pscratch/sd/s/svijay/projects/18_SEI/minimal-basis/training/input_files/debug_train_data_interp_minimal_basis.json" 
-debug_validate_json: "/pscratch/sd/s/svijay/projects/18_SEI/minimal-basis/training/input_files/debug_validate_data_interp_minimal_basis.json" 
-basis_file: "/pscratch/sd/s/svijay/projects/18_SEI/minimal-basis/training/input_files/6-31G_star.json"
+debug_test_json: "input_files/debug_test_data_interp_minimal_basis.json" 
+debug_train_json: "input_files/debug_train_data_interp_minimal_basis.json" 
+debug_validate_json: "input_files/debug_validate_data_interp_minimal_basis.json" 
+basis_file: "input_files/6-31G_star.json"
 batch_size: 16 
 learning_rate: 0.01
 epochs: 500

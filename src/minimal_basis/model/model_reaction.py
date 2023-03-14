@@ -83,19 +83,21 @@ class ReactionModel(torch.nn.Module):
             {
                 "pos": data.pos,
                 "x": data.x,
-                "z": data.species_initial_state,
+                # "z": data.species_initial_state,
                 "batch": data.batch,
             }
         )
+        # self.output_network_initial_state = output_network_initial_state
 
         output_network_final_state = self.network_final_state(
             {
                 "pos": data.pos_final_state,
                 "x": data.x_final_state,
-                "z": data.species_final_state,
+                # "z": data.species_final_state,
                 "batch": data.batch,
             }
         )
+        # self.output_network_final_state = output_network_final_state
 
         p = data.p
         p_prime = 1 - p
@@ -104,15 +106,13 @@ class ReactionModel(torch.nn.Module):
             + p_prime[0] * output_network_final_state
         )
 
-        output_network_interpolated_transition_state = (
-            self.network_interpolated_transition_state(
-                {
-                    "pos": data.pos_interpolated_transition_state,
-                    "x": x_interpolated_transition_state,
-                    "z": data.species_initial_state,
-                    "batch": data.batch,
-                }
-            )
+        output_network_interpolated_transition_state = self.network_interpolated_transition_state(
+            {
+                "pos": data.pos_interpolated_transition_state,
+                "x": x_interpolated_transition_state,
+                # "z": data.species_initial_state,
+                "batch": data.batch,
+            }
         )
 
         return output_network_interpolated_transition_state
