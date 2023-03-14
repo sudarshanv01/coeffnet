@@ -81,7 +81,6 @@ def train(train_loader):
 
         num_graphs += train_batch.num_graphs
 
-        # Take an optimizer step
         optim.step()
 
     output_metric = losses / num_graphs
@@ -96,19 +95,22 @@ def validate(val_loader):
 
     # Store all the loses
     losses = 0.0
+    num_graphs = 0
 
     for val_batch in val_loader:
         data = val_batch.to(DEVICE)
         predicted_y = model(data)
         real_y = data.x_transition_state
-        loss = F.mse_loss(predicted_y, real_y)
+        loss = F.l1_loss(predicted_y, real_y, reduction="sum")
 
         # Add up the loss
-        losses += loss.item() * val_batch.num_graphs
+        losses += loss.item()
 
-    rmse = np.sqrt(losses / len(val_loader))
+        num_graphs += val_batch.num_graphs
 
-    return rmse
+    output_metric = losses / num_graphs
+
+    return output_metric
 
 
 if __name__ == "__main__":
