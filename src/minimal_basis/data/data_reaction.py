@@ -153,9 +153,7 @@ class ReactionDataPoint(Data):
             total_energy=total_energy_initial_state,
             total_energy_final_state=total_energy_final_state,
             total_energy_transition_state=total_energy_transition_state,
-            species_initial_state=species_initial_state,
-            species_final_state=species_final_state,
-            species_transition_state=species_transition_state,
+            species=species_initial_state,
             **kwargs,
         )
 

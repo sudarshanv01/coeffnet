@@ -5,9 +5,13 @@ from torch_scatter import scatter
 
 from e3nn import o3
 from e3nn.nn.models.gate_points_2102 import Network
+from e3nn.math import soft_one_hot_linspace
 
 
 class ReactionModel(torch.nn.Module):
+
+    max_species_embedding = 100
+
     def __init__(
         self,
         irreps_in: Union[str, o3.Irreps],
@@ -27,6 +31,7 @@ class ReactionModel(torch.nn.Module):
         super().__init__()
 
         self.num_nodes = typical_number_of_nodes
+        self.num_basis = num_basis
 
         self.network_initial_state = Network(
             irreps_in=irreps_in,
@@ -79,25 +84,34 @@ class ReactionModel(torch.nn.Module):
     def forward(self, data):
         """Forward pass of the reaction model."""
 
+        species_embedding = soft_one_hot_linspace(
+            data.species.squeeze(),
+            start=0.0,
+            end=self.max_species_embedding,
+            number=1,
+            basis="smooth_finite",
+            cutoff=True,
+        )
+
         output_network_initial_state = self.network_initial_state(
             {
                 "pos": data.pos,
                 "x": data.x,
-                # "z": data.species_initial_state,
+                # "z": species_embedding,
                 "batch": data.batch,
             }
         )
-        # self.output_network_initial_state = output_network_initial_state
+        self.output_network_initial_state = output_network_initial_state
 
         output_network_final_state = self.network_final_state(
             {
                 "pos": data.pos_final_state,
                 "x": data.x_final_state,
-                # "z": data.species_final_state,
+                # "z": species_embedding,
                 "batch": data.batch,
             }
         )
-        # self.output_network_final_state = output_network_final_state
+        self.output_network_final_state = output_network_final_state
 
         p = data.p
         p_prime = 1 - p
@@ -110,7 +124,7 @@ class ReactionModel(torch.nn.Module):
             {
                 "pos": data.pos_interpolated_transition_state,
                 "x": x_interpolated_transition_state,
-                # "z": data.species_initial_state,
+                # "z": species_embedding,
                 "batch": data.batch,
             }
         )

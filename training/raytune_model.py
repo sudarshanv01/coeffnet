@@ -39,9 +39,7 @@ from utils import (
 def load_data(data_dir: str = "input_files"):
     """Load the data for the model."""
 
-    input_file = os.path.join(
-        os.path.dirname(__file__), data_dir, f"reaction_model.yaml"
-    )
+    input_file = os.path.join(BASEDIR, data_dir, f"reaction_model.yaml")
     inputs = read_inputs_yaml(input_file)
 
     if args.debug:
@@ -58,14 +56,14 @@ def load_data(data_dir: str = "input_files"):
 
         train_dataset = ReactionDataset(
             root=get_train_data_path(),
-            filename=train_json_filename,
-            basis_filename=inputs["basis_file"],
+            filename=os.path.join(BASEDIR, train_json_filename),
+            basis_filename=os.path.join(BASEDIR, inputs["basis_file"]),
         )
 
         validate_dataset = ReactionDataset(
             root=get_validation_data_path(),
-            filename=validate_json_filename,
-            basis_filename=inputs["basis_file"],
+            filename=os.path.join(BASEDIR, validate_json_filename),
+            basis_filename=os.path.join(BASEDIR, inputs["basis_file"]),
         )
 
     return (
@@ -311,6 +309,8 @@ def parse_cli():
 if __name__ == "__main__":
 
     args = parse_cli()
+
+    BASEDIR = os.path.dirname(os.path.abspath(__file__))
 
     api_key_file = "~/.wandb_api_key"
 
