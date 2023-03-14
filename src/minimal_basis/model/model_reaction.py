@@ -46,7 +46,7 @@ class ReactionModel(torch.nn.Module):
             radial_neurons=radial_neurons,
             num_neighbors=num_neighbors,
             num_nodes=typical_number_of_nodes,
-            reduce_output=reduce_output,
+            reduce_output=False,
         )
 
         self.network_final_state = Network(
@@ -62,7 +62,7 @@ class ReactionModel(torch.nn.Module):
             radial_neurons=radial_neurons,
             num_neighbors=num_neighbors,
             num_nodes=typical_number_of_nodes,
-            reduce_output=reduce_output,
+            reduce_output=False,
         )
 
         self.network_interpolated_transition_state = Network(
@@ -76,9 +76,9 @@ class ReactionModel(torch.nn.Module):
             number_of_basis=num_basis,
             radial_layers=radial_layers,
             radial_neurons=radial_neurons,
-            reduce_output=reduce_output,
             num_nodes=typical_number_of_nodes,
             num_neighbors=num_neighbors,
+            reduce_output=reduce_output,
         )
 
     def forward(self, data):
@@ -120,13 +120,14 @@ class ReactionModel(torch.nn.Module):
             + p_prime[0] * output_network_final_state
         )
 
-        output_network_interpolated_transition_state = self.network_interpolated_transition_state(
-            {
-                "pos": data.pos_interpolated_transition_state,
-                "x": x_interpolated_transition_state,
-                # "z": species_embedding,
-                "batch": data.batch,
-            }
+        output_network_interpolated_transition_state = (
+            self.network_interpolated_transition_state(
+                {
+                    "pos": data.pos_interpolated_transition_state,
+                    "x": x_interpolated_transition_state,
+                    "batch": data.batch,
+                }
+            )
         )
 
         return output_network_interpolated_transition_state

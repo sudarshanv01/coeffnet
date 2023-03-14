@@ -8,7 +8,7 @@ debug_validate_json: "input_files/debug_validate_data_interp_minimal_basis.json"
 basis_file: "input_files/6-31G_star.json"
 batch_size: 16 
 learning_rate: 0.01
-epochs: 500
+epochs: 200
 irreps_hidden: "16x0e+64x1o"
 irreps_in: "1x0e+1x1o"
 irreps_out: "1x0e+1x1o"

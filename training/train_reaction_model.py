@@ -73,7 +73,8 @@ def train(train_loader):
         real_y = data.x_transition_state
 
         predicted_y = torch.abs(predicted_y)
-        loss = F.l1_loss(predicted_y, real_y, reduction="sum")
+        loss = F.mse_loss(predicted_y, real_y, reduction="sum")
+        loss = torch.sqrt(loss)
         loss.backward()
 
         # Add up the loss
@@ -101,7 +102,8 @@ def validate(val_loader):
         data = val_batch.to(DEVICE)
         predicted_y = model(data)
         real_y = data.x_transition_state
-        loss = F.l1_loss(predicted_y, real_y, reduction="sum")
+        loss = F.mse_loss(predicted_y, real_y, reduction="sum")
+        loss = torch.sqrt(loss)
 
         # Add up the loss
         losses += loss.item()
