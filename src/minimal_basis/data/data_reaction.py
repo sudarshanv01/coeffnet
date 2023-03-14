@@ -405,17 +405,17 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
                 _pfunctions_exist = True
                 _px_basis_idx, _py_basis_idx, _pz_basis_idx = _p_basis_idx.T
 
-            _s_coeff = np.sum(
+            _s_coeff = np.max(
                 self.coefficient_matrix_atom[atom_idx][_s_basis_idx, :], axis=0
             )
             if _pfunctions_exist:
-                _px_coeff = np.sum(
+                _px_coeff = np.max(
                     self.coefficient_matrix_atom[atom_idx][_px_basis_idx, :], axis=0
                 )
-                _py_coeff = np.sum(
+                _py_coeff = np.max(
                     self.coefficient_matrix_atom[atom_idx][_py_basis_idx, :], axis=0
                 )
-                _pz_coeff = np.sum(
+                _pz_coeff = np.max(
                     self.coefficient_matrix_atom[atom_idx][_pz_basis_idx, :], axis=0
                 )
             else:
