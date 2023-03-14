@@ -65,19 +65,26 @@ def train(train_loader):
 
     losses = 0.0
     num_graphs = 0
+
     for train_batch in train_loader:
         data = train_batch.to(DEVICE)
         optim.zero_grad()
-
         predicted_y = model(data)
-        real_y = data.x_transition_state
 
-        predicted_y = torch.abs(predicted_y)
+        if inputs["prediction_mode"] == "coeff_matrix":
+            real_y = data.x_transition_state
+            predicted_y = torch.abs(predicted_y)
+        elif inputs["prediction_mode"] == "relative_energy":
+            real_y = data.total_energy_transition_state - data.total_energy
+            predicted_y = predicted_y.mean(dim=1)
+        else:
+            raise ValueError(
+                f"Prediction mode {inputs['prediction_mode']} not recognized."
+            )
+
         loss = F.mse_loss(predicted_y, real_y, reduction="sum")
-        loss = torch.sqrt(loss)
         loss.backward()
 
-        # Add up the loss
         losses += loss.item()
 
         num_graphs += train_batch.num_graphs
@@ -85,6 +92,7 @@ def train(train_loader):
         optim.step()
 
     output_metric = losses / num_graphs
+    output_metric = np.sqrt(output_metric)
 
     return output_metric
 
@@ -94,23 +102,31 @@ def validate(val_loader):
     """Validate the model."""
     model.eval()
 
-    # Store all the loses
     losses = 0.0
     num_graphs = 0
 
     for val_batch in val_loader:
         data = val_batch.to(DEVICE)
         predicted_y = model(data)
-        real_y = data.x_transition_state
+
+        if inputs["prediction_mode"] == "coeff_matrix":
+            real_y = data.x_transition_state
+            predicted_y = torch.abs(predicted_y)
+        elif inputs["prediction_mode"] == "relative_energy":
+            real_y = data.total_energy_transition_state - data.total_energy
+            predicted_y = predicted_y.mean(dim=1)
+        else:
+            raise ValueError(
+                f"Prediction mode {inputs['prediction_mode']} not recognized."
+            )
+
         loss = F.mse_loss(predicted_y, real_y, reduction="sum")
-        loss = torch.sqrt(loss)
 
-        # Add up the loss
         losses += loss.item()
-
         num_graphs += val_batch.num_graphs
 
     output_metric = losses / num_graphs
+    output_metric = np.sqrt(output_metric)
 
     return output_metric
 
@@ -121,6 +137,12 @@ if __name__ == "__main__":
     logging.info(f"Device: {DEVICE}")
 
     inputs = read_inputs_yaml(os.path.join("input_files", "reaction_model.yaml"))
+    if inputs["prediction_mode"] == "coeff_matrix":
+        reduce_output = False
+    elif inputs["prediction_mode"] == "relative_energy":
+        reduce_output = True
+    else:
+        raise ValueError(f"Prediction mode {inputs['prediction_mode']} not recognized.")
 
     if args.use_wandb:
         wandb.config = {
@@ -177,7 +199,7 @@ if __name__ == "__main__":
         radial_neurons=inputs["radial_neurons"],
         num_neighbors=inputs["num_neighbors"],
         typical_number_of_nodes=typical_number_of_nodes,
-        reduce_output=False,
+        reduce_output=reduce_output,
     )
     model = model.to(DEVICE)
     print(model)
@@ -204,7 +226,6 @@ if __name__ == "__main__":
     # Save the model
     torch.save(model, "output/reaction_model.pt")
 
-    # Store wandb model as artifact
     if args.use_wandb:
         artifact = wandb.Artifact("reaction_model", type="model")
         artifact.add_file("output/reaction_model.pt")

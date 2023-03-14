@@ -18,3 +18,4 @@ radial_neurons: 64
 max_radius: 3
 num_basis: 12
 num_neighbors: 4
+prediction_mode: "coeff_matrix"
