@@ -5,12 +5,11 @@ validate_json: "./input_files/validate_data_interp_minimal_basis.json"
 debug_test_json: "./input_files/debug_test_data_interp_minimal_basis.json" 
 debug_train_json: "./input_files/debug_train_data_interp_minimal_basis.json" 
 debug_validate_json: "./input_files/debug_validate_data_interp_minimal_basis.json" 
-batch_size: 10
-learning_rate: 0.01
+batch_size: 35
+learning_rate: 0.001
 epochs: 250
 basis_file: "./input_files/6-31G_star.json"
-hidden_layers: 25
+hidden_layers: 64
 num_basis: 10
 max_radius: 4
-irreps_in: "3x0e+2x1o+1x2o+3x2e+1x3o+1x4e"  
-irreps_intermediate: "6x0o+25x0e+38x1o+22x1e+34x2o+50x2e"
+irreps_intermediate: "20x0e"

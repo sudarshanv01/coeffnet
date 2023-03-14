@@ -1,5 +1,7 @@
 import os
 
+from pathlib import Path
+
 import random
 
 from collections import defaultdict
@@ -11,11 +13,140 @@ import pytest
 import numpy as np
 
 from monty.serialization import loadfn, dumpfn
+
 from pymatgen.core.structure import Molecule
+from pymatgen.analysis.graphs import MoleculeGraph
+from pymatgen.analysis.local_env import OpenBabelNN
 
 import torch
 
+from torch_geometric.loader import DataLoader
+
+from minimal_basis.data.data_reaction import (
+    CoefficientMatrix,
+    ModifiedCoefficientMatrix,
+)
+
+from minimal_basis.dataset.dataset_reaction import ReactionDataset
+
 from e3nn import o3
+
+
+@pytest.fixture
+def rotated_waters_dataset(tmp_path):
+    """Read in the rotated waters dataset and return it."""
+    basedir = Path(__file__).parent
+    json_dataset = loadfn(basedir / "inputs" / "rotated_waters_dataset.json")
+    return json_dataset
+
+
+@pytest.fixture
+def rotated_sn2_dataset(tmp_path):
+    """Read in the rotated waters dataset and return it."""
+    basedir = Path(__file__).parent
+    json_dataset = loadfn(basedir / "inputs" / "rotated_sn2_dataset.json")
+    return json_dataset
+
+
+@pytest.fixture
+def basis_set(tmp_path):
+    """Read in the basis set and return it."""
+    basedir = Path(__file__).parent
+    basis_set = loadfn(basedir / "inputs" / "sto-3g.json")
+    return basis_set
+
+
+@pytest.fixture
+def create_ReactionDataset(request, tmp_path):
+    """Create the ReactionDataset object."""
+    basedir = Path(__file__).parent
+
+    rotated_sn2_dataset_filename = basedir / "inputs" / "rotated_sn2_dataset.json"
+    basis_set_filename = basedir / "inputs" / "sto-3g.json"
+
+    dataset_reaction = ReactionDataset(
+        filename=rotated_sn2_dataset_filename,
+        basis_filename=basis_set_filename,
+        root=tmp_path,
+    )
+
+    loader_reaction = DataLoader(dataset_reaction, batch_size=1, shuffle=True)
+
+    yield loader_reaction
+
+
+@pytest.fixture
+def create_CoeffMatrix(request, rotated_sn2_dataset, rotated_waters_dataset, basis_set):
+    """Create the CoefficientMatrix object."""
+    dataset = request.node.get_closest_marker("dataset")
+    if dataset == None:
+        dataset = "rotated_waters"
+
+    if dataset.args[0] == "rotated_waters":
+        json_dataset = rotated_waters_dataset
+    elif dataset.args[0] == "rotated_sn2":
+        json_dataset = rotated_sn2_dataset
+    else:
+        raise ValueError("Dataset not found.")
+
+    eigenvalue_number = request.node.get_closest_marker("eigenvalue_number")
+    if eigenvalue_number == None:
+        store_idx_only = None
+    elif eigenvalue_number.args[0] == "single":
+        store_idx_only = 0
+    else:
+        raise ValueError("Eigenvalue number not found.")
+
+    type_coeff_matrix = request.node.get_closest_marker("type_coeff_matrix")
+    if type_coeff_matrix == None:
+        ClassCoeffMatrix = CoefficientMatrix
+    elif type_coeff_matrix.args[0] == "modified":
+        ClassCoeffMatrix = ModifiedCoefficientMatrix
+    else:
+        raise ValueError("Type of coefficient matrix not found.")
+
+    set_absolute = request.node.get_closest_marker("set_absolute")
+    if set_absolute == None:
+        set_absolute = False
+    elif set_absolute.args[0] == True:
+        set_absolute = True
+    else:
+        raise ValueError("Set absolute not found.")
+
+    return_data = []
+
+    for data in json_dataset:
+        molecule = data["structures"][0]
+        molecule_graph = MoleculeGraph.with_local_env_strategy(molecule, OpenBabelNN())
+
+        alpha_coeff_matrix = data["coeff_matrices"][0][0]
+        alpha_coeff_matrix = np.array(alpha_coeff_matrix)
+
+        angles = data["angles"]
+
+        coeff_matrix = ClassCoeffMatrix(
+            molecule_graph=molecule_graph,
+            basis_info_raw=basis_set,
+            coefficient_matrix=alpha_coeff_matrix,
+            store_idx_only=store_idx_only,
+            set_to_absolute=set_absolute,
+        )
+
+        if store_idx_only is not None:
+            alpha_coeff_matrix = alpha_coeff_matrix[:, store_idx_only]
+            alpha_coeff_matrix = alpha_coeff_matrix[:, np.newaxis]
+
+        return_data.append(
+            {
+                "coeff_matrix": coeff_matrix,
+                "alpha_coeff_matrix": alpha_coeff_matrix,
+                "molecule_graph": molecule_graph,
+                "idx_eigenvalue": store_idx_only,
+                "angles": angles,
+            }
+        )
+
+    yield return_data
 
 
 @pytest.fixture()
@@ -99,6 +230,7 @@ def sn2_reaction_input(tmp_path):
             eigenvalues = eigenvalues.tolist()
 
             # Create a list of the overlap matrices for the initial, transition and final states
+            # making sure that the diagonal elements for the overlap matrix are always 1
             overlap_matrices = [
                 np.random.rand(2, num_basis_functions, num_basis_functions)
                 for _ in range(3)
@@ -107,7 +239,6 @@ def sn2_reaction_input(tmp_path):
             overlap_matrices = (
                 overlap_matrices + overlap_matrices.transpose(0, 1, 3, 2)
             ) / 2
-            overlap_matrices = overlap_matrices.tolist()
 
             datapoint = {
                 "fock_matrices": fock_matrices,

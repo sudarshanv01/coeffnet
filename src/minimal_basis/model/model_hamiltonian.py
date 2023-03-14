@@ -103,13 +103,15 @@ def generate_equi_rep_from_matrix(matrix):
 
 
 class EquivariantConv(torch.nn.Module):
-
-    minimal_basis_size = 9
-
     def __init__(
         self, irreps_in, irreps_out, num_basis, max_radius, hidden_layers
     ) -> None:
         super().__init__()
+
+        if isinstance(irreps_in, str):
+            irreps_in = e3nn.o3.Irreps(irreps_in)
+        if isinstance(irreps_out, str):
+            irreps_out = e3nn.o3.Irreps(irreps_out)
 
         self.tp = FullyConnectedTensorProduct(
             irreps_in1=irreps_in,
@@ -118,24 +120,21 @@ class EquivariantConv(torch.nn.Module):
             shared_weights=False,
         )
 
-        if isinstance(irreps_in, str):
-            irreps_in = e3nn.o3.Irreps(irreps_in)
-        if isinstance(irreps_out, str):
-            irreps_out = e3nn.o3.Irreps(irreps_out)
-
         self.num_basis = num_basis
         self.max_radius = max_radius
+
         self.fc = FullyConnectedNet(
             [self.num_basis, hidden_layers, self.tp.weight_numel], torch.relu
         )
 
-    def forward(self, f_nodes, f_edges, edge_index, pos):
+    def forward(self, f_1, f_2, edge_index, pos):
         """Forward pass of Equivariant convolution."""
 
         row, col = edge_index
 
         # Create the edge length embeddings
         edge_vec = pos[row] - pos[col]
+
         edge_length_embedding = soft_one_hot_linspace(
             edge_vec.norm(dim=1),
             start=0.0,
@@ -144,27 +143,13 @@ class EquivariantConv(torch.nn.Module):
             basis="smooth_finite",
             cutoff=True,
         )
+
         weights_from_embedding = self.fc(edge_length_embedding)
 
-        f_nodes_matrix = f_nodes.reshape(
-            -1, 2, self.minimal_basis_size, self.minimal_basis_size
-        )
-        f_edges_matrix = f_edges.reshape(
-            -1, 2, self.minimal_basis_size, self.minimal_basis_size
-        )
+        f_output = self.tp(f_1[row], f_2[row], weights_from_embedding)
 
-        f_nodes_matrix = generate_equi_rep_from_matrix(f_nodes_matrix)
-        f_nodes_matrix = f_nodes_matrix[row]
-        f_edges_matrix = generate_equi_rep_from_matrix(f_edges_matrix)
-
-        summand_up = self.tp(
-            f_nodes_matrix[:, 0, :], f_edges_matrix[:, 0, :], weights_from_embedding
-        )
-        summand_down = self.tp(
-            f_nodes_matrix[:, 1, :], f_edges_matrix[:, 1, :], weights_from_embedding
-        )
-
-        f_output = summand_up + summand_down
+        # Mean the output over the edges to get one output per node
+        f_output = scatter_mean(f_output, col, dim=0)
 
         return f_output
 
@@ -182,6 +167,13 @@ class SimpleHamiltonianModel(torch.nn.Module):
             num_basis=num_basis,
             max_radius=max_radius,
         )
+        self.conv_global = EquivariantConv(
+            irreps_in=irreps_in,
+            irreps_out=irreps_intermediate,
+            hidden_layers=hidden_layers,
+            num_basis=num_basis,
+            max_radius=max_radius,
+        )
 
     def forward(self, data):
         """Forward pass of the Hamiltonian model."""
@@ -189,34 +181,41 @@ class SimpleHamiltonianModel(torch.nn.Module):
         # Parse data from the data object
         f_nodes_IS = data.x
         f_nodes_FS = data.x_final_state
-        f_edges_IS = data.edge_attr
-        f_edges_FS = data.edge_attr_final_state
+
+        f_global_IS = data.global_attr
+        f_global_FS = data.global_attr_final_state
+
+        edge_index_TS_interp = data.edge_index_interpolated_TS
         edge_index_IS = data.edge_index
-        edge_index_FS = data.edge_index_final_state
-        pos_IS = data.pos
-        pos_FS = data.pos_final_state
 
-        f_output_IS = self.conv(f_nodes_IS, f_edges_IS, edge_index_IS, pos_IS)
-        f_output_FS = self.conv(f_nodes_FS, f_edges_FS, edge_index_FS, pos_FS)
+        pos_TS_interp = data.pos_interpolated_TS
+        pos = data.pos
 
-        # Scatter the outputs to the nodes
-        f_output_IS = scatter(
-            f_output_IS, edge_index_IS[0], dim=0, dim_size=f_nodes_IS.size(0)
+        f_output = self.conv(
+            f_nodes_IS, f_nodes_FS, edge_index_TS_interp, pos_TS_interp
         )
-        f_output_FS = scatter(
-            f_output_FS, edge_index_FS[0], dim=0, dim_size=f_nodes_FS.size(0)
+        g_output = self.conv_global(
+            f_global_IS[data.batch],
+            f_global_FS[data.batch],
+            edge_index_TS_interp,
+            pos_TS_interp,
         )
 
-        # Subtract the final state from the initial state
-        f_output = f_output_IS - f_output_FS
+        f_output_IS = self.conv(f_nodes_IS, f_nodes_IS, edge_index_IS, pos)
+        g_output_IS = self.conv_global(
+            f_global_IS[data.batch], f_global_IS[data.batch], edge_index_IS, pos
+        )
 
-        # Mean over all dimensions except the batch dimension
-        f_output = f_output.mean(dim=tuple(range(1, f_output.dim())))
+        delta_f_output = f_output - f_output_IS
+        delta_g_output = g_output - g_output_IS
 
-        # Scatter the output such that there is one output per graph
-        f_output = scatter(f_output, data.batch, dim=0, reduce="mean")
+        output = torch.cat([delta_f_output, delta_g_output], dim=-1)
 
-        return f_output
+        output = output.mean(dim=-1)
+
+        output = scatter_mean(output, data.batch, dim=0)
+
+        return output
 
 
 class NodeModel(torch.nn.Module):

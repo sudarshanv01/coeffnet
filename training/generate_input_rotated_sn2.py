@@ -70,7 +70,7 @@ if __name__ == "__main__":
     args = get_cli_args()
 
     db = instance_mongodb_sei(project="mlts")
-    collection = db.minimal_basis_interpolated_sn2
+    collection = db.rotated_sn2_reaction
 
     # Get all entries in this collection as a list
     if args.debug:
@@ -89,21 +89,17 @@ if __name__ == "__main__":
     # Save the data
     if args.debug:
         # Prepend the debug tag
-        dumpfn(train_data, "input_files/debug_train_data_interp_minimal_basis.json")
-        dumpfn(test_data, "input_files/debug_test_data_interp_minimal_basis.json")
-        dumpfn(
-            validate_data, "input_files/debug_validate_data_interp_minimal_basis.json"
-        )
+        dumpfn(train_data, "input_files/debug_train_data_rotated_sn2.json")
+        dumpfn(test_data, "input_files/debug_test_data_rotated_sn2.json")
+        dumpfn(validate_data, "input_files/debug_validate_data_rotated_sn2.json")
     elif args.pytest:
-        dumpfn(
-            train_data, f"{args.pytest_inputdir}/train_data_interp_minimal_basis.json"
-        )
-        dumpfn(test_data, f"{args.pytest_inputdir}/test_data_interp_minimal_basis.json")
+        dumpfn(train_data, f"{args.pytest_inputdir}/train_data_rotated_sn2.json")
+        dumpfn(test_data, f"{args.pytest_inputdir}/test_data_rotated_sn2.json")
         dumpfn(
             validate_data,
-            f"{args.pytest_inputdir}/validate_data_interp_minimal_basis.json",
+            f"{args.pytest_inputdir}/validate_data_rotated_sn2.json",
         )
     else:
-        dumpfn(train_data, "input_files/train_data_interp_minimal_basis.json")
-        dumpfn(test_data, "input_files/test_data_interp_minimal_basis.json")
-        dumpfn(validate_data, "input_files/validate_data_interp_minimal_basis.json")
+        dumpfn(train_data, "input_files/train_data_rotated_sn2.json")
+        dumpfn(test_data, "input_files/test_data_rotated_sn2.json")
+        dumpfn(validate_data, "input_files/validate_data_rotated_sn2.json")
