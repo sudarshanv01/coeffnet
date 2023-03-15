@@ -30,12 +30,12 @@ class BaseQuantitiesQChem:
         self.orthogonalisation_matrix = None
         self.orthogonal_fock_matrix = None
         self.ortho_coeff_matrix = None
+        self.eigenval_ortho_fock = None
 
-        if len(self.eigenvalues.shape) == 1:
-            self.diagonalised_eigen = np.zeros(
-                (len(self.eigenvalues), len(self.eigenvalues))
-            )
-            np.fill_diagonal(self.diagonalised_eigen, self.eigenvalues)
+        self.diagonalised_eigen = np.zeros(
+            (len(self.eigenvalues), len(self.eigenvalues))
+        )
+        np.fill_diagonal(self.diagonalised_eigen, self.eigenvalues)
 
     def get_overlap_matrix(self) -> npt.ArrayLike:
         self.generate_overlap_matrix()
@@ -53,6 +53,11 @@ class BaseQuantitiesQChem:
         self.generate_orthogonal_fock_matrix()
         self.generate_orthogonal_coeff_matrix()
         return self.ortho_coeff_matrix
+
+    def get_eigenvalues_ortho_fock(self) -> npt.ArrayLike:
+        self.generate_orthogonal_fock_matrix()
+        self.generate_orthogonal_coeff_matrix()
+        return self.eigenval_ortho_fock
 
     def generate_overlap_matrix(self) -> None:
         """Determine the overlap element from the Hamiltonian, the
@@ -82,3 +87,4 @@ class BaseQuantitiesQChem:
             self.orthogonal_fock_matrix
         )
         self.ortho_coeff_matrix = eigenvec_ortho_fock
+        self.eigenval_ortho_fock = eigenval_ortho_fock

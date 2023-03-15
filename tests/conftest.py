@@ -76,6 +76,16 @@ def create_ReactionDataset(request, tmp_path):
 
 
 @pytest.fixture
+def create_SampleQchemOutput(request, tmp_path):
+    """Create the SampleQchemOutput object."""
+    basedir = Path(__file__).parent
+
+    rotated_sn2_dataset_filename = basedir / "inputs" / "sample_qchem_matrices.json"
+
+    return loadfn(rotated_sn2_dataset_filename)
+
+
+@pytest.fixture
 def create_CoeffMatrix(request, rotated_sn2_dataset, rotated_waters_dataset, basis_set):
     """Create the CoefficientMatrix object."""
     dataset = request.node.get_closest_marker("dataset")
