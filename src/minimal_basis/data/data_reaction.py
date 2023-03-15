@@ -345,6 +345,8 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
         coefficient_matrix: npt.ArrayLike,
         store_idx_only: int = None,
         set_to_absolute: bool = False,
+        max_s_functions: Union[str, int] = "all",
+        max_p_functions: Union[str, int] = "all",
         **kwargs,
     ):
         """Modify the coefficient matrix representing each atom by a fixed basis."""
@@ -356,6 +358,8 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
             set_to_absolute=set_to_absolute,
             **kwargs,
         )
+        self.max_s_functions = max_s_functions
+        self.max_p_functions = max_p_functions
 
     def pad_split_coefficient_matrix(self):
         raise NotImplementedError(
@@ -388,8 +392,18 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
         atom is padded with zeros to the maximum basis function for
         each orbital."""
 
-        max_s = max([len(atom) for atom in self.basis_idx_s])
-        max_p = max([len(atom) for atom in self.basis_idx_p])
+        if self.max_s_functions == "all":
+            max_s = max([len(atom) for atom in self.basis_idx_s])
+            max_p = max([len(atom) for atom in self.basis_idx_p])
+        elif isinstance(self.max_s_functions, int) and isinstance(
+            self.max_p_functions, int
+        ):
+            max_s = self.max_s_functions
+            max_p = self.max_p_functions
+        else:
+            raise ValueError(
+                "The maximum number of s and p functions must be either 'all' or an integer."
+            )
 
         self.coefficient_matrix_padded = np.zeros(
             [
@@ -413,10 +427,14 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
                     "constant",
                     constant_values=0,
                 )
-            else:
+            elif len(_s_basis_idx) == max_s:
                 self.coefficient_matrix_padded[
                     atom_idx, :max_s, :
                 ] = self.coefficient_matrix[_s_basis_idx, :]
+            else:
+                raise ValueError(
+                    "The number of s functions is greater than the maximum number of s functions."
+                )
 
             _p_basis_idx = self.basis_idx_p[atom_idx]
             _p_basis_idx = np.array(_p_basis_idx)
@@ -433,10 +451,14 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
                     "constant",
                     constant_values=0,
                 )
-            else:
+            elif len(_p_basis_idx) == 3 * max_p:
                 self.coefficient_matrix_padded[
                     atom_idx, max_s:, :
                 ] = self.coefficient_matrix[_p_basis_idx, :]
+            else:
+                raise ValueError(
+                    "The number of p functions is greater than the maximum number of p functions."
+                )
 
     def generate_minimal_basis_representation(self):
         """Create a minimal basis representation of the coefficient matrix.

@@ -14,14 +14,18 @@ from minimal_basis.model.model_reaction import ReactionModel
 def test_io_ReactionDataset(create_ReactionDataset):
     """Check if the dataset can be created and saved."""
 
+    max_s_functions = 5
+    max_p_functions = 5
+    shape_basis = 1 * max_s_functions + 3 * max_p_functions
+
     for data in create_ReactionDataset:
 
         num_nodes = data.num_nodes
         num_edges = data.num_edges
 
-        assert data.x.shape[0] == num_nodes
-        assert data.x_final_state.shape[0] == num_nodes
-        assert data.x_transition_state.shape[0] == num_nodes
+        assert data.x.shape == (num_nodes, shape_basis)
+        assert data.x_final_state.shape == (num_nodes, shape_basis)
+        assert data.x_transition_state.shape == (num_nodes, shape_basis)
 
         assert data.pos.shape == (
             num_nodes,
@@ -67,16 +71,19 @@ def test_io_ReactionDataset(create_ReactionDataset):
 def test_io_ReactionModel(create_ReactionDataset):
     """Test the input and output dimensions of the reaction model."""
 
-    irreps_in = o3.Irreps("1x0e+1x1o")
+    max_s_functions = 5
+    max_p_functions = 5
+
+    irreps_in = o3.Irreps(f"{max_s_functions}x0e+{max_p_functions}x1o")
     irreps_node_attr = o3.Irreps("1x0e")
-    irreps_edge_attr = o3.Irreps("1x0e+1x1o")
-    irreps_out = o3.Irreps("1x0e+1x1o")
+    num_basis = 4
+    irreps_edge_attr = o3.Irreps(f"{num_basis}x0e")
+    irreps_out = o3.Irreps(f"{max_s_functions}x0e+{max_p_functions}x1o")
     irreps_hidden = o3.Irreps("4x0e+3x1o")
     radial_layers = 4
     radial_neurons = 11
     num_neighbors = 4
     max_radius = 4.0
-    num_basis = 4
     typical_number_of_nodes = 15
 
     reaction_model = ReactionModel(
@@ -108,11 +115,14 @@ def test_io_ReactionModel(create_ReactionDataset):
 def test_equivariance_ReactionModel(create_ReactionDataset):
     """Test if the ReactionModel is equivariant."""
 
-    irreps_in = o3.Irreps("1x0e+1x1o")
+    max_s_functions = 5
+    max_p_functions = 5
+
+    irreps_in = o3.Irreps(f"{max_s_functions}x0e+{max_p_functions}x1o")
     irreps_node_attr = o3.Irreps("1x0e")
     num_basis = 4
     irreps_edge_attr = o3.Irreps(f"{num_basis}x0e")
-    irreps_out = o3.Irreps("1x0e+1x1o")
+    irreps_out = o3.Irreps(f"{max_s_functions}x0e+{max_p_functions}x1o")
     irreps_hidden = o3.Irreps("1x0e+1x1o")
     radial_layers = 2
     radial_neurons = 2
