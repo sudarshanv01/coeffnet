@@ -377,6 +377,67 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
         self.generate_minimal_basis_representation()
         return self.coefficient_matrix_minimal_basis[atom_idx]
 
+    def get_padded_representation(self):
+        """Return the padded representation of the coefficient matrix."""
+        self.separate_coeff_matrix_to_atom_centers()
+        self.generate_padded_representation()
+        return self.coefficient_matrix_padded
+
+    def generate_padded_representation(self):
+        """In this representation, the coefficient matrix for each
+        atom is padded with zeros to the maximum basis function for
+        each orbital."""
+
+        max_s = max([len(atom) for atom in self.basis_idx_s])
+        max_p = max([len(atom) for atom in self.basis_idx_p])
+
+        self.coefficient_matrix_padded = np.zeros(
+            [
+                len(self.molecule_graph.molecule),
+                max_s + 3 * max_p,
+                self.coefficient_matrix.shape[1],
+            ],
+        )
+
+        for atom_idx, atom in enumerate(self.molecule_graph.molecule):
+
+            _s_basis_idx = self.basis_idx_s[atom_idx]
+            _s_basis_idx = np.array(_s_basis_idx)
+            _s_basis_idx = _s_basis_idx.flatten()
+
+            if len(_s_basis_idx) < max_s:
+                pad = max_s - len(_s_basis_idx)
+                self.coefficient_matrix_padded[atom_idx, :max_s, :] = np.pad(
+                    self.coefficient_matrix[_s_basis_idx, :],
+                    ((0, pad), (0, 0)),
+                    "constant",
+                    constant_values=0,
+                )
+            else:
+                self.coefficient_matrix_padded[
+                    atom_idx, :max_s, :
+                ] = self.coefficient_matrix[_s_basis_idx, :]
+
+            _p_basis_idx = self.basis_idx_p[atom_idx]
+            _p_basis_idx = np.array(_p_basis_idx)
+            _p_basis_idx = _p_basis_idx.flatten()
+
+            if _p_basis_idx.size == 0:
+                continue
+
+            if len(_p_basis_idx) < 3 * max_p:
+                pad = 3 * max_p - len(_p_basis_idx)
+                self.coefficient_matrix_padded[atom_idx, max_s:, :] = np.pad(
+                    self.coefficient_matrix[_p_basis_idx, :],
+                    ((0, pad), (0, 0)),
+                    "constant",
+                    constant_values=0,
+                )
+            else:
+                self.coefficient_matrix_padded[
+                    atom_idx, max_s:, :
+                ] = self.coefficient_matrix[_p_basis_idx, :]
+
     def generate_minimal_basis_representation(self):
         """Create a minimal basis representation of the coefficient matrix.
         This representation is created by summing up the s, p components of

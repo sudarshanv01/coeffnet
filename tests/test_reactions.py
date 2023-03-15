@@ -19,18 +19,9 @@ def test_io_ReactionDataset(create_ReactionDataset):
         num_nodes = data.num_nodes
         num_edges = data.num_edges
 
-        assert data.x.shape == (
-            num_nodes,
-            4,
-        )  # 1s + 3p
-        assert data.x_final_state.shape == (
-            num_nodes,
-            4,
-        )  # 1s + 3p
-        assert data.x_transition_state.shape == (
-            num_nodes,
-            4,
-        )  # 1s + 3p
+        assert data.x.shape[0] == num_nodes
+        assert data.x_final_state.shape[0] == num_nodes
+        assert data.x_transition_state.shape[0] == num_nodes
 
         assert data.pos.shape == (
             num_nodes,

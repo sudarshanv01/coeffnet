@@ -150,7 +150,7 @@ class ReactionDataset(InMemoryDataset):
                     store_idx_only=selected_eigenval_index,
                     set_to_absolute=True,
                 )
-                node_features = coeff_matrix.get_minimal_basis_representation()
+                node_features = coeff_matrix.get_padded_representation()
                 # TODO: Currently we are only implementing a single eigenvalue
                 # for the alpha coefficient matrix. At some point multiple
                 # eigenvalues need to be added and the following flattening
