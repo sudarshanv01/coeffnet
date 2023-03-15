@@ -162,6 +162,8 @@ if __name__ == "__main__":
         root=get_train_data_path(),
         filename=train_json_filename,
         basis_filename=inputs["basis_file"],
+        max_s_functions=inputs["max_s_functions"],
+        max_p_functions=inputs["max_p_functions"],
     )
     if args.reprocess_dataset:
         train_dataset.process()
@@ -170,7 +172,13 @@ if __name__ == "__main__":
         root=get_validation_data_path(),
         filename=validate_json_filename,
         basis_filename=inputs["basis_file"],
+        max_s_functions=inputs["max_s_functions"],
+        max_p_functions=inputs["max_p_functions"],
     )
+
+    irreps_in = f"{inputs['max_s_functions']}x0e+{inputs['max_p_functions']}x1e"
+    irreps_out = f"{inputs['max_s_functions']}x0e+{inputs['max_p_functions']}x1e"
+
     if args.reprocess_dataset:
         validate_dataset.process()
 
@@ -188,9 +196,9 @@ if __name__ == "__main__":
     typical_number_of_nodes = int(typical_number_of_nodes)
 
     model = Model(
-        irreps_in=inputs["irreps_in"],
+        irreps_in=irreps_in,
         irreps_hidden=inputs["irreps_hidden"],
-        irreps_out=inputs["irreps_out"],
+        irreps_out=irreps_out,
         irreps_node_attr=inputs["irreps_node_attr"],
         irreps_edge_attr=f"{inputs['num_basis']}x0e",
         radial_layers=inputs["radial_layers"],

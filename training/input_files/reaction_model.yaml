@@ -9,13 +9,14 @@ basis_file: "input_files/6-31G_star.json"
 batch_size: 16 
 learning_rate: 0.01
 epochs: 200
-irreps_hidden: "16x0e+64x1o"
-irreps_in: "1x0e+1x1o"
-irreps_out: "1x0e+1x1o"
+irreps_hidden: "16x0e+128x1o"
+max_s_functions: 5
+max_p_functions: 5
 irreps_node_attr: "1x0e"
 radial_layers: 2
 radial_neurons: 64
 max_radius: 3
 num_basis: 12
 num_neighbors: 4
-prediction_mode: "coeff_matrix"
+# prediction_mode: "coeff_matrix"
+prediction_mode: "relative_energy"
