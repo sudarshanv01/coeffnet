@@ -50,6 +50,8 @@ class BaseQuantitiesQChem:
         return self.orthogonal_fock_matrix
 
     def get_ortho_coeff_matrix(self) -> npt.ArrayLike:
+        self.generate_overlap_matrix()
+        self.generate_orthogonalization_matrix()
         self.generate_orthogonal_fock_matrix()
         self.generate_orthogonal_coeff_matrix()
         return self.ortho_coeff_matrix
