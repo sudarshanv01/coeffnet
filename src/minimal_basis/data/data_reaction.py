@@ -46,6 +46,7 @@ class ReactionDataPoint(Data):
         pos: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
         total_energies: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
         species: Dict[str, Union[npt.ArrayLike, List[int]]] = None,
+        basis_mask: Union[npt.ArrayLike, List[bool]] = None,
         **kwargs,
     ):
         """General purpose data class for reaction data."""
@@ -138,6 +139,11 @@ class ReactionDataPoint(Data):
             species_final_state = None
             species_transition_state = None
 
+        if basis_mask is not None:
+            basis_mask = convert_to_tensor(basis_mask, dtype=DTYPE_BOOL)
+        else:
+            basis_mask = None
+
         super().__init__(
             x=x_initial_state,
             x_final_state=x_final_state,
@@ -154,6 +160,7 @@ class ReactionDataPoint(Data):
             total_energy_final_state=total_energy_final_state,
             total_energy_transition_state=total_energy_transition_state,
             species=species_initial_state,
+            basis_mask=basis_mask,
             **kwargs,
         )
 
@@ -418,6 +425,13 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
                 self.coefficient_matrix.shape[1],
             ],
         )
+        # Also create a boolean mask to indicate which basis functions are present
+        self.basis_mask = np.zeros(
+            [
+                num_atoms,
+                max_s + 3 * max_p + 6 * max_d,
+            ],
+        )
 
         for atom_idx, atom in enumerate(self.molecule_graph.molecule):
 
@@ -425,22 +439,23 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
             _s_basis_idx = np.array(_s_basis_idx)
             _s_basis_idx = _s_basis_idx.flatten()
 
-            if len(_s_basis_idx) < max_s:
-                pad = max_s - len(_s_basis_idx)
-                self.coefficient_matrix_padded[atom_idx, :max_s, :] = np.pad(
-                    self.coefficient_matrix[_s_basis_idx, :],
-                    ((0, pad), (0, 0)),
-                    "constant",
-                    constant_values=0,
-                )
-            elif len(_s_basis_idx) == max_s:
-                self.coefficient_matrix_padded[
-                    atom_idx, :max_s, :
-                ] = self.coefficient_matrix[_s_basis_idx, :]
-            else:
+            pad = max_s - len(_s_basis_idx)
+            if pad < 0:
                 raise ValueError(
                     "The number of s functions is greater than the maximum number of s functions."
                 )
+            self.coefficient_matrix_padded[atom_idx, :max_s, :] = np.pad(
+                self.coefficient_matrix[_s_basis_idx, :],
+                ((0, pad), (0, 0)),
+                "constant",
+                constant_values=0,
+            )
+            self.basis_mask[atom_idx, :max_s] = np.pad(
+                np.ones(len(_s_basis_idx)),
+                (0, pad),
+                "constant",
+                constant_values=0,
+            )
 
             _p_basis_idx = self.basis_idx_p[atom_idx]
             _p_basis_idx = np.array(_p_basis_idx)
@@ -449,24 +464,25 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
             if _p_basis_idx.size == 0:
                 continue
 
-            if len(_p_basis_idx) < 3 * max_p:
-                pad = 3 * max_p - len(_p_basis_idx)
-                self.coefficient_matrix_padded[
-                    atom_idx, max_s : max_s + 3 * max_p, :
-                ] = np.pad(
-                    self.coefficient_matrix[_p_basis_idx, :],
-                    ((0, pad), (0, 0)),
-                    "constant",
-                    constant_values=0,
-                )
-            elif len(_p_basis_idx) == 3 * max_p:
-                self.coefficient_matrix_padded[
-                    atom_idx, max_s : max_s + 3 * max_p, :
-                ] = self.coefficient_matrix[_p_basis_idx, :]
-            else:
+            pad = 3 * max_p - len(_p_basis_idx)
+            if pad < 0:
                 raise ValueError(
                     "The number of p functions is greater than the maximum number of p functions."
                 )
+            self.coefficient_matrix_padded[
+                atom_idx, max_s : max_s + 3 * max_p, :
+            ] = np.pad(
+                self.coefficient_matrix[_p_basis_idx, :],
+                ((0, pad), (0, 0)),
+                "constant",
+                constant_values=0,
+            )
+            self.basis_mask[atom_idx, max_s : max_s + 3 * max_p] = np.pad(
+                np.ones(len(_p_basis_idx)),
+                (0, pad),
+                "constant",
+                constant_values=0,
+            )
 
             _d_basis_idx = self.basis_idx_d[atom_idx]
             _d_basis_idx = np.array(_d_basis_idx)
@@ -475,24 +491,23 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
             if _d_basis_idx.size == 0:
                 continue
 
-            if len(_d_basis_idx) < 6 * max_d:
-                pad = 6 * max_d - len(_d_basis_idx)
-                self.coefficient_matrix_padded[
-                    atom_idx, max_s + 3 * max_p :, :
-                ] = np.pad(
-                    self.coefficient_matrix[_d_basis_idx, :],
-                    ((0, pad), (0, 0)),
-                    "constant",
-                    constant_values=0,
-                )
-            elif len(_d_basis_idx) == 6 * max_d:
-                self.coefficient_matrix_padded[
-                    atom_idx, max_s + 3 * max_p :, :
-                ] = self.coefficient_matrix[_d_basis_idx, :]
-            else:
+            pad = 6 * max_d - len(_d_basis_idx)
+            if pad < 0:
                 raise ValueError(
                     "The number of d functions is greater than the maximum number of d functions."
                 )
+            self.coefficient_matrix_padded[atom_idx, max_s + 3 * max_p :, :] = np.pad(
+                self.coefficient_matrix[_d_basis_idx, :],
+                ((0, pad), (0, 0)),
+                "constant",
+                constant_values=0,
+            )
+            self.basis_mask[atom_idx, max_s + 3 * max_p :] = np.pad(
+                np.ones(len(_d_basis_idx)),
+                (0, pad),
+                "constant",
+                constant_values=0,
+            )
 
     def generate_minimal_basis_representation(self):
         """Create a minimal basis representation of the coefficient matrix.

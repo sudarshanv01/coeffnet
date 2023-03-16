@@ -14,9 +14,9 @@ max_s_functions: 5
 max_p_functions: 4
 max_d_functions: 3
 irreps_node_attr: "1x0e"
-radial_layers: 3
+radial_layers: 2
 radial_neurons: 64
-max_radius: 4
+max_radius: 5 
 num_basis: 12
 num_neighbors: 4
 prediction_mode: "coeff_matrix"
