@@ -49,11 +49,35 @@ class ReactionDataset(InMemoryDataset):
         transform: str = None,
         pre_transform: bool = None,
         pre_filter: bool = None,
-        max_s_functions: int = 5,
-        max_p_functions: int = 5,  # NOTE: This mean (2l+1)*max_p_functions as the total number of basis functions
-        max_d_functions: int = 2,
+        max_s_functions: int = None,
+        max_p_functions: int = None,
+        max_d_functions: int = None,
+        use_minimal_basis_node_features: bool = False,
+        idx_eigenvalue: int = 0,
     ):
-        """Generic dataset of reaction data."""
+        """Dataset for the reaction.
+        
+        Args:
+            filename (Union[str, Path], optional): Path to the json file with the data. Defaults to None.
+            basis_filename (Union[str, Path], optional): Path to the json file with the basis information.\
+                  The format of the file must be the "JSON" option from basissetexchange.com. Defaults to None.
+            root (str, optional): Root directory. Defaults to None.
+            transform (str, optional): Transform to apply. Defaults to None.
+            pre_transform (bool, optional): Pre-transform to apply. Defaults to None.
+            pre_filter (bool, optional): Pre-filter to apply. Defaults to None.
+            max_s_functions (int, optional): Maximum number of s functions to be used in constructing node\
+                features. Defaults to None.
+            max_p_functions (int, optional): Maximum number of p functions to be used in constructing node\
+                features. Defaults to None.
+            max_d_functions (int, optional): Maximum number of d functions to be used in constructing node\
+                features. Defaults to None.
+            use_minimal_basis_node_features (bool, optional): Whether to use minimal basis node features.\
+                If true, then only _max_ coefficient matrices for the s and p functions are used to construct\
+                a minimal basis representation consisting of only 1 s and 1 p function. Defaults to False.
+            idx_eigenvalue (int, optional): Index of the eigenvalue to be used for the reaction. If set at 0
+                then the smallest occupied eigenvalue is used (i.e. smallest negative number). Any positive or
+                negative number will be referenced to this zero value.
+        """
 
         self.filename = filename
         self.root = root
@@ -61,6 +85,8 @@ class ReactionDataset(InMemoryDataset):
         self.max_s_functions = max_s_functions
         self.max_p_functions = max_p_functions
         self.max_d_functions = max_d_functions
+        self.use_minimal_basis_node_features = use_minimal_basis_node_features
+        self.idx_eigenvalue = idx_eigenvalue
 
         super().__init__(
             root=root,
@@ -148,6 +174,10 @@ class ReactionDataset(InMemoryDataset):
                 selected_eigenval_index = np.where(
                     alpha_eigenvalues == selected_eigenval
                 )[0][0]
+                selected_eigenval_index = selected_eigenval_index + self.idx_eigenvalue
+                logger.debug(
+                    f"Selected eigenvalue {selected_eigenval} with index {selected_eigenval_index}"
+                )
 
                 coeff_matrix = ModifiedCoefficientMatrix(
                     molecule_graph=molecule_graph,
@@ -158,12 +188,10 @@ class ReactionDataset(InMemoryDataset):
                     max_s_functions=self.max_s_functions,
                     max_p_functions=self.max_p_functions,
                     max_d_functions=self.max_d_functions,
+                    use_minimal_basis_node_features=self.use_minimal_basis_node_features,
                 )
-                node_features = coeff_matrix.get_padded_representation()
-                # TODO: Currently we are only implementing a single eigenvalue
-                # for the alpha coefficient matrix. At some point multiple
-                # eigenvalues need to be added and the following flattening
-                # will have to be done differently.
+
+                node_features = coeff_matrix.get_node_features()
                 node_features = node_features.reshape(node_features.shape[0], -1)
                 data_to_store["node_features"][state] = node_features
                 basis_mask = coeff_matrix.basis_mask

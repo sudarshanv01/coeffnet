@@ -342,9 +342,6 @@ class CoefficientMatrix:
 
 
 class ModifiedCoefficientMatrix(CoefficientMatrix):
-
-    minimal_basis_irrep = o3.Irreps("1x0e+1x1o")
-
     def __init__(
         self,
         molecule_graph: MoleculeGraph,
@@ -352,12 +349,28 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
         coefficient_matrix: npt.ArrayLike,
         store_idx_only: int = None,
         set_to_absolute: bool = False,
-        max_s_functions: Union[str, int] = "all",
-        max_p_functions: Union[str, int] = "all",
-        max_d_functions: Union[str, int] = "all",
+        max_s_functions: Union[str, int] = None,
+        max_p_functions: Union[str, int] = None,
+        max_d_functions: Union[str, int] = None,
+        use_minimal_basis_node_features: bool = False,
         **kwargs,
     ):
-        """Modify the coefficient matrix representing each atom by a fixed basis."""
+        """Modify the coefficient matrix representing each atom by a fixed basis.
+        
+        Args:
+            molecule_graph (MoleculeGraph): Molecule graph object.
+            basis_info_raw (Dict[str, Any]): Dictionary containing the basis information.
+            coefficient_matrix (npt.ArrayLike): Coefficient matrix.
+            store_idx_only (int, optional): Store only the indices of the basis functions.
+            set_to_absolute (bool, optional): Set the coefficients to absolute values.
+            max_s_functions (Union[str, int], optional): Maximum number of s functions to use.\
+                Use "all" to use all avail the basis functions [Not recommended].
+            max_p_functions (Union[str, int], optional): Maximum number of p functions to use.\
+                Use "all" to use all avail the basis functions [Not recommended].
+            max_d_functions (Union[str, int], optional): Maximum number of d functions to use.\
+                Use "all" to use all avail the basis functions [Not recommended].
+            use_minimal_basis_node_features (bool, optional): Use minimal basis node features.
+        """
         super().__init__(
             molecule_graph=molecule_graph,
             basis_info_raw=basis_info_raw,
@@ -366,9 +379,11 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
             set_to_absolute=set_to_absolute,
             **kwargs,
         )
+
         self.max_s_functions = max_s_functions
         self.max_p_functions = max_p_functions
         self.max_d_functions = max_d_functions
+        self.use_minimal_basis_node_features = use_minimal_basis_node_features
 
     def pad_split_coefficient_matrix(self):
         raise NotImplementedError(
@@ -377,6 +392,13 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
                                   represented by a fixed basis and hence has the same \
                                   dimensions."
         )
+
+    def get_node_features(self):
+        """Get the node features based on the specifications."""
+        if self.use_minimal_basis_node_features:
+            return self.get_minimal_basis_representation()
+        else:
+            return self.get_padded_representation()
 
     def get_minimal_basis_representation(self):
         """Return the minimal basis representation of the coefficient matrix."""
@@ -528,6 +550,7 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
             _s_basis_idx = self.basis_idx_s[atom_idx]
             _s_basis_idx = np.array(_s_basis_idx)
             _s_basis_idx = _s_basis_idx.flatten()
+            _s_basis_idx = _s_basis_idx - self.basis_atom[atom_idx][0]
 
             _p_basis_idx = self.basis_idx_p[atom_idx]
             _p_basis_idx = np.array(_p_basis_idx)
@@ -536,6 +559,9 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
             else:
                 _pfunctions_exist = True
                 _px_basis_idx, _py_basis_idx, _pz_basis_idx = _p_basis_idx.T
+                _px_basis_idx = _px_basis_idx - self.basis_atom[atom_idx][0]
+                _py_basis_idx = _py_basis_idx - self.basis_atom[atom_idx][0]
+                _pz_basis_idx = _pz_basis_idx - self.basis_atom[atom_idx][0]
 
             _s_coeff = np.max(
                 self.coefficient_matrix_atom[atom_idx][_s_basis_idx, :], axis=0
@@ -551,7 +577,6 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
                     self.coefficient_matrix_atom[atom_idx][_pz_basis_idx, :], axis=0
                 )
             else:
-                # Populate the p functions with zeros
                 _px_coeff = np.zeros(self.coefficient_matrix_atom[atom_idx].shape[1])
                 _py_coeff = np.zeros(self.coefficient_matrix_atom[atom_idx].shape[1])
                 _pz_coeff = np.zeros(self.coefficient_matrix_atom[atom_idx].shape[1])
