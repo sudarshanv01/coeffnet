@@ -337,11 +337,14 @@ class CoefficientMatrix:
                 )
             else:
                 self.coefficient_matrix_atom_centers_padded.append(
-                    self.coefficient_matrix_atom[atom_idx]
+                    np.array(self.coefficient_matrix_atom[atom_idx])
                 )
 
 
 class ModifiedCoefficientMatrix(CoefficientMatrix):
+
+    minimal_basis_irrep = o3.Irreps("1x0e+1x1o")
+
     def __init__(
         self,
         molecule_graph: MoleculeGraph,
@@ -584,3 +587,8 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
             self.coefficient_matrix_minimal_basis[atom_idx] = np.vstack(
                 (_s_coeff, _px_coeff, _py_coeff, _pz_coeff)
             )
+
+        # Since all atoms have the same number of basis functions and all go into
+        # the minimal basis representation, set basis_mask to 1 for the same dimensions
+        # as the coefficient matrix.
+        self.basis_mask = np.ones(self.coefficient_matrix.shape)
