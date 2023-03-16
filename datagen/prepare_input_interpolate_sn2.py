@@ -226,6 +226,7 @@ if __name__ == "__main__":
         interp_structures = []
         coeff_matrices = []
         ortho_coeff_matrices = []
+        orthogonalisation_matrices = []
         state = []
         interp_eigenvalues = []
 
@@ -283,8 +284,16 @@ if __name__ == "__main__":
                 [alpha_ortho_coeff_matrix, beta_ortho_coeff_matrix]
             )
 
+            orthogonalisation_matrices.append(
+                [
+                    alpha_base_quantities.orthogonalisation_matrix,
+                    beta_base_quantities.orthogonalisation_matrix,
+                ],
+            )
+
         ortho_coeff_matrices = np.array(ortho_coeff_matrices)
         interp_eigenvalues = np.array(interp_eigenvalues)
+        orthogonalisation_matrices = np.array(orthogonalisation_matrices)
 
         if not expected_interpolation(final_energies, state):
             continue
@@ -297,6 +306,7 @@ if __name__ == "__main__":
             "eigenvalues": interp_eigenvalues.tolist(),
             "state": state,
             "coeff_matrices": ortho_coeff_matrices.tolist(),
+            "orthogonalization_matrices": orthogonalisation_matrices.tolist(),
             "structures": interp_structures,
             "final_energy": final_energies,
             "tags": {
