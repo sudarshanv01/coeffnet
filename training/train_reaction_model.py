@@ -73,7 +73,6 @@ def train(train_loader):
 
         if inputs["prediction_mode"] == "coeff_matrix":
             real_y = data.x_transition_state
-            predicted_y = torch.abs(predicted_y)
         elif inputs["prediction_mode"] == "relative_energy":
             real_y = data.total_energy_transition_state - data.total_energy
             predicted_y = predicted_y.mean(dim=1)
@@ -82,7 +81,8 @@ def train(train_loader):
                 f"Prediction mode {inputs['prediction_mode']} not recognized."
             )
 
-        loss = F.mse_loss(predicted_y, real_y, reduction="sum")
+        # loss = F.mse_loss(predicted_y, real_y, reduction="sum")
+        loss = F.l1_loss(predicted_y, real_y, reduction="sum")
         loss.backward()
 
         losses += loss.item()
@@ -92,7 +92,7 @@ def train(train_loader):
         optim.step()
 
     output_metric = losses / num_graphs
-    output_metric = np.sqrt(output_metric)
+    # output_metric = np.sqrt(output_metric)
 
     return output_metric
 
@@ -111,7 +111,6 @@ def validate(val_loader):
 
         if inputs["prediction_mode"] == "coeff_matrix":
             real_y = data.x_transition_state
-            predicted_y = torch.abs(predicted_y)
         elif inputs["prediction_mode"] == "relative_energy":
             real_y = data.total_energy_transition_state - data.total_energy
             predicted_y = predicted_y.mean(dim=1)
@@ -120,13 +119,14 @@ def validate(val_loader):
                 f"Prediction mode {inputs['prediction_mode']} not recognized."
             )
 
-        loss = F.mse_loss(predicted_y, real_y, reduction="sum")
+        # loss = F.mse_loss(predicted_y, real_y, reduction="sum")
+        loss = F.l1_loss(predicted_y, real_y, reduction="sum")
 
         losses += loss.item()
         num_graphs += val_batch.num_graphs
 
     output_metric = losses / num_graphs
-    output_metric = np.sqrt(output_metric)
+    # output_metric = np.sqrt(output_metric)
 
     return output_metric
 

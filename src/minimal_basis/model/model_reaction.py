@@ -110,10 +110,11 @@ class ReactionModel(torch.nn.Module):
             {
                 "pos": data.pos,
                 "x": data.x,
-                # "z": data.species,
+                # "z": species_embedding,
                 "batch": data.batch,
             }
         )
+        output_network_initial_state = torch.abs(output_network_initial_state)
         output_network_initial_state = output_network_initial_state * data.basis_mask
         output_network_initial_state = self._normalize_to_sum_squares_one(
             output_network_initial_state, data.batch
@@ -123,10 +124,11 @@ class ReactionModel(torch.nn.Module):
             {
                 "pos": data.pos_final_state,
                 "x": data.x_final_state,
-                # "z": data.species,
+                # "z": species_embedding,
                 "batch": data.batch,
             }
         )
+        output_network_final_state = torch.abs(output_network_final_state)
         output_network_final_state = output_network_final_state * data.basis_mask
         output_network_final_state = self._normalize_to_sum_squares_one(
             output_network_final_state, data.batch
@@ -143,9 +145,12 @@ class ReactionModel(torch.nn.Module):
             {
                 "pos": data.pos_interpolated_transition_state,
                 "x": x_interpolated_transition_state,
-                # "z": data.species,
+                # "z": species_embedding,
                 "batch": data.batch,
             }
+        )
+        output_network_interpolated_transition_state = torch.abs(
+            output_network_interpolated_transition_state
         )
         output_network_interpolated_transition_state = (
             output_network_interpolated_transition_state * data.basis_mask
