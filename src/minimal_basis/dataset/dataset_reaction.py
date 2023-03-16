@@ -51,6 +51,7 @@ class ReactionDataset(InMemoryDataset):
         pre_filter: bool = None,
         max_s_functions: int = 5,
         max_p_functions: int = 5,  # NOTE: This mean (2l+1)*max_p_functions as the total number of basis functions
+        max_d_functions: int = 2,
     ):
         """Generic dataset of reaction data."""
 
@@ -58,7 +59,8 @@ class ReactionDataset(InMemoryDataset):
         self.root = root
         self.basis_filename = basis_filename
         self.max_s_functions = max_s_functions
-        self.map_p_functions = max_p_functions
+        self.max_p_functions = max_p_functions
+        self.max_d_functions = max_d_functions
 
         super().__init__(
             root=root,
@@ -154,7 +156,8 @@ class ReactionDataset(InMemoryDataset):
                     store_idx_only=selected_eigenval_index,
                     set_to_absolute=True,
                     max_s_functions=self.max_s_functions,
-                    max_p_functions=self.map_p_functions,
+                    max_p_functions=self.max_p_functions,
+                    max_d_functions=self.max_d_functions,
                 )
                 node_features = coeff_matrix.get_padded_representation()
                 # TODO: Currently we are only implementing a single eigenvalue

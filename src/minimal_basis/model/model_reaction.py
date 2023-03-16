@@ -32,6 +32,7 @@ class ReactionModel(torch.nn.Module):
 
         self.num_nodes = typical_number_of_nodes
         self.num_basis = num_basis
+        self.reduce_output = reduce_output
 
         self.network_initial_state = Network(
             irreps_in=irreps_in,
@@ -78,8 +79,20 @@ class ReactionModel(torch.nn.Module):
             radial_neurons=radial_neurons,
             num_nodes=typical_number_of_nodes,
             num_neighbors=num_neighbors,
-            reduce_output=reduce_output,
+            reduce_output=False,
         )
+
+    def _normalize_to_sum_squares_one(
+        self, x: torch.Tensor, batch: torch.Tensor
+    ) -> torch.Tensor:
+        """Normalize the output such that the sum of squares of each graph is 1."""
+
+        sum_squares_output = torch.sum(x**2, dim=1)
+        sum_squares_graph = scatter(sum_squares_output, batch, dim=0, reduce="sum")
+        normalization_factor = torch.sqrt(sum_squares_graph)
+        x = x / normalization_factor[batch].unsqueeze(1)
+
+        return x
 
     def forward(self, data):
         """Forward pass of the reaction model."""
@@ -97,21 +110,25 @@ class ReactionModel(torch.nn.Module):
             {
                 "pos": data.pos,
                 "x": data.x,
-                # "z": species_embedding,
+                # "z": data.species,
                 "batch": data.batch,
             }
         )
-        self.output_network_initial_state = output_network_initial_state
+        output_network_initial_state = self._normalize_to_sum_squares_one(
+            output_network_initial_state, data.batch
+        )
 
         output_network_final_state = self.network_final_state(
             {
                 "pos": data.pos_final_state,
                 "x": data.x_final_state,
-                # "z": species_embedding,
+                # "z": data.species,
                 "batch": data.batch,
             }
         )
-        self.output_network_final_state = output_network_final_state
+        output_network_final_state = self._normalize_to_sum_squares_one(
+            output_network_final_state, data.batch
+        )
 
         p = data.p
         p_prime = 1 - p
@@ -120,14 +137,23 @@ class ReactionModel(torch.nn.Module):
             + p_prime[0] * output_network_final_state
         )
 
+        output_network_interpolated_transition_state = self.network_interpolated_transition_state(
+            {
+                "pos": data.pos_interpolated_transition_state,
+                "x": x_interpolated_transition_state,
+                # "z": data.species,
+                "batch": data.batch,
+            }
+        )
         output_network_interpolated_transition_state = (
-            self.network_interpolated_transition_state(
-                {
-                    "pos": data.pos_interpolated_transition_state,
-                    "x": x_interpolated_transition_state,
-                    "batch": data.batch,
-                }
+            self._normalize_to_sum_squares_one(
+                output_network_interpolated_transition_state, data.batch
             )
         )
+
+        if self.reduce_output:
+            output_network_interpolated_transition_state = scatter(
+                output_network_interpolated_transition_state, data.batch, dim=0
+            ).div(self.num_nodes**0.5)
 
         return output_network_interpolated_transition_state

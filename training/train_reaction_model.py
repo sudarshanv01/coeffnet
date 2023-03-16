@@ -164,6 +164,7 @@ if __name__ == "__main__":
         basis_filename=inputs["basis_file"],
         max_s_functions=inputs["max_s_functions"],
         max_p_functions=inputs["max_p_functions"],
+        max_d_functions=inputs["max_d_functions"],
     )
     if args.reprocess_dataset:
         train_dataset.process()
@@ -174,10 +175,11 @@ if __name__ == "__main__":
         basis_filename=inputs["basis_file"],
         max_s_functions=inputs["max_s_functions"],
         max_p_functions=inputs["max_p_functions"],
+        max_d_functions=inputs["max_d_functions"],
     )
 
-    irreps_in = f"{inputs['max_s_functions']}x0e+{inputs['max_p_functions']}x1e"
-    irreps_out = f"{inputs['max_s_functions']}x0e+{inputs['max_p_functions']}x1e"
+    irreps_in = f"{inputs['max_s_functions']}x0e+{inputs['max_p_functions']}x1e+{inputs['max_d_functions']}x0e+{inputs['max_d_functions']}x2e"
+    irreps_out = f"{inputs['max_s_functions']}x0e+{inputs['max_p_functions']}x1e+{inputs['max_d_functions']}x0e+{inputs['max_d_functions']}x2e"
 
     if args.reprocess_dataset:
         validate_dataset.process()
