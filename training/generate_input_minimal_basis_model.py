@@ -11,8 +11,10 @@ def split_dataset(all_entries, train_frac, test_frac, validate_frac):
     """Split the dict based on the first key into three different fractions."""
 
     print(f"Number of entries in the dataset: {len(all_entries)}")
+
     # Find all entries in all_entries that have something in 'tags.failure'
     # If they do, they directly go into the training set
+
     error_train_list = []
     pruned_entries = []
     for entry in all_entries:
@@ -21,8 +23,11 @@ def split_dataset(all_entries, train_frac, test_frac, validate_frac):
         else:
             pruned_entries.append(entry)
 
+    print(f"Number of entries with errors: {len(error_train_list)}")
+    print(f"Number of entries without errors: {len(pruned_entries)}")
+
     random.seed(42)
-    random.shuffle(all_entries)
+    random.shuffle(pruned_entries)
 
     # Make sure all the entries now have positive barriers
     for entry in pruned_entries:
@@ -40,10 +45,12 @@ def split_dataset(all_entries, train_frac, test_frac, validate_frac):
     train_list = pruned_entries[:train_num]
     # Add the error entries to the training set
     train_list.extend(error_train_list)
-    # Shuffle the training set
-    random.shuffle(train_list)
     test_list = pruned_entries[train_num : train_num + test_num]
     validate_list = pruned_entries[train_num + test_num :]
+
+    print(f"Number of entries in the training set: {len(train_list)}")
+    print(f"Number of entries in the test set: {len(test_list)}")
+    print(f"Number of entries in the validation set: {len(validate_list)}")
 
     return train_list, test_list, validate_list
 
