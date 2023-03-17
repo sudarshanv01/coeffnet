@@ -13,16 +13,14 @@ def split_dataset(all_entries, train_frac, test_frac, validate_frac):
     print(f"Number of entries in the dataset: {len(all_entries)}")
     # Find all entries in all_entries that have something in 'tags.failure'
     # If they do, they directly go into the training set
-    train_list = []
+    error_train_list = []
     pruned_entries = []
     for entry in all_entries:
         if len(entry["tags"]["failure"]) > 0:
-            train_list.append(entry)
+            error_train_list.append(entry)
         else:
             pruned_entries.append(entry)
 
-    # Shuffle the list, but fix the seed so that the same list is generated
-    # every time
     random.seed(42)
     random.shuffle(all_entries)
 
@@ -40,6 +38,10 @@ def split_dataset(all_entries, train_frac, test_frac, validate_frac):
     validate_num = int(len(pruned_entries) * validate_frac)
 
     train_list = pruned_entries[:train_num]
+    # Add the error entries to the training set
+    train_list.extend(error_train_list)
+    # Shuffle the training set
+    random.shuffle(train_list)
     test_list = pruned_entries[train_num : train_num + test_num]
     validate_list = pruned_entries[train_num + test_num :]
 
