@@ -14,25 +14,34 @@ def split_dataset(all_entries, train_frac, test_frac, validate_frac):
     # Find all entries in all_entries that have something in 'tags.failure'
     # If they do, they directly go into the training set
     train_list = []
+    pruned_entries = []
     for entry in all_entries:
         if len(entry["tags"]["failure"]) > 0:
             train_list.append(entry)
-            all_entries.remove(entry)
-    print(f"Number of entries in training set: {len(train_list)} due to failures.")
-    print(f"Number of entries left: {len(all_entries)}")
+        else:
+            pruned_entries.append(entry)
 
-    # Shuffle the list
+    # Shuffle the list, but fix the seed so that the same list is generated
+    # every time
+    random.seed(42)
     random.shuffle(all_entries)
 
-    # Get the number of entries in each list
-    train_num = int(len(all_entries) * train_frac)
-    test_num = int(len(all_entries) * test_frac)
-    validate_num = int(len(all_entries) * validate_frac)
+    # Make sure all the entries now have positive barriers
+    for entry in pruned_entries:
+        state = entry["state"]
+        barriers = (
+            entry["final_energy"][state.index("transition_state")]
+            - entry["final_energy"][state.index("initial_state")]
+        )
+        assert barriers > 0
 
-    # Split the list
-    train_list = all_entries[:train_num]
-    test_list = all_entries[train_num : train_num + test_num]
-    validate_list = all_entries[train_num + test_num :]
+    train_num = int(len(pruned_entries) * train_frac)
+    test_num = int(len(pruned_entries) * test_frac)
+    validate_num = int(len(pruned_entries) * validate_frac)
+
+    train_list = pruned_entries[:train_num]
+    test_list = pruned_entries[train_num : train_num + test_num]
+    validate_list = pruned_entries[train_num + test_num :]
 
     return train_list, test_list, validate_list
 
@@ -80,6 +89,7 @@ if __name__ == "__main__":
 
     args = get_cli_args()
 
+    print("Loading data from MongoDB...")
     db = instance_mongodb_sei(project="mlts")
     collection = db.minimal_basis_interpolated_sn2
 

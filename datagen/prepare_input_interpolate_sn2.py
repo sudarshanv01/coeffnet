@@ -166,7 +166,7 @@ if __name__ == "__main__":
     db = instance_mongodb_sei(project="mlts")
 
     collection_data = db.minimal_basis
-    collection_data_new = db.minimal_basis_interpolated_sn2
+    collection_data_new = db.sn2_reaction_dataset
 
     GROUPNAME_TS = "sn2_transition_states"
     GROUPNAME_INTERP = "sn2_interpolated_from_transition_states"
