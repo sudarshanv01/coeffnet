@@ -113,7 +113,10 @@ class ReactionModel(torch.nn.Module):
                 "batch": data.batch,
             }
         )
-        output_network_initial_state = torch.abs(output_network_initial_state)
+
+        if not self.reduce_output:
+            output_network_initial_state = torch.abs(output_network_initial_state)
+
         output_network_initial_state = output_network_initial_state * data.basis_mask
         output_network_initial_state = self._normalize_to_sum_squares_one(
             output_network_initial_state, data.batch
@@ -126,7 +129,10 @@ class ReactionModel(torch.nn.Module):
                 "batch": data.batch,
             }
         )
-        output_network_final_state = torch.abs(output_network_final_state)
+
+        if not self.reduce_output:
+            output_network_final_state = torch.abs(output_network_final_state)
+
         output_network_final_state = output_network_final_state * data.basis_mask
         output_network_final_state = self._normalize_to_sum_squares_one(
             output_network_final_state, data.batch
@@ -148,9 +154,12 @@ class ReactionModel(torch.nn.Module):
                 }
             )
         )
-        output_network_interpolated_transition_state = torch.abs(
-            output_network_interpolated_transition_state
-        )
+
+        if not self.reduce_output:
+            output_network_interpolated_transition_state = torch.abs(
+                output_network_interpolated_transition_state
+            )
+
         output_network_interpolated_transition_state = (
             output_network_interpolated_transition_state * data.basis_mask
         )

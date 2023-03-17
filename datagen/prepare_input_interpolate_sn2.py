@@ -92,8 +92,7 @@ def expected_transition_state(
 
     imag_eigval_idx = np.where(eigenvalue < 0)
     if len(imag_eigval_idx[0]) != 1:
-        # print("More than one imaginary eigenvalue.")
-        # print(imag_eigval_idx)
+        tags_failure += "+imag_freq"
         return False
 
     coordination_carbon = ts_molecule_graph.get_coordination_of_site(idx_carbon_node)
@@ -137,10 +136,8 @@ def expected_transition_state(
     ) - perturbed_molecule_neg.get_distance(idx_carbon_node, idx_Y)
 
     if np.sign(dist_pos) == np.sign(dist_neg):
-        # print("Signs of the perturbed transition states are not the same", dist_pos, dist_neg)
         return False
 
-    # print("Transition state is accepted.")
     return True
 
 
@@ -148,7 +145,7 @@ def expected_interpolation(energies, states):
     """Check if the interpolated energies are in the right order."""
 
     if len(energies) != 3:
-        return False
+        assert len(energies) == 3, "The number of energies is not 3."
 
     idx_initial_state = states.index("initial_state")
     idx_final_state = states.index("final_state")
@@ -183,6 +180,8 @@ if __name__ == "__main__":
     num_accepted_ts = 0
     for doc in collection_data.find(find_TS_keys):
 
+        tags_failure = ""
+
         molecule_dict = doc["output"]["optimized_molecule"]
         molecule = Molecule.from_dict(molecule_dict)
         atoms = AseAtomsAdaptor.get_atoms(molecule)
@@ -205,10 +204,15 @@ if __name__ == "__main__":
         imag_eigenmode = eigenvectors[imag_freq_idx]
 
         if not expected_transition_state(
-            molecule, molecule_graph, imag_eigenmode, imag_freq, idx_carbon_node, label
+            molecule,
+            molecule_graph,
+            imag_eigenmode,
+            imag_freq,
+            idx_carbon_node,
+            label,
         ):
-            # print("Not accepted")
-            continue
+            tags_failure += "+ts_failure"
+            print("Transition state is not accepted, storing for training.")
 
         cursor = (
             collection_data.find(
@@ -295,22 +299,28 @@ if __name__ == "__main__":
         interp_eigenvalues = np.array(interp_eigenvalues)
         orthogonalisation_matrices = np.array(orthogonalisation_matrices)
 
-        if not expected_interpolation(final_energies, state):
+        try:
+            if not expected_interpolation(final_energies, state):
+                print("Interpolation is not accepted, storing for training.")
+                tags_failure += "+interp_failure"
+        except AssertionError:
+            print("Incorrect dimension of data.")
             continue
 
         num_accepted_ts += 1
         print("Accepted TS: ", num_accepted_ts)
+        print("Failure: ", tags_failure)
 
         data_to_store = {}
         data_to_store = {
             "eigenvalues": interp_eigenvalues.tolist(),
             "state": state,
             "coeff_matrices": ortho_coeff_matrices.tolist(),
-            "orthogonalization_matrices": orthogonalisation_matrices.tolist(),
             "structures": interp_structures,
             "final_energy": final_energies,
             "tags": {
                 "label": label,
+                "failure": tags_failure,
             },
         }
 

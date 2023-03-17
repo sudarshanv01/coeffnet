@@ -10,6 +10,17 @@ from monty.serialization import loadfn, dumpfn
 def split_dataset(all_entries, train_frac, test_frac, validate_frac):
     """Split the dict based on the first key into three different fractions."""
 
+    print(f"Number of entries in the dataset: {len(all_entries)}")
+    # Find all entries in all_entries that have something in 'tags.failure'
+    # If they do, they directly go into the training set
+    train_list = []
+    for entry in all_entries:
+        if len(entry["tags"]["failure"]) > 0:
+            train_list.append(entry)
+            all_entries.remove(entry)
+    print(f"Number of entries in training set: {len(train_list)} due to failures.")
+    print(f"Number of entries left: {len(all_entries)}")
+
     # Shuffle the list
     random.shuffle(all_entries)
 
