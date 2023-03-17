@@ -591,4 +591,4 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
         # Since all atoms have the same number of basis functions and all go into
         # the minimal basis representation, set basis_mask to 1 for the same dimensions
         # as the coefficient matrix.
-        self.basis_mask = np.ones(self.coefficient_matrix.shape)
+        self.basis_mask = np.ones(self.coefficient_matrix_minimal_basis.shape[:-1])

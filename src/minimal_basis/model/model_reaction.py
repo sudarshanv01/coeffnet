@@ -110,7 +110,6 @@ class ReactionModel(torch.nn.Module):
             {
                 "pos": data.pos,
                 "x": data.x,
-                # "z": species_embedding,
                 "batch": data.batch,
             }
         )
@@ -124,7 +123,6 @@ class ReactionModel(torch.nn.Module):
             {
                 "pos": data.pos_final_state,
                 "x": data.x_final_state,
-                # "z": species_embedding,
                 "batch": data.batch,
             }
         )
@@ -141,13 +139,14 @@ class ReactionModel(torch.nn.Module):
             + p_prime[0] * output_network_final_state
         )
 
-        output_network_interpolated_transition_state = self.network_interpolated_transition_state(
-            {
-                "pos": data.pos_interpolated_transition_state,
-                "x": x_interpolated_transition_state,
-                # "z": species_embedding,
-                "batch": data.batch,
-            }
+        output_network_interpolated_transition_state = (
+            self.network_interpolated_transition_state(
+                {
+                    "pos": data.pos_interpolated_transition_state,
+                    "x": x_interpolated_transition_state,
+                    "batch": data.batch,
+                }
+            )
         )
         output_network_interpolated_transition_state = torch.abs(
             output_network_interpolated_transition_state

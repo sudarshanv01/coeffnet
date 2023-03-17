@@ -144,6 +144,26 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"Prediction mode {inputs['prediction_mode']} not recognized.")
 
+    if inputs["use_minimal_basis_node_features"]:
+        kwargs_dataset = {"use_minimal_basis_node_features": True}
+        irreps_in = "1x0e+1x1e"
+        irreps_out = "1x0e+1x1e"
+    else:
+        kwargs_dataset = {
+            "max_s_functions": inputs["max_s_functions"],
+            "max_p_functions": inputs["max_p_functions"],
+            "max_d_functions": inputs["max_d_functions"],
+        }
+        irreps_in = f"{inputs['max_s_functions']}x0e"
+        irreps_in += f"+{inputs['max_p_functions']}x1e"
+        irreps_in += f"+{inputs['max_d_functions']}x0e"
+        irreps_in += f"+{inputs['max_d_functions']}x2e"
+
+        irreps_out = f"{inputs['max_s_functions']}x0e"
+        irreps_out += f"+{inputs['max_p_functions']}x1e"
+        irreps_out += f"+{inputs['max_d_functions']}x0e"
+        irreps_out += f"+{inputs['max_d_functions']}x2e"
+
     if args.use_wandb:
         wandb.config = {
             "learning_rate": inputs["learning_rate"],
@@ -162,9 +182,7 @@ if __name__ == "__main__":
         root=get_train_data_path(),
         filename=train_json_filename,
         basis_filename=inputs["basis_file"],
-        max_s_functions=inputs["max_s_functions"],
-        max_p_functions=inputs["max_p_functions"],
-        max_d_functions=inputs["max_d_functions"],
+        **kwargs_dataset,
     )
     if args.reprocess_dataset:
         train_dataset.process()
@@ -173,13 +191,8 @@ if __name__ == "__main__":
         root=get_validation_data_path(),
         filename=validate_json_filename,
         basis_filename=inputs["basis_file"],
-        max_s_functions=inputs["max_s_functions"],
-        max_p_functions=inputs["max_p_functions"],
-        max_d_functions=inputs["max_d_functions"],
+        **kwargs_dataset,
     )
-
-    irreps_in = f"{inputs['max_s_functions']}x0e+{inputs['max_p_functions']}x1e+{inputs['max_d_functions']}x0e+{inputs['max_d_functions']}x2e"
-    irreps_out = f"{inputs['max_s_functions']}x0e+{inputs['max_p_functions']}x1e+{inputs['max_d_functions']}x0e+{inputs['max_d_functions']}x2e"
 
     if args.reprocess_dataset:
         validate_dataset.process()
