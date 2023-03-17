@@ -12,41 +12,13 @@ def split_dataset(all_entries, train_frac, test_frac, validate_frac):
 
     print(f"Number of entries in the dataset: {len(all_entries)}")
 
-    # Find all entries in all_entries that have something in 'tags.failure'
-    # If they do, they directly go into the training set
+    train_num = int(len(all_entries) * train_frac)
+    test_num = int(len(all_entries) * test_frac)
+    validate_num = int(len(all_entries) * validate_frac)
 
-    error_train_list = []
-    pruned_entries = []
-    for entry in all_entries:
-        if len(entry["tags"]["failure"]) > 0:
-            error_train_list.append(entry)
-        else:
-            pruned_entries.append(entry)
-
-    print(f"Number of entries with errors: {len(error_train_list)}")
-    print(f"Number of entries without errors: {len(pruned_entries)}")
-
-    random.seed(42)
-    random.shuffle(pruned_entries)
-
-    # Make sure all the entries now have positive barriers
-    for entry in pruned_entries:
-        state = entry["state"]
-        barriers = (
-            entry["final_energy"][state.index("transition_state")]
-            - entry["final_energy"][state.index("initial_state")]
-        )
-        assert barriers > 0
-
-    train_num = int(len(pruned_entries) * train_frac)
-    test_num = int(len(pruned_entries) * test_frac)
-    validate_num = int(len(pruned_entries) * validate_frac)
-
-    train_list = pruned_entries[:train_num]
-    # Add the error entries to the training set
-    train_list.extend(error_train_list)
-    test_list = pruned_entries[train_num : train_num + test_num]
-    validate_list = pruned_entries[train_num + test_num :]
+    train_list = all_entries[:train_num]
+    test_list = all_entries[train_num : train_num + test_num]
+    validate_list = all_entries[train_num + test_num :]
 
     print(f"Number of entries in the training set: {len(train_list)}")
     print(f"Number of entries in the test set: {len(test_list)}")
