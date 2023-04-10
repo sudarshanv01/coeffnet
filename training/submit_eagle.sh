@@ -4,8 +4,8 @@
 #SBATCH --time=5:00:00
 #SBATCH --account=silimorphous
 #SBATCH --job-name=job
-#SBATCH --output=frequency_flattening-%j.out
-#SBATCH --error=frequency_flattening-%j.error
+#SBATCH --output=slurm-%j.out
+#SBATCH --error=slurm-%j.error
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 
