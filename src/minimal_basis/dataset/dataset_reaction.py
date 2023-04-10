@@ -129,10 +129,12 @@ class ReactionDataset(InMemoryDataset):
             final_energy = input_data["final_energy"]
             coeff_matrices = input_data["coeff_matrices"]
             states = input_data["state"]
+            forces = input_data["atom_centered_forces"]
 
             eigenvalues = np.array(eigenvalues)
             final_energy = np.array(final_energy)
             coeff_matrices = np.array(coeff_matrices)
+            forces = np.array(forces)
 
             structures = input_data["structures"]
 
@@ -199,6 +201,9 @@ class ReactionDataset(InMemoryDataset):
 
                 minimal_basis_irrep = coeff_matrix.minimal_basis_irrep
 
+                forces_ = forces[idx_state]
+                data_to_store["forces"][state] = forces_
+
             initial_states_structure = structures[states.index("initial_state")]
             final_states_structure = structures[states.index("final_state")]
 
@@ -252,6 +257,7 @@ class ReactionDataset(InMemoryDataset):
                 edge_index=data_to_store["edge_index"],
                 x=data_to_store["node_features"],
                 total_energies=data_to_store["total_energies"],
+                forces=data_to_store["forces"],
                 minimal_basis_irrep=minimal_basis_irrep,
                 species=data_to_store["species"],
                 p=p,

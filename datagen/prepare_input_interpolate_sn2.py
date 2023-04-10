@@ -174,10 +174,11 @@ if __name__ == "__main__":
         "tags.group": GROUPNAME_TS,
         "orig.rem.basis": "6-31g*",
         "orig.rem.method": "b3lyp",
+        "tags.quantity": {"$exists": False},
     }
     idx_carbon_node = 0
-
     num_accepted_ts = 0
+
     for doc in collection_data.find(find_TS_keys):
 
         tags_failure = ""
@@ -220,6 +221,7 @@ if __name__ == "__main__":
                     "tags.label": label,
                     "tags.group": GROUPNAME_INTERP,
                     "tags.scaling": {"$in": [-0.5, 0.0, 0.5]},
+                    "tags.quantity": {"$exists": False},
                 }
             )
             .sort("tags.scaling", 1)
@@ -233,6 +235,7 @@ if __name__ == "__main__":
         orthogonalisation_matrices = []
         state = []
         interp_eigenvalues = []
+        forces = []
 
         for document in cursor:
 
@@ -295,9 +298,27 @@ if __name__ == "__main__":
                 ],
             )
 
+            # Get the forces by finding the document with `quantity` tag
+            cursor_forces = collection_data.find_one(
+                {
+                    "tags.label": label,
+                    "tags.group": GROUPNAME_INTERP,
+                    "tags.scaling": document["tags"]["scaling"],
+                    "tags.quantity": "forces",
+                    "tags.scaling": document["tags"]["scaling"],
+                }
+            )
+            if cursor_forces is None:
+                print("No forces found for this document.")
+                continue
+            gradients = cursor_forces["output"]["gradients"]
+            forces.append(gradients)
+
         ortho_coeff_matrices = np.array(ortho_coeff_matrices)
         interp_eigenvalues = np.array(interp_eigenvalues)
         orthogonalisation_matrices = np.array(orthogonalisation_matrices)
+        forces = np.array(forces)
+        print(forces.shape)
 
         try:
             if not expected_interpolation(final_energies, state):
@@ -318,6 +339,7 @@ if __name__ == "__main__":
             "coeff_matrices": ortho_coeff_matrices.tolist(),
             "structures": interp_structures,
             "final_energy": final_energies,
+            "atom_centered_forces": forces.tolist(),
             "tags": {
                 "label": label,
                 "failure": tags_failure,

@@ -72,7 +72,7 @@ if __name__ == "__main__":
 
     print("Loading data from MongoDB...")
     db = instance_mongodb_sei(project="mlts")
-    collection = db.minimal_basis_interpolated_sn2
+    collection = db.sn2_reaction_dataset
 
     # Get all entries in this collection as a list
     if args.debug:

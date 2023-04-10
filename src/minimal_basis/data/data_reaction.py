@@ -46,6 +46,7 @@ class ReactionDataPoint(Data):
         pos: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
         total_energies: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
         species: Dict[str, Union[npt.ArrayLike, List[int]]] = None,
+        forces: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
         basis_mask: Union[npt.ArrayLike, List[bool]] = None,
         **kwargs,
     ):
@@ -139,6 +140,20 @@ class ReactionDataPoint(Data):
             species_final_state = None
             species_transition_state = None
 
+        if forces is not None:
+            forces_initial_state = forces["initial_state"]
+            forces_final_state = forces["final_state"]
+            forces_transition_state = forces["transition_state"]
+
+            forces_initial_state = convert_to_tensor(forces_initial_state)
+            forces_final_state = convert_to_tensor(forces_final_state)
+            forces_transition_state = convert_to_tensor(forces_transition_state)
+
+        else:
+            forces_initial_state = None
+            forces_final_state = None
+            forces_transition_state = None
+
         if basis_mask is not None:
             basis_mask = convert_to_tensor(basis_mask, dtype=DTYPE_BOOL)
         else:
@@ -160,6 +175,9 @@ class ReactionDataPoint(Data):
             total_energy_final_state=total_energy_final_state,
             total_energy_transition_state=total_energy_transition_state,
             species=species_initial_state,
+            forces=forces_initial_state,
+            forces_final_state=forces_final_state,
+            forces_transition_state=forces_transition_state,
             basis_mask=basis_mask,
             **kwargs,
         )

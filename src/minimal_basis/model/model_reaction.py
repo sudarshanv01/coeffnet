@@ -33,11 +33,13 @@ class ReactionModel(torch.nn.Module):
         self.num_nodes = typical_number_of_nodes
         self.num_basis = num_basis
         self.reduce_output = reduce_output
+        self.irreps_in = irreps_in
+        self.irreps_out = irreps_out
 
         self.network_initial_state = Network(
             irreps_in=irreps_in,
             irreps_hidden=irreps_hidden,
-            irreps_out=irreps_out,
+            irreps_out=irreps_in,
             irreps_node_attr=irreps_node_attr,
             irreps_edge_attr=irreps_edge_attr,
             layers=radial_layers,
@@ -53,7 +55,7 @@ class ReactionModel(torch.nn.Module):
         self.network_final_state = Network(
             irreps_in=irreps_in,
             irreps_hidden=irreps_hidden,
-            irreps_out=irreps_out,
+            irreps_out=irreps_in,
             irreps_node_attr=irreps_node_attr,
             irreps_edge_attr=irreps_edge_attr,
             layers=radial_layers,
@@ -159,16 +161,15 @@ class ReactionModel(torch.nn.Module):
             output_network_interpolated_transition_state = torch.abs(
                 output_network_interpolated_transition_state
             )
-
-        output_network_interpolated_transition_state = (
-            output_network_interpolated_transition_state * data.basis_mask
-        )
-        output_network_interpolated_transition_state = (
-            self._normalize_to_sum_squares_one(
-                output_network_interpolated_transition_state, data.batch
+        if self.irreps_out == self.irreps_in:
+            output_network_interpolated_transition_state = (
+                output_network_interpolated_transition_state * data.basis_mask
             )
-        )
-
+            output_network_interpolated_transition_state = (
+                self._normalize_to_sum_squares_one(
+                    output_network_interpolated_transition_state, data.batch
+                )
+            )
         if self.reduce_output:
             output_network_interpolated_transition_state = scatter(
                 output_network_interpolated_transition_state, data.batch, dim=0

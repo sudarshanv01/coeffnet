@@ -76,6 +76,8 @@ def train(train_loader):
         elif inputs["prediction_mode"] == "relative_energy":
             real_y = data.total_energy_transition_state - data.total_energy
             predicted_y = predicted_y.mean(dim=1)
+        elif inputs["prediction_mode"] == "forces":
+            real_y = data.forces_transition_state
         else:
             raise ValueError(
                 f"Prediction mode {inputs['prediction_mode']} not recognized."
@@ -114,6 +116,8 @@ def validate(val_loader):
         elif inputs["prediction_mode"] == "relative_energy":
             real_y = data.total_energy_transition_state - data.total_energy
             predicted_y = predicted_y.mean(dim=1)
+        elif inputs["prediction_mode"] == "forces":
+            real_y = data.forces_transition_state
         else:
             raise ValueError(
                 f"Prediction mode {inputs['prediction_mode']} not recognized."
@@ -139,6 +143,8 @@ if __name__ == "__main__":
     inputs = read_inputs_yaml(os.path.join("input_files", "reaction_model.yaml"))
     if inputs["prediction_mode"] == "coeff_matrix":
         reduce_output = False
+    elif inputs["prediction_mode"] == "forces":
+        reduce_output = False
     elif inputs["prediction_mode"] == "relative_energy":
         reduce_output = True
     else:
@@ -159,10 +165,13 @@ if __name__ == "__main__":
         irreps_in += f"+{inputs['max_d_functions']}x0e"
         irreps_in += f"+{inputs['max_d_functions']}x2e"
 
-        irreps_out = f"{inputs['max_s_functions']}x0e"
-        irreps_out += f"+{inputs['max_p_functions']}x1e"
-        irreps_out += f"+{inputs['max_d_functions']}x0e"
-        irreps_out += f"+{inputs['max_d_functions']}x2e"
+        if "irreps_out" in inputs.keys():
+            irreps_out = inputs["irreps_out"]
+        else:
+            irreps_out = f"{inputs['max_s_functions']}x0e"
+            irreps_out += f"+{inputs['max_p_functions']}x1e"
+            irreps_out += f"+{inputs['max_d_functions']}x0e"
+            irreps_out += f"+{inputs['max_d_functions']}x2e"
 
     if args.use_wandb:
         wandb.config = {
