@@ -26,6 +26,7 @@ class ReactionModel(torch.nn.Module):
         num_neighbors: int,
         typical_number_of_nodes: int,
         reduce_output: Optional[bool] = False,
+        make_absolute: Optional[bool] = False,
     ) -> None:
         """Initialize the reaction model."""
         super().__init__()
@@ -35,6 +36,7 @@ class ReactionModel(torch.nn.Module):
         self.reduce_output = reduce_output
         self.irreps_in = irreps_in
         self.irreps_out = irreps_out
+        self.make_absolute = make_absolute
 
         self.network_initial_state = Network(
             irreps_in=irreps_in,
@@ -116,7 +118,7 @@ class ReactionModel(torch.nn.Module):
             }
         )
 
-        if not self.reduce_output:
+        if self.make_absolute:
             output_network_initial_state = torch.abs(output_network_initial_state)
 
         output_network_initial_state = output_network_initial_state * data.basis_mask
@@ -132,7 +134,7 @@ class ReactionModel(torch.nn.Module):
             }
         )
 
-        if not self.reduce_output:
+        if self.make_absolute:
             output_network_final_state = torch.abs(output_network_final_state)
 
         output_network_final_state = output_network_final_state * data.basis_mask
@@ -157,7 +159,7 @@ class ReactionModel(torch.nn.Module):
             )
         )
 
-        if not self.reduce_output:
+        if self.make_absolute:
             output_network_interpolated_transition_state = torch.abs(
                 output_network_interpolated_transition_state
             )

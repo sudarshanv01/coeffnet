@@ -318,7 +318,9 @@ if __name__ == "__main__":
         interp_eigenvalues = np.array(interp_eigenvalues)
         orthogonalisation_matrices = np.array(orthogonalisation_matrices)
         forces = np.array(forces)
-        print(forces.shape)
+        if forces.shape[0] != 3:
+            print("Number of structures is not 3.")
+            continue
 
         try:
             if not expected_interpolation(final_energies, state):
