@@ -23,6 +23,6 @@ irreps_hidden: "16x0e+288x1e+144x2e"
 prediction_mode: "forces"
 irreps_out: '1x1e'
 # prediction_mode: "coeff_matrix"
-#prediction_mode: "relative_energy"
-# use_minimal_basis_node_features: true
-use_minimal_basis_node_features: false
+# prediction_mode: "relative_energy"
+use_minimal_basis_node_features: true
+# use_minimal_basis_node_features: false

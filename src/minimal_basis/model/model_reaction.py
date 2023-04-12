@@ -101,14 +101,14 @@ class ReactionModel(torch.nn.Module):
     def forward(self, data):
         """Forward pass of the reaction model."""
 
-        species_embedding = soft_one_hot_linspace(
-            data.species.squeeze(),
-            start=0.0,
-            end=self.max_species_embedding,
-            number=1,
-            basis="smooth_finite",
-            cutoff=True,
-        )
+        # species_embedding = soft_one_hot_linspace(
+        #     data.species.squeeze(),
+        #     start=0.0,
+        #     end=self.max_species_embedding,
+        #     number=1,
+        #     basis="smooth_finite",
+        #     cutoff=True,
+        # )
 
         output_network_initial_state = self.network_initial_state(
             {

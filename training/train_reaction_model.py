@@ -153,7 +153,10 @@ if __name__ == "__main__":
     if inputs["use_minimal_basis_node_features"]:
         kwargs_dataset = {"use_minimal_basis_node_features": True}
         irreps_in = "1x0e+1x1e"
-        irreps_out = "1x0e+1x1e"
+        if "irreps_out" in inputs.keys():
+            irreps_out = inputs["irreps_out"]
+        else:
+            irreps_out = "1x0e+1x1e"
     else:
         kwargs_dataset = {
             "max_s_functions": inputs["max_s_functions"],
@@ -219,6 +222,11 @@ if __name__ == "__main__":
     typical_number_of_nodes = typical_number_of_nodes / len(train_dataset)
     typical_number_of_nodes = int(typical_number_of_nodes)
 
+    if inputs["prediction_mode"] in ["coeff_matrix", "relative_energy"]:
+        make_absolute = True
+    else:
+        make_absolute = False
+
     model = Model(
         irreps_in=irreps_in,
         irreps_hidden=inputs["irreps_hidden"],
@@ -232,6 +240,7 @@ if __name__ == "__main__":
         num_neighbors=inputs["num_neighbors"],
         typical_number_of_nodes=typical_number_of_nodes,
         reduce_output=reduce_output,
+        make_absolute=make_absolute,
     )
     model = model.to(DEVICE)
     print(model)
