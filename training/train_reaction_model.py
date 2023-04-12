@@ -7,9 +7,11 @@ import argparse
 
 import torch
 from torch_geometric.loader import DataLoader
+import torch_geometric.transforms as T
 
 from minimal_basis.dataset.dataset_reaction import ReactionDataset as Dataset
 from minimal_basis.model.model_reaction import ReactionModel as Model
+from minimal_basis.transforms.absolute import Absolute
 
 from utils import (
     get_test_data_path,
@@ -67,7 +69,6 @@ def train(train_loader):
     num_graphs = 0
 
     for train_batch in train_loader:
-        data = train_batch.to(DEVICE)
         optim.zero_grad()
         predicted_y = model(data)
 
@@ -83,7 +84,6 @@ def train(train_loader):
                 f"Prediction mode {inputs['prediction_mode']} not recognized."
             )
 
-        # loss = F.mse_loss(predicted_y, real_y, reduction="sum")
         loss = F.l1_loss(predicted_y, real_y, reduction="sum")
         loss.backward()
 
@@ -94,7 +94,6 @@ def train(train_loader):
         optim.step()
 
     output_metric = losses / num_graphs
-    # output_metric = np.sqrt(output_metric)
 
     return output_metric
 
@@ -108,7 +107,6 @@ def validate(val_loader):
     num_graphs = 0
 
     for val_batch in val_loader:
-        data = val_batch.to(DEVICE)
         predicted_y = model(data)
 
         if inputs["prediction_mode"] == "coeff_matrix":
@@ -123,14 +121,12 @@ def validate(val_loader):
                 f"Prediction mode {inputs['prediction_mode']} not recognized."
             )
 
-        # loss = F.mse_loss(predicted_y, real_y, reduction="sum")
         loss = F.l1_loss(predicted_y, real_y, reduction="sum")
 
         losses += loss.item()
         num_graphs += val_batch.num_graphs
 
     output_metric = losses / num_graphs
-    # output_metric = np.sqrt(output_metric)
 
     return output_metric
 
@@ -150,6 +146,15 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"Prediction mode {inputs['prediction_mode']} not recognized.")
 
+    if inputs["prediction_mode"] in ["coeff_matrix", "relative_energy"]:
+        make_absolute = True
+        transform = T.Compose([Absolute(), T.ToDevice(DEVICE)])
+        parity = "e"
+    else:
+        make_absolute = False
+        transform = T.ToDevice(DEVICE)
+        parity = "o"
+
     if inputs["use_minimal_basis_node_features"]:
         kwargs_dataset = {"use_minimal_basis_node_features": True}
         irreps_in = "1x0e+1x1e"
@@ -164,7 +169,7 @@ if __name__ == "__main__":
             "max_d_functions": inputs["max_d_functions"],
         }
         irreps_in = f"{inputs['max_s_functions']}x0e"
-        irreps_in += f"+{inputs['max_p_functions']}x1e"
+        irreps_in += f"+{inputs['max_p_functions']}x1{parity}"
         irreps_in += f"+{inputs['max_d_functions']}x0e"
         irreps_in += f"+{inputs['max_d_functions']}x2e"
 
@@ -172,7 +177,7 @@ if __name__ == "__main__":
             irreps_out = inputs["irreps_out"]
         else:
             irreps_out = f"{inputs['max_s_functions']}x0e"
-            irreps_out += f"+{inputs['max_p_functions']}x1e"
+            irreps_out += f"+{inputs['max_p_functions']}x1{parity}"
             irreps_out += f"+{inputs['max_d_functions']}x0e"
             irreps_out += f"+{inputs['max_d_functions']}x2e"
 
@@ -194,6 +199,7 @@ if __name__ == "__main__":
         root=get_train_data_path(),
         filename=train_json_filename,
         basis_filename=inputs["basis_file"],
+        transform=transform,
         **kwargs_dataset,
     )
     if args.reprocess_dataset:
@@ -203,6 +209,7 @@ if __name__ == "__main__":
         root=get_validation_data_path(),
         filename=validate_json_filename,
         basis_filename=inputs["basis_file"],
+        transform=transform,
         **kwargs_dataset,
     )
 
@@ -221,11 +228,6 @@ if __name__ == "__main__":
         typical_number_of_nodes += data.x.shape[0]
     typical_number_of_nodes = typical_number_of_nodes / len(train_dataset)
     typical_number_of_nodes = int(typical_number_of_nodes)
-
-    if inputs["prediction_mode"] in ["coeff_matrix", "relative_energy"]:
-        make_absolute = True
-    else:
-        make_absolute = False
 
     model = Model(
         irreps_in=irreps_in,

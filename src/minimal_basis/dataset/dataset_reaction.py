@@ -186,7 +186,7 @@ class ReactionDataset(InMemoryDataset):
                     basis_info_raw=self.basis_info_raw,
                     coefficient_matrix=alpha_coeff_matrix,
                     store_idx_only=selected_eigenval_index,
-                    set_to_absolute=True,
+                    set_to_absolute=False,
                     max_s_functions=self.max_s_functions,
                     max_p_functions=self.max_p_functions,
                     max_d_functions=self.max_d_functions,
