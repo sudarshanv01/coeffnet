@@ -10,15 +10,13 @@ from monty.serialization import loadfn, dumpfn
 def split_dataset(all_entries, train_frac, test_frac, validate_frac):
     """Split the dict based on the first key into three different fractions."""
 
-    # Shuffle the list
+    random.seed(42)
     random.shuffle(all_entries)
 
-    # Get the number of entries in each list
     train_num = int(len(all_entries) * train_frac)
     test_num = int(len(all_entries) * test_frac)
     validate_num = int(len(all_entries) * validate_frac)
 
-    # Split the list
     train_list = all_entries[:train_num]
     test_list = all_entries[train_num : train_num + test_num]
     validate_list = all_entries[train_num + test_num :]
@@ -72,7 +70,6 @@ if __name__ == "__main__":
     db = instance_mongodb_sei(project="mlts")
     collection = db.rotated_sn2_reaction
 
-    # Get all entries in this collection as a list
     if args.debug:
         cursor = collection.find().limit(100)
     elif args.pytest:
@@ -86,9 +83,7 @@ if __name__ == "__main__":
         data, args.train_frac, args.test_frac, args.validate_frac
     )
 
-    # Save the data
     if args.debug:
-        # Prepend the debug tag
         dumpfn(train_data, "input_files/debug_train_data_rotated_sn2.json")
         dumpfn(test_data, "input_files/debug_test_data_rotated_sn2.json")
         dumpfn(validate_data, "input_files/debug_validate_data_rotated_sn2.json")
