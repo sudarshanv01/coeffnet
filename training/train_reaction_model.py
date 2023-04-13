@@ -1,5 +1,6 @@
 import os
 import logging
+from pprint import pprint
 
 import numpy as np
 
@@ -68,7 +69,7 @@ def train(train_loader):
     losses = 0.0
     num_graphs = 0
 
-    for train_batch in train_loader:
+    for data in train_loader:
         optim.zero_grad()
         predicted_y = model(data)
 
@@ -84,12 +85,14 @@ def train(train_loader):
                 f"Prediction mode {inputs['prediction_mode']} not recognized."
             )
 
-        loss = F.l1_loss(predicted_y, real_y, reduction="sum")
+        loss_positive = F.l1_loss(predicted_y, real_y, reduction="sum")
+        loss_negative = F.l1_loss(-predicted_y, real_y, reduction="sum")
+        loss = torch.min(loss_positive, loss_negative)
         loss.backward()
 
         losses += loss.item()
 
-        num_graphs += train_batch.num_graphs
+        num_graphs += data.num_graphs
 
         optim.step()
 
@@ -106,7 +109,7 @@ def validate(val_loader):
     losses = 0.0
     num_graphs = 0
 
-    for val_batch in val_loader:
+    for data in val_loader:
         predicted_y = model(data)
 
         if inputs["prediction_mode"] == "coeff_matrix":
@@ -121,14 +124,70 @@ def validate(val_loader):
                 f"Prediction mode {inputs['prediction_mode']} not recognized."
             )
 
-        loss = F.l1_loss(predicted_y, real_y, reduction="sum")
+        loss_positive = F.l1_loss(predicted_y, real_y, reduction="sum")
+        loss_negative = F.l1_loss(-predicted_y, real_y, reduction="sum")
+        loss = torch.min(loss_positive, loss_negative)
 
         losses += loss.item()
-        num_graphs += val_batch.num_graphs
+        num_graphs += data.num_graphs
 
     output_metric = losses / num_graphs
 
     return output_metric
+
+
+def construct_irreps(inputs):
+    """Construct the inputs if needed."""
+
+    if (
+        inputs["model_options"]["irreps_in"] == "@construct"
+        and inputs["use_minimal_basis_node_features"]
+    ):
+        inputs["model_options"]["irreps_in"] = "1x0e+1x1e"
+    elif (
+        inputs["model_options"]["irreps_in"] == "@construct"
+        and not inputs["use_minimal_basis_node_features"]
+    ):
+        inputs["model_options"][
+            "irreps_in"
+        ] = f"{inputs['dataset_options']['max_s_functions']}x0e"
+        inputs["model_options"][
+            "irreps_in"
+        ] += f"+{inputs['dataset_options']['max_p_functions']}x1o"
+        inputs["model_options"][
+            "irreps_in"
+        ] += f"+{inputs['dataset_options']['max_d_functions']}x0e"
+        inputs["model_options"][
+            "irreps_in"
+        ] += f"+{inputs['dataset_options']['max_d_functions']}x2e"
+    if (
+        inputs["model_options"]["irreps_out"] == "@construct"
+        and inputs["use_minimal_basis_node_features"]
+    ):
+        inputs["model_options"]["irreps_out"] = "1x0e+1x1e"
+    elif (
+        inputs["model_options"]["irreps_out"] == "@construct"
+        and not inputs["use_minimal_basis_node_features"]
+    ):
+        inputs["model_options"][
+            "irreps_out"
+        ] = f"{inputs['dataset_options']['max_s_functions']}x0e"
+        inputs["model_options"][
+            "irreps_out"
+        ] += f"+{inputs['dataset_options']['max_p_functions']}x1o"
+        inputs["model_options"][
+            "irreps_out"
+        ] += f"+{inputs['dataset_options']['max_d_functions']}x0e"
+        inputs["model_options"][
+            "irreps_out"
+        ] += f"+{inputs['dataset_options']['max_d_functions']}x2e"
+
+    if inputs["model_options"]["irreps_edge_attr"] == "@construct":
+        inputs["model_options"][
+            "irreps_edge_attr"
+        ] = f"{inputs['model_options']['num_basis']}x0e"
+
+    pprint(inputs)
 
 
 if __name__ == "__main__":
@@ -137,49 +196,8 @@ if __name__ == "__main__":
     logging.info(f"Device: {DEVICE}")
 
     inputs = read_inputs_yaml(os.path.join("input_files", "reaction_model.yaml"))
-    if inputs["prediction_mode"] == "coeff_matrix":
-        reduce_output = False
-    elif inputs["prediction_mode"] == "forces":
-        reduce_output = False
-    elif inputs["prediction_mode"] == "relative_energy":
-        reduce_output = True
-    else:
-        raise ValueError(f"Prediction mode {inputs['prediction_mode']} not recognized.")
-
-    if inputs["prediction_mode"] in ["coeff_matrix", "relative_energy"]:
-        make_absolute = True
-        transform = T.Compose([Absolute(), T.ToDevice(DEVICE)])
-        parity = "e"
-    else:
-        make_absolute = False
-        transform = T.ToDevice(DEVICE)
-        parity = "o"
-
-    if inputs["use_minimal_basis_node_features"]:
-        kwargs_dataset = {"use_minimal_basis_node_features": True}
-        irreps_in = "1x0e+1x1e"
-        if "irreps_out" in inputs.keys():
-            irreps_out = inputs["irreps_out"]
-        else:
-            irreps_out = "1x0e+1x1e"
-    else:
-        kwargs_dataset = {
-            "max_s_functions": inputs["max_s_functions"],
-            "max_p_functions": inputs["max_p_functions"],
-            "max_d_functions": inputs["max_d_functions"],
-        }
-        irreps_in = f"{inputs['max_s_functions']}x0e"
-        irreps_in += f"+{inputs['max_p_functions']}x1{parity}"
-        irreps_in += f"+{inputs['max_d_functions']}x0e"
-        irreps_in += f"+{inputs['max_d_functions']}x2e"
-
-        if "irreps_out" in inputs.keys():
-            irreps_out = inputs["irreps_out"]
-        else:
-            irreps_out = f"{inputs['max_s_functions']}x0e"
-            irreps_out += f"+{inputs['max_p_functions']}x1{parity}"
-            irreps_out += f"+{inputs['max_d_functions']}x0e"
-            irreps_out += f"+{inputs['max_d_functions']}x2e"
+    construct_irreps(inputs)
+    transform = T.ToDevice(DEVICE)
 
     if args.use_wandb:
         wandb.config = {
@@ -187,13 +205,17 @@ if __name__ == "__main__":
             "epochs": inputs["epochs"],
             "batch_size": inputs["batch_size"],
         }
-
     if args.debug:
         train_json_filename = inputs["debug_train_json"]
         validate_json_filename = inputs["debug_validate_json"]
     else:
         train_json_filename = inputs["train_json"]
         validate_json_filename = inputs["validate_json"]
+
+    kwargs_dataset = inputs["dataset_options"]
+    kwargs_dataset["use_minimal_basis_node_features"] = inputs[
+        "use_minimal_basis_node_features"
+    ]
 
     train_dataset = Dataset(
         root=get_train_data_path(),
@@ -223,42 +245,19 @@ if __name__ == "__main__":
         validate_dataset, batch_size=len(validate_dataset), shuffle=False
     )
 
-    typical_number_of_nodes = 0
-    for data in train_loader:
-        typical_number_of_nodes += data.x.shape[0]
-    typical_number_of_nodes = typical_number_of_nodes / len(train_dataset)
-    typical_number_of_nodes = int(typical_number_of_nodes)
-
-    model = Model(
-        irreps_in=irreps_in,
-        irreps_hidden=inputs["irreps_hidden"],
-        irreps_out=irreps_out,
-        irreps_node_attr=inputs["irreps_node_attr"],
-        irreps_edge_attr=f"{inputs['num_basis']}x0e",
-        radial_layers=inputs["radial_layers"],
-        max_radius=inputs["max_radius"],
-        num_basis=inputs["num_basis"],
-        radial_neurons=inputs["radial_neurons"],
-        num_neighbors=inputs["num_neighbors"],
-        typical_number_of_nodes=typical_number_of_nodes,
-        reduce_output=reduce_output,
-        make_absolute=make_absolute,
-    )
+    model = Model(**inputs["model_options"])
     model = model.to(DEVICE)
     print(model)
 
     if args.use_wandb:
         wandb.watch(model)
 
-    # Create the optimizer
     optim = torch.optim.Adam(model.parameters(), lr=inputs["learning_rate"])
 
     for epoch in range(1, inputs["epochs"] + 1):
-        # Train the model
         train_loss = train(train_loader=train_loader)
         print(f"Epoch: {epoch}, Train Loss: {train_loss}")
 
-        # Validate the model
         validate_loss = validate(val_loader=validate_loader)
         print(f"Epoch: {epoch}, Validation Loss: {validate_loss}")
 
@@ -266,7 +265,6 @@ if __name__ == "__main__":
             wandb.log({"train_loss": train_loss})
             wandb.log({"val_loss": validate_loss})
 
-    # Save the model
     torch.save(model, "output/reaction_model.pt")
 
     if args.use_wandb:

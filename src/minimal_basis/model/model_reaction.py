@@ -27,8 +27,36 @@ class ReactionModel(torch.nn.Module):
         typical_number_of_nodes: int,
         reduce_output: Optional[bool] = False,
         make_absolute: Optional[bool] = False,
+        mask_extra_basis: Optional[bool] = False,
+        normalize_sumsq: Optional[bool] = False,
+        reference_reduced_output_to_initial_state: Optional[bool] = False,
     ) -> None:
-        """Initialize the reaction model."""
+        """Torch module for transition state properties prediction.
+
+        Args:
+            irreps_in (Union[str, o3.Irreps]): Irreps of the input.
+            irreps_hidden (Union[str, o3.Irreps]): Irreps of the hidden layers.
+            irreps_out (Union[str, o3.Irreps]): Irreps of the output.
+            irreps_node_attr (Union[str, o3.Irreps]): Irreps of the node attributes.
+            irreps_edge_attr (Union[str, o3.Irreps]): Irreps of the edge attributes.
+            radial_layers (int): Number of radial layers.
+            max_radius (float): Maximum radius cutoff
+            num_basis (int): Number of basis functions for the network.
+            radial_neurons (int): Number of neurons in the radial layers.
+            num_neighbors (int): Number of neighbors to consider.
+            typical_number_of_nodes (int): Typical number of nodes in the dataset.
+            reduce_output (Optional[bool], optional): Whether to reduce the output. Useful for
+                scalar predictions. Defaults to False.
+            make_absolute (Optional[bool], optional): Whether to report the absolute value of output.
+                Defaults to False.
+            mask_extra_basis (Optional[bool], optional): Whether to mask the extra basis functions in
+                the last layer. Defaults to False.
+            normalize_sumsq (Optional[bool], optional): Whether to normalize the output by the sum of
+                the squared output. Defaults to False.
+            reference_reduced_output_to_initial_state (Optional[bool], optional): Whether to reference
+                the reduced output to the initial state. Defaults to False.
+        """
+
         super().__init__()
 
         self.num_nodes = typical_number_of_nodes
@@ -37,6 +65,11 @@ class ReactionModel(torch.nn.Module):
         self.irreps_in = irreps_in
         self.irreps_out = irreps_out
         self.make_absolute = make_absolute
+        self.mask_extra_basis = mask_extra_basis
+        self.normalize_sumsq = normalize_sumsq
+        self.reference_reduced_output_to_initial_state = (
+            reference_reduced_output_to_initial_state
+        )
 
         self.network_initial_state = Network(
             irreps_in=irreps_in,
@@ -101,15 +134,6 @@ class ReactionModel(torch.nn.Module):
     def forward(self, data):
         """Forward pass of the reaction model."""
 
-        # species_embedding = soft_one_hot_linspace(
-        #     data.species.squeeze(),
-        #     start=0.0,
-        #     end=self.max_species_embedding,
-        #     number=1,
-        #     basis="smooth_finite",
-        #     cutoff=True,
-        # )
-
         output_network_initial_state = self.network_initial_state(
             {
                 "pos": data.pos,
@@ -163,10 +187,11 @@ class ReactionModel(torch.nn.Module):
             output_network_interpolated_transition_state = torch.abs(
                 output_network_interpolated_transition_state
             )
-        if self.irreps_out == self.irreps_in:
+        if self.mask_extra_basis:
             output_network_interpolated_transition_state = (
                 output_network_interpolated_transition_state * data.basis_mask
             )
+        if self.normalize_sumsq:
             output_network_interpolated_transition_state = (
                 self._normalize_to_sum_squares_one(
                     output_network_interpolated_transition_state, data.batch
@@ -176,5 +201,15 @@ class ReactionModel(torch.nn.Module):
             output_network_interpolated_transition_state = scatter(
                 output_network_interpolated_transition_state, data.batch, dim=0
             ).div(self.num_nodes**0.5)
+
+            if self.reference_reduced_output_to_initial_state:
+
+                output_network_initial_state = scatter(
+                    output_network_initial_state, data.batch, dim=0
+                ).div(self.num_nodes**0.5)
+
+                output_network_interpolated_transition_state -= (
+                    output_network_initial_state
+                )
 
         return output_network_interpolated_transition_state
