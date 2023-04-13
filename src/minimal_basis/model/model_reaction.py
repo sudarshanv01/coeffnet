@@ -149,6 +149,7 @@ class ReactionModel(torch.nn.Module):
         output_network_initial_state = self._normalize_to_sum_squares_one(
             output_network_initial_state, data.batch
         )
+        assert not torch.isnan(output_network_initial_state).any()
 
         output_network_final_state = self.network_final_state(
             {
@@ -165,6 +166,7 @@ class ReactionModel(torch.nn.Module):
         output_network_final_state = self._normalize_to_sum_squares_one(
             output_network_final_state, data.batch
         )
+        assert not torch.isnan(output_network_final_state).any()
 
         p = data.p
         p_prime = 1 - p
