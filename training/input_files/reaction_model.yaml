@@ -32,7 +32,7 @@ use_minimal_basis_node_features: false
 prediction_mode: "coeff_matrix"
 model_options:
   irreps_in: "@construct"
-  irreps_hidden: "16x0e+288x1e+144x2e"
+  irreps_hidden: "16x0e+288x1o+144x2e"
   irreps_out: "@construct"
   irreps_node_attr: "1x0e"
   irreps_edge_attr: "@construct"
