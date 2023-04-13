@@ -214,4 +214,6 @@ class ReactionModel(torch.nn.Module):
                     output_network_initial_state
                 )
 
+        assert not torch.isnan(output_network_interpolated_transition_state).any()
+
         return output_network_interpolated_transition_state
