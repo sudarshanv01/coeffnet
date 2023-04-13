@@ -87,7 +87,7 @@ def train(train_loader):
 
         loss_positive = F.l1_loss(predicted_y, real_y, reduction="sum")
         loss_negative = F.l1_loss(-predicted_y, real_y, reduction="sum")
-        loss = torch.min(loss_positive, loss_negative)
+        loss = loss_positive if loss_positive < loss_negative else loss_negative
         loss.backward()
 
         losses += loss.item()
