@@ -12,7 +12,6 @@ def split_dataset(all_entries, train_frac, test_frac, validate_frac):
 
     print(f"Number of entries in the dataset: {len(all_entries)}")
 
-    random.seed(42)
     random.shuffle(all_entries)
 
     train_num = int(len(all_entries) * train_frac)
