@@ -12,7 +12,6 @@ import torch_geometric.transforms as T
 
 from minimal_basis.dataset.dataset_reaction import ReactionDataset as Dataset
 from minimal_basis.model.model_reaction import ReactionModel as Model
-from minimal_basis.transforms.absolute import Absolute
 
 from utils import (
     get_test_data_path,
@@ -85,10 +84,10 @@ def train(train_loader):
                 f"Prediction mode {inputs['prediction_mode']} not recognized."
             )
 
-        loss = F.l1_loss(predicted_y, real_y, reduction="sum")
-        # loss_negative = F.l1_loss(-predicted_y, real_y, reduction="sum")
-        # loss = loss_positive if loss_positive < loss_negative else loss_negative
-        # loss.backward()
+        loss_positive = F.l1_loss(predicted_y, real_y, reduction="sum")
+        loss_negative = F.l1_loss(-predicted_y, real_y, reduction="sum")
+        loss = loss_positive if loss_positive < loss_negative else loss_negative
+        loss.backward()
 
         losses += loss.item()
 

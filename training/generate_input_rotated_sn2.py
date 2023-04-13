@@ -10,7 +10,6 @@ from monty.serialization import loadfn, dumpfn
 def split_dataset(all_entries, train_frac, test_frac, validate_frac):
     """Split the dict based on the first key into three different fractions."""
 
-    random.seed(42)
     random.shuffle(all_entries)
 
     train_num = int(len(all_entries) * train_frac)
