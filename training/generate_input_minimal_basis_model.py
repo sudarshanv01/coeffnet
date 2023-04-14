@@ -70,8 +70,6 @@ if __name__ == "__main__":
 
     if args.debug:
         cursor = collection.find().limit(100)
-    elif args.pytest:
-        cursor = collection.find().limit(10)
     else:
         cursor = collection.find()
 
@@ -86,15 +84,6 @@ if __name__ == "__main__":
         dumpfn(test_data, "input_files/debug_test_data_interp_minimal_basis.json")
         dumpfn(
             validate_data, "input_files/debug_validate_data_interp_minimal_basis.json"
-        )
-    elif args.pytest:
-        dumpfn(
-            train_data, f"{args.pytest_inputdir}/train_data_interp_minimal_basis.json"
-        )
-        dumpfn(test_data, f"{args.pytest_inputdir}/test_data_interp_minimal_basis.json")
-        dumpfn(
-            validate_data,
-            f"{args.pytest_inputdir}/validate_data_interp_minimal_basis.json",
         )
     else:
         dumpfn(train_data, "input_files/train_data_interp_minimal_basis.json")
