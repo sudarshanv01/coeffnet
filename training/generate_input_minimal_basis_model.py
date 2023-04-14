@@ -2,6 +2,8 @@ import argparse
 
 import random
 
+import numpy as np
+
 from instance_mongodb import instance_mongodb_sei
 
 from monty.serialization import loadfn, dumpfn
@@ -65,8 +67,7 @@ if __name__ == "__main__":
 
     print("Loading data from MongoDB...")
     db = instance_mongodb_sei(project="mlts")
-    # collection = db.sn2_reaction_dataset
-    collection = db.minimal_basis_interpolated_sn2
+    collection = db.sn2_reaction_dataset
 
     if args.debug:
         cursor = collection.find().limit(100)
@@ -74,6 +75,13 @@ if __name__ == "__main__":
         cursor = collection.find()
 
     data = list(cursor)
+    print(f"Number of entries in the dataset: {len(data)}")
+    for _dat in data:
+        coeff_matrix = _dat["coeff_matrices"]
+        if np.isnan(coeff_matrix).any():
+            # Remove _dat from data
+            data.remove(_dat)
+    print(f"Number of entries in the dataset: {len(data)}")
 
     train_data, test_data, validate_data = split_dataset(
         data, args.train_frac, args.test_frac, args.validate_frac
