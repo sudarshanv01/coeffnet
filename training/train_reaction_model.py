@@ -84,8 +84,8 @@ def train(train_loader):
                 f"Prediction mode {inputs['prediction_mode']} not recognized."
             )
 
-        loss_positive = F.l1_loss(predicted_y, real_y, reduction="sum")
-        loss_negative = F.l1_loss(-predicted_y, real_y, reduction="sum")
+        loss_positive = F.mse_loss(predicted_y, real_y, reduction="sum")
+        loss_negative = F.mse_loss(-predicted_y, real_y, reduction="sum")
         loss = loss_positive if loss_positive < loss_negative else loss_negative
         loss.backward()
 
@@ -123,8 +123,8 @@ def validate(val_loader):
                 f"Prediction mode {inputs['prediction_mode']} not recognized."
             )
 
-        loss_positive = F.l1_loss(predicted_y, real_y, reduction="sum")
-        loss_negative = F.l1_loss(-predicted_y, real_y, reduction="sum")
+        loss_positive = F.mse_loss(predicted_y, real_y, reduction="sum")
+        loss_negative = F.mse_loss(-predicted_y, real_y, reduction="sum")
         loss = loss_positive if loss_positive < loss_negative else loss_negative
 
         losses += loss.item()
