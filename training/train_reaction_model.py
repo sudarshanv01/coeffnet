@@ -84,13 +84,9 @@ def train(train_loader):
                 f"Prediction mode {inputs['prediction_mode']} not recognized."
             )
 
-        assert not torch.isnan(real_y).any()
         loss_positive = F.l1_loss(predicted_y, real_y, reduction="sum")
         loss_negative = F.l1_loss(-predicted_y, real_y, reduction="sum")
-        assert not torch.isnan(loss_positive).any()
-        assert not torch.isnan(loss_negative).any()
         loss = loss_positive if loss_positive < loss_negative else loss_negative
-        assert not torch.isnan(loss).any()
         loss.backward()
 
         losses += loss.item()
@@ -127,13 +123,9 @@ def validate(val_loader):
                 f"Prediction mode {inputs['prediction_mode']} not recognized."
             )
 
-        assert not torch.isnan(real_y).any()
         loss_positive = F.l1_loss(predicted_y, real_y, reduction="sum")
         loss_negative = F.l1_loss(-predicted_y, real_y, reduction="sum")
-        assert not torch.isnan(loss_positive).any()
-        assert not torch.isnan(loss_negative).any()
         loss = loss_positive if loss_positive < loss_negative else loss_negative
-        assert not torch.isnan(loss).any()
 
         losses += loss.item()
         num_graphs += data.num_graphs
@@ -161,12 +153,8 @@ def construct_irreps(inputs):
         inputs["model_options"][
             "irreps_in"
         ] += f"+{inputs['dataset_options']['max_p_functions']}x1o"
-        inputs["model_options"][
-            "irreps_in"
-        ] += f"+{inputs['dataset_options']['max_d_functions']}x0e"
-        inputs["model_options"][
-            "irreps_in"
-        ] += f"+{inputs['dataset_options']['max_d_functions']}x2e"
+        for i in range(inputs["dataset_options"]["max_d_functions"]):
+            inputs["model_options"]["irreps_in"] += f"+1x0e+1x2e"
     if (
         inputs["model_options"]["irreps_out"] == "@construct"
         and inputs["use_minimal_basis_node_features"]
@@ -182,12 +170,8 @@ def construct_irreps(inputs):
         inputs["model_options"][
             "irreps_out"
         ] += f"+{inputs['dataset_options']['max_p_functions']}x1o"
-        inputs["model_options"][
-            "irreps_out"
-        ] += f"+{inputs['dataset_options']['max_d_functions']}x0e"
-        inputs["model_options"][
-            "irreps_out"
-        ] += f"+{inputs['dataset_options']['max_d_functions']}x2e"
+        for i in range(inputs["dataset_options"]["max_d_functions"]):
+            inputs["model_options"]["irreps_out"] += f"+1x0e+1x2e"
 
     if inputs["model_options"]["irreps_edge_attr"] == "@construct":
         inputs["model_options"][
