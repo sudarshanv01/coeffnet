@@ -311,15 +311,18 @@ def main(
             num_samples=num_samples,
         ),
         param_space=config,
-        run_config=RunConfig(local_dir="./results", name="test_experiment"),
-        callbacks=[
-            WandbLoggerCallback(
-                project=f"raytune_reaction_model",
-                api_key_file=api_key_file,
-                log_config=True,
-                upload_checkpoints=True,
-            )
-        ],
+        run_config=RunConfig(
+            local_dir="./results",
+            name="test_experiment",
+            callbacks=[
+                WandbLoggerCallback(
+                    project=f"raytune_reaction_model",
+                    api_key_file=api_key_file,
+                    log_config=True,
+                    upload_checkpoints=True,
+                )
+            ],
+        ),
     )
     results = tuner.fit()
 
