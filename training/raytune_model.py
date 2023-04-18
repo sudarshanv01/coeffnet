@@ -145,6 +145,9 @@ def train_model(config: Dict[str, float]):
     _inputs["model_options"]["max_radius"] = config["max_radius"]
     _inputs["model_options"]["num_basis"] = config["num_basis"]
     _inputs["model_options"]["radial_neurons"] = config["radial_neurons"]
+    _inputs["model_options"][
+        "irreps_hidden"
+    ] = f"{config['hidden_s_functions']}x0e+{config['hidden_p_functions']}x1o+{config['hidden_d_functions']}x2e"
 
     model = ReactionModel(**_inputs["model_options"])
     model.to(device)
@@ -172,7 +175,6 @@ def train_model(config: Dict[str, float]):
             "device": device,
         }
         train_loss = train(**train_params)
-        # wandb.log({"train_loss": train_loss})
 
         validation_params = {
             "model": model,
@@ -180,7 +182,6 @@ def train_model(config: Dict[str, float]):
             "device": device,
         }
         val_metric = validation(**validation_params)
-        # wandb.log({"val_loss": val_metric})
 
     os.makedirs(args.output_dir, exist_ok=True)
     torch.save(
@@ -275,6 +276,9 @@ def main(
     #     "max_radius": tune.choice([1, 2, 3, 4, 5]),
     #     "num_basis": tune.choice([2, 4, 8, 16]),
     #     "radial_neurons": tune.choice([2, 4, 6, 8]),
+    # "hidden_s_functions": tune.choice([16, 32, 64, 128, 256]),
+    # "hidden_p_functions": tune.choice([16, 32, 64, 128, 256]),
+    # "hidden_d_functions": tune.choice([16, 32, 64, 128, 256]),
     # }
 
     config = {
@@ -286,6 +290,9 @@ def main(
         "max_radius": tune.choice([1]),
         "num_basis": tune.choice([2]),
         "radial_neurons": tune.choice([2]),
+        "hidden_s_functions": tune.choice([16]),
+        "hidden_p_functions": tune.choice([32]),
+        "hidden_d_functions": tune.choice([16]),
     }
 
     scheduler = ASHAScheduler(
