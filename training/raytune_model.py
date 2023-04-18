@@ -259,7 +259,7 @@ def train(
 
 
 def main(
-    num_samples: int = 10,
+    num_samples: int = 1,
     max_num_epochs: int = 100,
     gpus_per_trial: int = 1,
     grace_period: int = 5,
@@ -279,13 +279,13 @@ def main(
 
     config = {
         "batch_size": tune.choice([15]),
-        # "learning_rate": tune.loguniform(1e-4, 1e-3),
+        "learning_rate": tune.loguniform(1e-4, 1e-3),
         "learning_rate": tune.choice([1e-4, 1e-3]),
-        # "hidden_channels": tune.choice([32]),
-        # "radial_layers": tune.choice([1]),
-        # "max_radius": tune.choice([1]),
-        # "num_basis": tune.choice([2]),
-        # "radial_neurons": tune.choice([2]),
+        "hidden_channels": tune.choice([32]),
+        "radial_layers": tune.choice([1]),
+        "max_radius": tune.choice([1]),
+        "num_basis": tune.choice([2]),
+        "radial_neurons": tune.choice([2]),
     }
 
     scheduler = ASHAScheduler(
