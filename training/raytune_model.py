@@ -139,13 +139,13 @@ def train_model(config: Dict[str, float]):
 
     _inputs = inputs.copy()
     construct_irreps(_inputs)
-    _inputs["irreps_edge_attr"] = f"{config['num_basis']}x0e"
-    _inputs["radial_layers"] = config["radial_layers"]
-    _inputs["max_radius"] = config["max_radius"]
-    _inputs["num_basis"] = config["num_basis"]
-    _inputs["radial_neurons"] = config["radial_neurons"]
+    _inputs["model_options"]["irreps_edge_attr"] = f"{config['num_basis']}x0e"
+    _inputs["model_options"]["radial_layers"] = config["radial_layers"]
+    _inputs["model_options"]["max_radius"] = config["max_radius"]
+    _inputs["model_options"]["num_basis"] = config["num_basis"]
+    _inputs["model_options"]["radial_neurons"] = config["radial_neurons"]
 
-    model = ReactionModel(**_inputs)
+    model = ReactionModel(**_inputs["model_options"])
     model.to(device)
 
     optim = torch.optim.Adam(model.parameters(), lr=config["learning_rate"])
