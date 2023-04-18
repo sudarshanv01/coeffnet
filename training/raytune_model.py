@@ -73,6 +73,50 @@ def load_data(data_dir: str = "input_files"):
     )
 
 
+def construct_irreps(inputs):
+    """Construct the inputs if needed."""
+
+    if (
+        inputs["model_options"]["irreps_in"] == "@construct"
+        and inputs["use_minimal_basis_node_features"]
+    ):
+        inputs["model_options"]["irreps_in"] = "1x0e+1x1e"
+    elif (
+        inputs["model_options"]["irreps_in"] == "@construct"
+        and not inputs["use_minimal_basis_node_features"]
+    ):
+        inputs["model_options"][
+            "irreps_in"
+        ] = f"{inputs['dataset_options']['max_s_functions']}x0e"
+        inputs["model_options"][
+            "irreps_in"
+        ] += f"+{inputs['dataset_options']['max_p_functions']}x1o"
+        for i in range(inputs["dataset_options"]["max_d_functions"]):
+            inputs["model_options"]["irreps_in"] += f"+1x0e+1x2e"
+    if (
+        inputs["model_options"]["irreps_out"] == "@construct"
+        and inputs["use_minimal_basis_node_features"]
+    ):
+        inputs["model_options"]["irreps_out"] = "1x0e+1x1e"
+    elif (
+        inputs["model_options"]["irreps_out"] == "@construct"
+        and not inputs["use_minimal_basis_node_features"]
+    ):
+        inputs["model_options"][
+            "irreps_out"
+        ] = f"{inputs['dataset_options']['max_s_functions']}x0e"
+        inputs["model_options"][
+            "irreps_out"
+        ] += f"+{inputs['dataset_options']['max_p_functions']}x1o"
+        for i in range(inputs["dataset_options"]["max_d_functions"]):
+            inputs["model_options"]["irreps_out"] += f"+1x0e+1x2e"
+
+    if inputs["model_options"]["irreps_edge_attr"] == "@construct":
+        inputs["model_options"][
+            "irreps_edge_attr"
+        ] = f"{inputs['model_options']['num_basis']}x0e"
+
+
 @wandb_mixin
 def train_model(config: Dict[str, float]):
     """Train the model."""
@@ -86,26 +130,15 @@ def train_model(config: Dict[str, float]):
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    typical_number_of_nodes = 0
-    for data in train_loader:
-        typical_number_of_nodes += data.x.shape[0]
-    typical_number_of_nodes = typical_number_of_nodes / len(train_dataset)
-    typical_number_of_nodes = int(typical_number_of_nodes)
+    _inputs = inputs.copy()
+    construct_irreps(_inputs)
+    _inputs["irreps_edge_attr"] = f"{config['num_basis']}x0e"
+    _inputs["radial_layers"] = config["radial_layers"]
+    _inputs["max_radius"] = config["max_radius"]
+    _inputs["num_basis"] = config["num_basis"]
+    _inputs["radial_neurons"] = config["radial_neurons"]
 
-    model = ReactionModel(
-        irreps_in=inputs["irreps_in"],
-        irreps_hidden=inputs["irreps_hidden"],
-        irreps_out=inputs["irreps_out"],
-        irreps_node_attr=inputs["irreps_node_attr"],
-        irreps_edge_attr=f"{config['num_basis']}x0e",
-        radial_layers=config["radial_layers"],
-        max_radius=config["max_radius"],
-        num_basis=config["num_basis"],
-        radial_neurons=config["radial_neurons"],
-        num_neighbors=inputs["num_neighbors"],
-        typical_number_of_nodes=typical_number_of_nodes,
-        reduce_output=False,
-    )
+    model = ReactionModel(**_inputs)
     model.to(device)
 
     optim = torch.optim.Adam(model.parameters(), lr=config["learning_rate"])
@@ -150,6 +183,18 @@ def train_model(config: Dict[str, float]):
     logger.info("Finished Training")
 
 
+def get_loss(
+    predicted_y: torch.Tensor,
+    real_y: torch.Tensor,
+    reduction: str = "mean",
+) -> torch.Tensor:
+    """Get the loss."""
+    loss_positive = F.mse_loss(predicted_y, real_y, reduction=reduction)
+    loss_negative = F.mse_loss(-predicted_y, real_y, reduction=reduction)
+    loss = loss_positive if loss_positive < loss_negative else loss_negative
+    return loss
+
+
 def validation(
     model,
     validation_loader: DataLoader,
@@ -164,9 +209,7 @@ def validation(
     for test_batch in validation_loader:
         data = test_batch.to(device)
         predicted_y = model(data)
-        loss = F.l1_loss(predicted_y, data.x_transition_state, reduction="sum")
-
-        # Add up the loss
+        loss = get_loss(predicted_y, data.x_transition_state, reduction="sum")
         losses += loss.item()
         num_graphs += test_batch.num_graphs
 
@@ -195,7 +238,7 @@ def train(
         real_y = data.x_transition_state
 
         predicted_y = torch.abs(predicted_y)
-        loss = F.l1_loss(predicted_y, real_y, reduction="sum")
+        loss = get_loss(predicted_y, real_y, reduction="sum")
         loss.backward()
 
         losses += loss.item()
