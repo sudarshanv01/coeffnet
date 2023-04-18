@@ -52,18 +52,25 @@ def load_data(data_dir: str = "input_files"):
 
     validate_json_filename = inputs["validate_json"]
 
+    kwargs_dataset = inputs["dataset_options"]
+    kwargs_dataset["use_minimal_basis_node_features"] = inputs[
+        "use_minimal_basis_node_features"
+    ]
+
     with FileLock(os.path.expanduser("~/.data.lock")):
 
         train_dataset = ReactionDataset(
             root=get_train_data_path(),
             filename=os.path.join(BASEDIR, train_json_filename),
             basis_filename=os.path.join(BASEDIR, inputs["basis_file"]),
+            **kwargs_dataset,
         )
 
         validate_dataset = ReactionDataset(
             root=get_validation_data_path(),
             filename=os.path.join(BASEDIR, validate_json_filename),
             basis_filename=os.path.join(BASEDIR, inputs["basis_file"]),
+            **kwargs_dataset,
         )
 
     return (
