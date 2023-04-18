@@ -23,6 +23,8 @@ from ray.air import session, RunConfig
 from ray.air.checkpoint import Checkpoint
 from ray.tune.schedulers import ASHAScheduler
 from ray.tune.integration.wandb import wandb_mixin
+from ray.air.integrations.wandb import WandbLoggerCallback
+
 
 from e3nn import o3
 
@@ -124,7 +126,6 @@ def construct_irreps(inputs):
         ] = f"{inputs['model_options']['num_basis']}x0e"
 
 
-@wandb_mixin
 def train_model(config: Dict[str, float]):
     """Train the model."""
 
@@ -186,7 +187,7 @@ def train_model(config: Dict[str, float]):
         (model.state_dict(), optim.state_dict()), f"{args.output_dir}/checkpoint.pt"
     )
     checkpoint = Checkpoint.from_directory(args.output_dir)
-    session.report({"loss": train_loss}, checkpoint=checkpoint)
+    session.report({"loss": val_metric}, checkpoint=checkpoint)
     logger.info("Finished Training")
 
 
@@ -280,11 +281,11 @@ def main(
         "batch_size": tune.choice([15]),
         # "learning_rate": tune.loguniform(1e-4, 1e-3),
         "learning_rate": tune.choice([1e-4, 1e-3]),
-        "hidden_channels": tune.choice([32]),
-        "radial_layers": tune.choice([1]),
-        "max_radius": tune.choice([1]),
-        "num_basis": tune.choice([2]),
-        "radial_neurons": tune.choice([2]),
+        # "hidden_channels": tune.choice([32]),
+        # "radial_layers": tune.choice([1]),
+        # "max_radius": tune.choice([1]),
+        # "num_basis": tune.choice([2]),
+        # "radial_neurons": tune.choice([2]),
     }
 
     scheduler = ASHAScheduler(
@@ -311,6 +312,14 @@ def main(
         ),
         param_space=config,
         run_config=RunConfig(local_dir="./results", name="test_experiment"),
+        callbacks=[
+            WandbLoggerCallback(
+                project=f"raytune_reaction_model",
+                api_key_file=api_key_file,
+                log_config=True,
+                upload_checkpoints=True,
+            )
+        ],
     )
     results = tuner.fit()
 
@@ -340,7 +349,7 @@ def parse_cli():
     parser.add_argument(
         "--num_samples",
         type=int,
-        default=10,
+        default=4,
         help="Number of samples to run.",
     )
     parser.add_argument(
