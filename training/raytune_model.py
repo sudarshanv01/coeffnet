@@ -344,6 +344,12 @@ def parse_cli():
         default=2,
         help="Reduction factor for the ASHA scheduler.",
     )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="reaction_model",
+        help="Name of the model to train.",
+    )
     args = parser.parse_args()
 
     return args
