@@ -14,7 +14,8 @@ conda activate molml
 
 # --- Test ---
 # python train_inner_interpolate_model.py --use_wandb --reprocess_dataset --num_updates 5
-python train_hamiltonian_model.py --use_wandb
+# python train_hamiltonian_model.py --use_wandb
+python train_reaction_model.py --use_wandb
 
 # --- Raytune ---
 # python raytune_model.py --model diffclassifier 
