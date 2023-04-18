@@ -172,7 +172,7 @@ def train_model(config: Dict[str, float]):
             "device": device,
         }
         train_loss = train(**train_params)
-        wandb.log({"train_loss": train_loss})
+        # wandb.log({"train_loss": train_loss})
 
         validation_params = {
             "model": model,
@@ -180,7 +180,7 @@ def train_model(config: Dict[str, float]):
             "device": device,
         }
         val_metric = validation(**validation_params)
-        wandb.log({"val_loss": val_metric})
+        # wandb.log({"val_loss": val_metric})
 
     os.makedirs(args.output_dir, exist_ok=True)
     torch.save(
