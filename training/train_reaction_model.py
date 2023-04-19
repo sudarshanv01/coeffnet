@@ -85,8 +85,8 @@ def train(train_loader):
             )
 
         loss_positive = F.mse_loss(predicted_y, real_y, reduction="sum")
-        loss_negative = F.mse_loss(-predicted_y, real_y, reduction="sum")
-        loss = loss_positive if loss_positive < loss_negative else loss_negative
+        # loss_negative = F.mse_loss(-predicted_y, real_y, reduction="sum")
+        loss = loss_positive  # if loss_positive < loss_negative else loss_negative
         loss.backward()
 
         losses += loss.item()
@@ -124,8 +124,8 @@ def validate(val_loader):
             )
 
         loss_positive = F.mse_loss(predicted_y, real_y, reduction="sum")
-        loss_negative = F.mse_loss(-predicted_y, real_y, reduction="sum")
-        loss = loss_positive if loss_positive < loss_negative else loss_negative
+        # loss_negative = F.mse_loss(-predicted_y, real_y, reduction="sum")
+        loss = loss_positive  # if loss_positive < loss_negative else loss_negative
 
         losses += loss.item()
         num_graphs += data.num_graphs

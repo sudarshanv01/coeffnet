@@ -271,7 +271,6 @@ def main(
     config = {
         "batch_size": tune.choice([5, 10, 15, 20, 25, 30]),
         "learning_rate": tune.loguniform(1e-4, 1e-1),
-        "hidden_channels": tune.choice([32, 64, 128]),
         "radial_layers": tune.choice([1, 2, 3, 4, 5]),
         "max_radius": tune.choice([1, 2, 3, 4, 5]),
         "num_basis": tune.choice([2, 4, 8, 16]),
@@ -285,7 +284,6 @@ def main(
     #     "batch_size": tune.choice([15]),
     #     "learning_rate": tune.loguniform(1e-4, 1e-3),
     #     "learning_rate": tune.choice([1e-4, 1e-3]),
-    #     "hidden_channels": tune.choice([32]),
     #     "radial_layers": tune.choice([1]),
     #     "max_radius": tune.choice([1]),
     #     "num_basis": tune.choice([2]),
