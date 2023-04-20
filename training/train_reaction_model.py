@@ -74,6 +74,8 @@ def train(train_loader):
 
         if inputs["prediction_mode"] == "coeff_matrix":
             real_y = data.x_transition_state
+            if inputs["make_absolute"]:
+                real_y = torch.abs(real_y)
         elif inputs["prediction_mode"] == "relative_energy":
             real_y = data.total_energy_transition_state - data.total_energy
             predicted_y = predicted_y.mean(dim=1)
@@ -84,9 +86,7 @@ def train(train_loader):
                 f"Prediction mode {inputs['prediction_mode']} not recognized."
             )
 
-        loss_positive = F.mse_loss(predicted_y, real_y, reduction="sum")
-        # loss_negative = F.mse_loss(-predicted_y, real_y, reduction="sum")
-        loss = loss_positive  # if loss_positive < loss_negative else loss_negative
+        loss = F.mse_loss(predicted_y, real_y, reduction="sum")
         loss.backward()
 
         losses += loss.item()
@@ -113,6 +113,8 @@ def validate(val_loader):
 
         if inputs["prediction_mode"] == "coeff_matrix":
             real_y = data.x_transition_state
+            if inputs["make_absolute"]:
+                real_y = torch.abs(real_y)
         elif inputs["prediction_mode"] == "relative_energy":
             real_y = data.total_energy_transition_state - data.total_energy
             predicted_y = predicted_y.mean(dim=1)
@@ -123,9 +125,7 @@ def validate(val_loader):
                 f"Prediction mode {inputs['prediction_mode']} not recognized."
             )
 
-        loss_positive = F.mse_loss(predicted_y, real_y, reduction="sum")
-        # loss_negative = F.mse_loss(-predicted_y, real_y, reduction="sum")
-        loss = loss_positive  # if loss_positive < loss_negative else loss_negative
+        loss = F.mse_loss(predicted_y, real_y, reduction="sum")
 
         losses += loss.item()
         num_graphs += data.num_graphs
