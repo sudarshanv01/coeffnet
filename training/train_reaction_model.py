@@ -74,9 +74,9 @@ def train(train_loader):
 
         if inputs["prediction_mode"] == "coeff_matrix":
             real_y = data.x_transition_state
-            if inputs["make_absolute"]:
+            if inputs["model_options"]["make_absolute"]:
                 real_y = torch.abs(real_y)
-        elif inputs["model_options"]["prediction_mode"] == "relative_energy":
+        elif inputs["prediction_mode"] == "relative_energy":
             real_y = data.total_energy_transition_state - data.total_energy
             predicted_y = predicted_y.mean(dim=1)
         elif inputs["prediction_mode"] == "forces":
