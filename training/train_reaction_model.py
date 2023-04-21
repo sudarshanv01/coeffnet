@@ -86,7 +86,8 @@ def train(train_loader):
                 f"Prediction mode {inputs['prediction_mode']} not recognized."
             )
 
-        loss = F.mse_loss(predicted_y, real_y, reduction="sum")
+        # loss = F.mse_loss(predicted_y, real_y, reduction="sum")
+        loss = F.l1_loss(predicted_y, real_y, reduction="sum")
         loss.backward()
 
         losses += loss.item()
@@ -125,7 +126,8 @@ def validate(val_loader):
                 f"Prediction mode {inputs['prediction_mode']} not recognized."
             )
 
-        loss = F.mse_loss(predicted_y, real_y, reduction="sum")
+        # loss = F.mse_loss(predicted_y, real_y, reduction="sum")
+        loss = F.l1_loss(predicted_y, real_y, reduction="sum")
 
         losses += loss.item()
         num_graphs += data.num_graphs
