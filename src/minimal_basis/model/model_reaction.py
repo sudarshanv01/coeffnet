@@ -134,10 +134,14 @@ class ReactionModel(torch.nn.Module):
     def forward(self, data):
         """Forward pass of the reaction model."""
 
+        if self.make_absolute:
+            x = torch.abs(data.x)
+            x_final_state = torch.abs(data.x_final_state)
+
         output_network_initial_state = self.network_initial_state(
             {
                 "pos": data.pos,
-                "x": data.x,
+                "x": x,
                 "batch": data.batch,
             }
         )
@@ -153,7 +157,7 @@ class ReactionModel(torch.nn.Module):
         output_network_final_state = self.network_final_state(
             {
                 "pos": data.pos_final_state,
-                "x": data.x_final_state,
+                "x": x_final_state,
                 "batch": data.batch,
             }
         )

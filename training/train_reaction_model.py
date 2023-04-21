@@ -140,11 +140,16 @@ def validate(val_loader):
 def construct_irreps(inputs):
     """Construct the inputs if needed."""
 
+    if inputs["model_options"]["make_absolute"]:
+        parity = "e"
+    else:
+        parity = "o"
+
     if (
         inputs["model_options"]["irreps_in"] == "@construct"
         and inputs["use_minimal_basis_node_features"]
     ):
-        inputs["model_options"]["irreps_in"] = "1x0e+1x1e"
+        inputs["model_options"]["irreps_in"] = f"1x0e+1x1{parity}"
     elif (
         inputs["model_options"]["irreps_in"] == "@construct"
         and not inputs["use_minimal_basis_node_features"]
@@ -154,14 +159,14 @@ def construct_irreps(inputs):
         ] = f"{inputs['dataset_options']['max_s_functions']}x0e"
         inputs["model_options"][
             "irreps_in"
-        ] += f"+{inputs['dataset_options']['max_p_functions']}x1o"
+        ] += f"+{inputs['dataset_options']['max_p_functions']}x1{parity}"
         for i in range(inputs["dataset_options"]["max_d_functions"]):
             inputs["model_options"]["irreps_in"] += f"+1x0e+1x2e"
     if (
         inputs["model_options"]["irreps_out"] == "@construct"
         and inputs["use_minimal_basis_node_features"]
     ):
-        inputs["model_options"]["irreps_out"] = "1x0e+1x1e"
+        inputs["model_options"]["irreps_out"] = f"1x0e+1x1{parity}"
     elif (
         inputs["model_options"]["irreps_out"] == "@construct"
         and not inputs["use_minimal_basis_node_features"]
@@ -171,7 +176,7 @@ def construct_irreps(inputs):
         ] = f"{inputs['dataset_options']['max_s_functions']}x0e"
         inputs["model_options"][
             "irreps_out"
-        ] += f"+{inputs['dataset_options']['max_p_functions']}x1o"
+        ] += f"+{inputs['dataset_options']['max_p_functions']}x1{parity}"
         for i in range(inputs["dataset_options"]["max_d_functions"]):
             inputs["model_options"]["irreps_out"] += f"+1x0e+1x2e"
 
