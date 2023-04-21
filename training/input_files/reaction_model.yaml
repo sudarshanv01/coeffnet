@@ -9,7 +9,7 @@ basis_file: "input_files/6-31G_star.json"
 
 batch_size: 30
 learning_rate: 0.01
-epochs: 100 #500
+epochs: 150 #500
 
 dataset_options:
   max_s_functions: 5
