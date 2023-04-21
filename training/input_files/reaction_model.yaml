@@ -24,10 +24,24 @@ use_minimal_basis_node_features: false
 #irreps_out: '1x1o'
 #irreps_hidden: "16x0e+288x1o+144x2e"
 
-#prediction_mode: "relative_energy"
-#irreps_hidden: "16x0e+288x1e+144x2e"
-# model_options:
-#   irreps_hidden: "16x0e+144x1o+144x2e"
+prediction_mode: "relative_energy"
+model_options:
+  irreps_in: "@construct"
+  irreps_hidden: "64x0e+64x1o+32x2e"
+  irreps_out: "@construct"
+  irreps_node_attr: "1x0e"
+  irreps_edge_attr: "@construct"
+  radial_layers: 5
+  radial_neurons: 8
+  max_radius: 3
+  num_basis: 16
+  num_neighbors: 4
+  typical_number_of_nodes: 12
+  reduce_output: true 
+  reference_reduced_output_to_initial_state: true
+  make_absolute: false 
+  mask_extra_basis: true
+  normalize_sumsq: true
 
 prediction_mode: "coeff_matrix"
 model_options:
