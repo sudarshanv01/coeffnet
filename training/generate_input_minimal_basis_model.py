@@ -12,8 +12,9 @@ from monty.serialization import loadfn, dumpfn
 def split_dataset(all_entries, train_frac, test_frac, validate_frac):
     """Split the dict based on the first key into three different fractions."""
 
-    print(f"Number of entries in the dataset: {len(all_entries)}")
+    print(f"Number of entries in the dataset which will be split: {len(all_entries)}")
 
+    random.seed(42)
     random.shuffle(all_entries)
 
     train_num = int(len(all_entries) * train_frac)
@@ -70,9 +71,9 @@ if __name__ == "__main__":
     collection = db.sn2_reaction_dataset
 
     if args.debug:
-        cursor = collection.find().limit(100)
+        cursor = collection.find().limit(100).sort("tags.label", 1).allow_disk_use(True)
     else:
-        cursor = collection.find()
+        cursor = collection.find().sort("tags.label", 1).allow_disk_use(True)
 
     data = list(cursor)
     print(f"Number of entries in the dataset: {len(data)}")
@@ -81,7 +82,7 @@ if __name__ == "__main__":
         if np.isnan(coeff_matrix).any():
             # Remove _dat from data
             data.remove(_dat)
-    print(f"Number of entries in the dataset: {len(data)}")
+    print(f"Number of entries in the dataset after pruning nan: {len(data)}")
 
     train_data, test_data, validate_data = split_dataset(
         data, args.train_frac, args.test_frac, args.validate_frac
