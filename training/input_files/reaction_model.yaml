@@ -46,7 +46,7 @@ model_options:
 prediction_mode: "coeff_matrix"
 model_options:
   irreps_in: "@construct"
-  irreps_hidden: "64x0e+64x1o+32x2e"
+  irreps_hidden: "64x0e+288x1e+32x2e"
   irreps_out: "@construct"
   irreps_node_attr: "1x0e"
   irreps_edge_attr: "@construct"
