@@ -149,10 +149,14 @@ class ReactionModel(torch.nn.Module):
         if self.make_absolute:
             output_network_initial_state = torch.abs(output_network_initial_state)
 
-        output_network_initial_state = output_network_initial_state * data.basis_mask
-        output_network_initial_state = self._normalize_to_sum_squares_one(
-            output_network_initial_state, data.batch
-        )
+        if self.mask_extra_basis:
+            output_network_initial_state = (
+                output_network_initial_state * data.basis_mask
+            )
+        if self.normalize_sumsq:
+            output_network_initial_state = self._normalize_to_sum_squares_one(
+                output_network_initial_state, data.batch
+            )
 
         output_network_final_state = self.network_final_state(
             {
@@ -165,10 +169,12 @@ class ReactionModel(torch.nn.Module):
         if self.make_absolute:
             output_network_final_state = torch.abs(output_network_final_state)
 
-        output_network_final_state = output_network_final_state * data.basis_mask
-        output_network_final_state = self._normalize_to_sum_squares_one(
-            output_network_final_state, data.batch
-        )
+        if self.mask_extra_basis:
+            output_network_final_state = output_network_final_state * data.basis_mask
+        if self.normalize_sumsq:
+            output_network_final_state = self._normalize_to_sum_squares_one(
+                output_network_final_state, data.batch
+            )
 
         p = data.p
         p_prime = 1 - p
