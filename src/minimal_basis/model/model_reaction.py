@@ -137,6 +137,9 @@ class ReactionModel(torch.nn.Module):
         if self.make_absolute:
             x = torch.abs(data.x)
             x_final_state = torch.abs(data.x_final_state)
+        else:
+            x = data.x
+            x_final_state = data.x_final_state
 
         output_network_initial_state = self.network_initial_state(
             {
