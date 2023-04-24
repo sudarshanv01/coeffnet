@@ -43,20 +43,20 @@ model_options:
   mask_extra_basis: true
   normalize_sumsq: true
 
-prediction_mode: "coeff_matrix"
-model_options:
-  irreps_in: "@construct"
-  irreps_hidden: "64x0e+288x1e+32x2e"
-  irreps_out: "@construct"
-  irreps_node_attr: "1x0e"
-  irreps_edge_attr: "@construct"
-  radial_layers: 2
-  radial_neurons: 64
-  max_radius: 5
-  num_basis: 12
-  num_neighbors: 4
-  typical_number_of_nodes: 12
-  reduce_output: false
-  make_absolute: true 
-  mask_extra_basis: true
-  normalize_sumsq: true
+# prediction_mode: "coeff_matrix"
+# model_options:
+#   irreps_in: "@construct"
+#   irreps_hidden: "64x0e+288x1e+32x2e"
+#   irreps_out: "@construct"
+#   irreps_node_attr: "1x0e"
+#   irreps_edge_attr: "@construct"
+#   radial_layers: 2
+#   radial_neurons: 64
+#   max_radius: 5
+#   num_basis: 12
+#   num_neighbors: 4
+#   typical_number_of_nodes: 12
+#   reduce_output: false
+#   make_absolute: true 
+#   mask_extra_basis: true
+#   normalize_sumsq: true
