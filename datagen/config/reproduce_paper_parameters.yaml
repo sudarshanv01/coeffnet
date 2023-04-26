@@ -1,5 +1,0 @@
-dft_rung: 1
-overwrite_inputs:
-  rem:
-    basis: '6-31G*'
-    unrestricted: true

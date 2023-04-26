@@ -1,5 +1,0 @@
-overwrite_inputs:
-  rem:
-    method: 'hf'
-    basis: 'STO-3G'
-    unrestricted: true
