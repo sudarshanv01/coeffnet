@@ -3,3 +3,5 @@ overwrite_inputs:
   rem:
     basis: 'def2-mSVP'
     method: 'B97-D3'
+    dft_d: 'd3_bj'
+    xc_grid: 2

@@ -58,7 +58,6 @@ if __name__ == "__main__":
             }
 
             if collection.count_documents({"tags": tags}) > 0:
-                logger.info(f"Skipping {tags['label']}")
                 continue
 
             count_structures += 1
