@@ -56,11 +56,12 @@ if __name__ == "__main__":
                 "functional": find_tags["functional"],
                 "state": state,
                 "quantities": ["nbo", "coeff_matrix"],
+                "rxn_number": document["rxn_number"],
             }
             print(tags)
 
             if collection.count_documents({"tags": tags}) > 0:
-                logger.info(f"Skipping {tags['label']}")
+                logger.info(f"Skipping {tags}")
                 continue
 
             count_structures += 1

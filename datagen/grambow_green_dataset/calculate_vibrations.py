@@ -42,8 +42,6 @@ if __name__ == "__main__":
 
     with open("config/reproduce_paper_parameters.yaml", "r") as f:
         params = yaml.safe_load(f)
-    nbo_params = {"nbo_params": {"version": 7}}
-    params.update(nbo_params)
 
     count_structures = 0
     for document in initial_structure_collection.find(find_tags).limit(500):
@@ -56,6 +54,7 @@ if __name__ == "__main__":
                 "functional": find_tags["functional"],
                 "state": state,
                 "quantities": ["vibrations"],
+                "rxn_number": document["rxn_number"],
             }
 
             if collection.count_documents({"tags": tags}) > 0:
