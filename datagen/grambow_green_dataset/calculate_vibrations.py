@@ -44,7 +44,7 @@ if __name__ == "__main__":
         params = yaml.safe_load(f)
 
     count_structures = 0
-    for document in initial_structure_collection.find(find_tags).limit(500):
+    for document in initial_structure_collection.find(find_tags):
 
         for state in ["reactant", "transition_state", "product"]:
             molecule = document[state]
