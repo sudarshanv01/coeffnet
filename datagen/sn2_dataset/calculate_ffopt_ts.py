@@ -44,14 +44,7 @@ if __name__ == "__main__":
     with open("config/reproduce_paper_parameters.yaml", "r") as f:
         params = yaml.safe_load(f)
 
-    cursor = collection.find(
-        {"task_label": "frequency calculation"},
-        {
-            "calcs_reversed.frequencies": 1,
-            "tags.reaction_name": 1,
-            "tags.rxn_number": 1,
-        },
-    )
+    cursor = collection.find({"task_label": "frequency calculation"})
 
     count_structures = 0
     for doc in cursor:
