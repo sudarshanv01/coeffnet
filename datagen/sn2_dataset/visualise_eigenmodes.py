@@ -13,47 +13,7 @@ import ase.io as ase_io
 
 from instance_mongodb import instance_mongodb_sei
 
-
-def perturb_along_eigenmode(
-    ts_molecule: Molecule, eigenmode: List[float], scaling: float
-) -> Molecule:
-    """Perturn the molecule along the eigen modes based on a scaling factor.
-
-    Args:
-        ts_molecule: The transition state molecule.
-        eigenmode: The eigenmode.
-        scaling: The scaling factor to perturb the molecule.
-    """
-
-    def validate_eigenmode(eigenmode: List[float]) -> None:
-        """Check if the eigenmode is normalised correctly."""
-        norm_eigemode = np.linalg.norm(eigenmode)
-        is_close = np.isclose(norm_eigemode, 1.0, atol=1e-3)
-        if not is_close:
-            raise ValueError("The eigenmode is not normalised correctly.")
-
-    eigenmode = np.array(eigenmode)
-    validate_eigenmode(eigenmode)
-    assert eigenmode.shape == (
-        len(ts_molecule),
-        3,
-    ), "Eigenmode is not the correct shape."
-
-    delta_pos = scaling * eigenmode
-    perturbed_molecule_pos = copy.deepcopy(ts_molecule)
-
-    # get positions of atoms
-    positions = [a.coords for a in ts_molecule.sites]
-    positions = np.array(positions)
-
-    # Get the perturbed positions
-    perturbed_pos = positions + delta_pos
-
-    # Set the perturbed positions
-    for i, a in enumerate(perturbed_molecule_pos.sites):
-        a.coords = perturbed_pos[i]
-
-    return perturbed_molecule_pos
+from minimal_basis.datagen.utils import perturb_along_eigenmode
 
 
 if __name__ == "__main__":
@@ -68,7 +28,7 @@ if __name__ == "__main__":
         os.makedirs("output/visualise_eigenmodes")
 
     for doc in collection.find({}):
-        transition_state_molecule = doc["transition_state_with_one_imaginary_frequency"]
+        transition_state_molecule = doc["transition_state_molecule"]
         transition_state_molecule = Molecule.from_dict(transition_state_molecule)
         transition_state_frequency_modes = doc["transition_state_frequency_modes"]
         transition_state_frequency_modes = np.array(transition_state_frequency_modes)

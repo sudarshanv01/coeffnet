@@ -1,8 +1,121 @@
 import logging
 
+from typing import List
+
 import numpy as np
 
 from instance_mongodb import instance_mongodb_sei
+
+from pymatgen.core.structure import Molecule
+from pymatgen.analysis.graphs import MoleculeGraph
+
+from minimal_basis.datagen.utils import perturb_along_eigenmode
+
+
+def expected_transition_state(
+    ts_molecule: Molecule,
+    eigenmode: List[float],
+    eigenvalues: List[float],
+    label: str,
+    reaction_name: str,
+) -> Molecule:
+    """Based on the rules outlined in this function, decide if the transition state
+    is the one we are looking for.
+
+    Args:
+        ts_molecule: The transition state molecule.
+        eigenmode: The eigenmode.
+        eigenvalue: The eigenvalue.
+        label: The label of the transition state.
+    """
+    _, _, _, _, X, Y = label.split("_")
+
+    imag_eigval_idx = np.where(eigenvalues < 0)
+    if len(imag_eigval_idx[0]) != 1:
+        return False
+
+    idx_carbon_node_0 = 0
+    idx_carbon_node_1 = 1
+    idx_hydrogen_node = 4
+
+    MATCHER = {
+        "X": {
+            "A": "F",
+            "B": "Cl",
+            "C": "Br",
+        },
+        "Y": {
+            "A": "H",
+            "B": "F",
+            "C": "Cl",
+            "D": "Br",
+        },
+    }
+
+    if MATCHER["X"][X] != MATCHER["Y"][Y]:
+        idx_X = [
+            i for i, a in enumerate(ts_molecule) if a.specie.symbol == MATCHER["X"][X]
+        ]
+        idx_Y = [
+            i for i, a in enumerate(ts_molecule) if a.specie.symbol == MATCHER["Y"][Y]
+        ]
+
+        assert len(idx_X) == 1, "More than one X atom."
+        idx_X = idx_X[0]
+
+        if reaction_name == "sn2":
+            dists = [
+                ts_molecule.get_distance(idx_carbon_node_0, idx_Y[i])
+                for i in range(len(idx_Y))
+            ]
+        elif reaction_name == "e2":
+            dists = [
+                ts_molecule.get_distance(idx_carbon_node_1, idx_Y[i])
+                for i in range(len(idx_Y))
+            ]
+
+        idx_Y = idx_Y[np.argmin(dists)]
+
+    else:
+        idx_X = [
+            i for i, a in enumerate(ts_molecule) if a.specie.symbol == MATCHER["X"][X]
+        ]
+        idx_Y = [
+            i for i, a in enumerate(ts_molecule) if a.specie.symbol == MATCHER["Y"][Y]
+        ]
+        idx_X = idx_X[0]
+        idx_Y = idx_Y[1]
+
+    perturbed_molecule_pos = perturb_along_eigenmode(ts_molecule, eigenmode, 0.5)
+    perturbed_molecule_neg = perturb_along_eigenmode(ts_molecule, eigenmode, -0.5)
+
+    if reaction_name == "sn2":
+        dist_pos = perturbed_molecule_pos.get_distance(
+            idx_carbon_node_0, idx_X
+        ) - perturbed_molecule_pos.get_distance(idx_carbon_node_0, idx_Y)
+        dist_neg = perturbed_molecule_neg.get_distance(
+            idx_carbon_node_0, idx_X
+        ) - perturbed_molecule_neg.get_distance(idx_carbon_node_0, idx_Y)
+
+        if np.sign(dist_pos) == np.sign(dist_neg):
+            return False
+
+    elif reaction_name == "e2":
+        dist_pos = perturbed_molecule_pos.get_distance(
+            idx_hydrogen_node,
+            idx_Y,
+        ) - perturbed_molecule_pos.get_distance(idx_carbon_node_1, idx_hydrogen_node)
+
+        dist_neg = perturbed_molecule_neg.get_distance(
+            idx_hydrogen_node,
+            idx_Y,
+        ) - perturbed_molecule_neg.get_distance(idx_carbon_node_1, idx_hydrogen_node)
+
+        if np.sign(dist_pos) == np.sign(dist_neg):
+            return False
+
+    return True
+
 
 if __name__ == "__main__":
     """Store structures in the right collection after they
@@ -45,7 +158,7 @@ if __name__ == "__main__":
                 },
             )
             if doc_ffopt is not None:
-                logger.info(
+                logger.debug(
                     "Found transition state for {} through FFOpt".format(_doc["tags"])
                 )
                 frequencies = doc_ffopt["calcs_reversed"][0]["frequencies"]
@@ -57,10 +170,10 @@ if __name__ == "__main__":
                 doc = doc_ffopt
                 ts_structure = doc["output"]["optimized_molecule"]
             else:
-                logger.info("No transition state found for {}".format(_doc["tags"]))
+                logger.debug("No transition state found for {}".format(_doc["tags"]))
                 continue
         else:
-            logger.info(
+            logger.debug(
                 "Found transition state for {} through frequency calculation".format(
                     _doc["tags"]
                 )
@@ -69,35 +182,58 @@ if __name__ == "__main__":
             ts_structure = doc["output"]["initial_molecule"]
 
         ts_frequencies = doc["output"]["frequencies"]
+        ts_frequencies = np.array(ts_frequencies)
         ts_frequency_modes = doc["output"]["frequency_modes"]
+        ts_frequency_modes = np.array(ts_frequency_modes)
 
-        doc_data = data_collection.find_one(
-            {
-                "rxn_number": doc["tags"]["rxn_number"],
-                "reaction_name": doc["tags"]["reaction_name"],
-            },
-        )
+        idx_imag_freq = np.where(ts_frequencies < 0)[0][0]
+        if expected_transition_state(
+            Molecule.from_dict(ts_structure),
+            ts_frequency_modes[idx_imag_freq],
+            ts_frequencies,
+            doc["tags"]["rxn_number"],
+            doc["tags"]["reaction_name"],
+        ):
+            logger.info(
+                "Transition state for {} is correct".format(
+                    doc["tags"]["reaction_name"]
+                )
+            )
+            doc_data = data_collection.find_one(
+                {
+                    "rxn_number": doc["tags"]["rxn_number"],
+                    "reaction_name": doc["tags"]["reaction_name"],
+                },
+            )
 
-        if doc_data is None:
-            doc_data = {
-                "rxn_number": doc["tags"]["rxn_number"],
-                "reaction_name": doc["tags"]["reaction_name"],
-            }
-            data_collection.insert_one(doc_data)
+            if doc_data is None:
+                doc_data = {
+                    "rxn_number": doc["tags"]["rxn_number"],
+                    "reaction_name": doc["tags"]["reaction_name"],
+                }
+                data_collection.insert_one(doc_data)
 
-        if "transition_state_with_one_imaginary_frequency" not in doc_data.keys():
-            doc_data["transition_state_with_one_imaginary_frequency"] = ts_structure
+            if "transition_state_molecule" not in doc_data.keys():
+                doc_data["transition_state_molecule"] = ts_structure
 
-        if "transition_state_frequencies" not in doc_data.keys():
-            doc_data["transition_state_frequencies"] = ts_frequencies
+            if "transition_state_frequencies" not in doc_data.keys():
+                doc_data["transition_state_frequencies"] = ts_frequencies.tolist()
 
-        if "transition_state_frequency_modes" not in doc_data.keys():
-            doc_data["transition_state_frequency_modes"] = ts_frequency_modes
+            if "transition_state_frequency_modes" not in doc_data.keys():
+                doc_data[
+                    "transition_state_frequency_modes"
+                ] = ts_frequency_modes.tolist()
 
-        data_collection.update_one(
-            {
-                "rxn_number": doc["tags"]["rxn_number"],
-                "reaction_name": doc["tags"]["reaction_name"],
-            },
-            {"$set": doc_data},
-        )
+            data_collection.update_one(
+                {
+                    "rxn_number": doc["tags"]["rxn_number"],
+                    "reaction_name": doc["tags"]["reaction_name"],
+                },
+                {"$set": doc_data},
+            )
+        else:
+            logger.info(
+                "Transition state for {} is incorrect".format(
+                    doc["tags"]["reaction_name"]
+                )
+            )
