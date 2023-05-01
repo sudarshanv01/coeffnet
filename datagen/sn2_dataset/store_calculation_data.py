@@ -71,10 +71,6 @@ if __name__ == "__main__":
         ts_frequencies = doc["output"]["frequencies"]
         ts_frequency_modes = doc["output"]["frequency_modes"]
 
-        # If doc_data is None, then we have to create a new document
-        # and insert it into the collection. If it already exists, then
-        # we have to update it.
-
         doc_data = data_collection.find_one(
             {
                 "rxn_number": doc["tags"]["rxn_number"],
