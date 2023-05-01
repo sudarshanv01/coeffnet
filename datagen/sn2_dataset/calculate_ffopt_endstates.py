@@ -47,6 +47,8 @@ if __name__ == "__main__":
     for document in initial_structure_collection.find(find_tags):
 
         for _state in ["perturbed_molecule_0", "perturbed_molecule_-0"]:
+            if _state not in document:
+                continue
             molecule_dict = document[_state]
             for perturbation, molecule in molecule_dict.items():
                 state = _state + "_" + perturbation
