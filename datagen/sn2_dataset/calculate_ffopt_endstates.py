@@ -69,7 +69,7 @@ if __name__ == "__main__":
                 firew = FrequencyFlatteningOptimizeFW(
                     molecule=molecule,
                     qchem_input_params=params,
-                    db_file="/global/home/users/svijay/fw_config/db_mlts.json",
+                    db_file=">>db_file<<",
                     linked=True,
                     freq_before_opt=True,
                 )
