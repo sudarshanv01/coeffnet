@@ -59,10 +59,9 @@ if __name__ == "__main__":
                     "rxn_number": document["rxn_number"],
                     "reaction_name": document["reaction_name"],
                 }
-                print(tags)
 
                 if collection.count_documents({"tags": tags}) > 0:
-                    logger.info(f"Skipping {tags['label']}")
+                    logger.info(f"Skipping {tags}")
                     continue
 
                 count_structures += 1
