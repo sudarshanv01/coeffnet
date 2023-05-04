@@ -58,7 +58,6 @@ if __name__ == "__main__":
                 "quantities": ["nbo", "coeff_matrix"],
                 "rxn_number": document["rxn_number"],
             }
-            print(tags)
 
             if collection.count_documents({"tags": tags}) > 0:
                 logger.info(f"Skipping {tags}")
