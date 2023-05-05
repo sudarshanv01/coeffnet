@@ -7,6 +7,8 @@ from pymongo.cursor import Cursor
 
 import tqdm
 
+import random
+
 
 class BaseQuantitiesQChem:
     def __init__(
@@ -125,14 +127,14 @@ class TaskdocsToData:
 
         self.data = []
 
-    def get_all_identifiers(self) -> List[str]:
+    def _get_all_identifiers(self) -> List[str]:
         """Get all unique identifiers from the TaskDocuments."""
         identifiers = self.collection.find(self.filter_collection).distinct(
             f"tags.{self.identifier}"
         )
         return identifiers
 
-    def get_reaction_data(self, identifier: Union[str, float]) -> None:
+    def _get_reaction_data(self, identifier: Union[str, float]) -> None:
         """Parse the output dataset and get the reaction data."""
 
         find_filter = {
@@ -177,12 +179,12 @@ class TaskdocsToData:
                     data[key] = []
                 data[key].append(value)
 
-        self.collate_data(data)
+        self._collate_data(data)
         data["tags"] = {}
         data["tags"][self.identifier] = identifier
         self.data.append(data)
 
-    def collate_data(self, data: dict) -> dict:
+    def _collate_data(self, data: dict) -> dict:
         """Collate the data from the TaskDocument keys into a single key."""
 
         if "beta_eigenvalues" in data:
@@ -213,14 +215,51 @@ class TaskdocsToData:
 
         return data
 
-    def get_data(self, debug: bool = False) -> List[dict]:
-        """Parse the TaskDocuments and return a list of dictionaries."""
-        identifiers = self.get_all_identifiers()
+    def _parse_data(self, debug: bool = False) -> None:
+        identifiers = self._get_all_identifiers()
 
         if debug:
             identifiers = identifiers[: self.debug_number_of_reactions]
 
         for identifier in tqdm.tqdm(identifiers):
-            self.get_reaction_data(identifier)
+            self._get_reaction_data(identifier)
 
+    def get_data(self, debug: bool = False) -> List[dict]:
+        """Get the data."""
+        self._parse_data(debug=debug)
         return self.data
+
+    def get_random_split_data(
+        self,
+        debug: bool = False,
+        reparse: bool = True,
+        train_frac: float = 0.8,
+        test_frac: float = 0.1,
+        validate_frac: float = 0.1,
+        seed: int = 42,
+    ) -> Tuple[List[dict], List[dict]]:
+        """Random split the data into a train and test set."""
+
+        if reparse:
+            self._parse_data(debug=debug)
+
+        random.seed(seed)
+        random.shuffle(self.data)
+
+        self.train_list, self.test_list, self.validate_list = self._random_split(
+            train_frac=train_frac, test_frac=test_frac, validate_frac=validate_frac
+        )
+
+        return self.train_list, self.test_list, self.validate_list
+
+    def _random_split(self, train_frac: float, test_frac: float, validate_frac: float):
+        """Randomly split the data into a train, test and validation set."""
+        train_list = self.data[: int(train_frac * len(self.data))]
+        test_list = self.data[
+            int(train_frac * len(self.data)) : int(
+                (train_frac + test_frac) * len(self.data)
+            )
+        ]
+        validate_list = self.data[int((train_frac + test_frac) * len(self.data)) :]
+
+        return train_list, test_list, validate_list

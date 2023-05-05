@@ -1,0 +1,8 @@
+---
+filter_collection: 
+  task_label: "single point"
+identifier: "rxn_number"
+state_identifier: "state"
+reactant_tag: "reactant"
+product_tag: "product"
+transition_state_tag: "transition_state"
