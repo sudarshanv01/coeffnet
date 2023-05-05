@@ -3,6 +3,10 @@ from typing import List, Tuple, Union
 import numpy.typing as npt
 import numpy as np
 
+from pymongo.cursor import Cursor
+
+import tqdm
+
 
 class BaseQuantitiesQChem:
     def __init__(
@@ -90,3 +94,84 @@ class BaseQuantitiesQChem:
         )
         self.ortho_coeff_matrix = eigenvec_ortho_fock
         self.eigenval_ortho_fock = eigenval_ortho_fock
+
+
+class TaskdocsToData:
+    def __init__(
+        self,
+        collection,
+        filter_collection: dict = {},
+        identifier: str = "rxn_number",
+        state_identifier: str = "state",
+        reactant_tag: str = "reactant",
+        product_tag: str = "product",
+        transition_state_tag: str = "transition_state",
+    ):
+        """Convert TaskDocuments to a List[Dict] with reaction information."""
+
+        self.collection = collection
+        self.filter_collection = filter_collection
+        self.identifier = identifier
+        self.state_identifier = state_identifier
+        self.reactant_tag = reactant_tag
+        self.product_tag = product_tag
+        self.transition_state_tag = transition_state_tag
+
+        self.data = []
+
+    def get_all_identifiers(self) -> List[str]:
+        """Get all unique identifiers from the TaskDocuments."""
+        identifiers = self.collection.find(self.filter_collection).distinct(
+            f"tags.{self.identifier}"
+        )
+        return identifiers
+
+    def get_reaction_data(self, identifier: Union[str, float]) -> None:
+        """Parse the output dataset and get the reaction data."""
+        cursor = self.collection.find(
+            {
+                f"tags.{self.identifier}": identifier,
+                f"tags.{self.state_identifier}": {
+                    "$in": [
+                        self.reactant_tag,
+                        self.product_tag,
+                        self.transition_state_tag,
+                    ]
+                },
+            },
+            {
+                "output.initial_molecule": 1,
+                "output.final_energy": 1,
+                "calcs_reversed.alpha_eigenvalues": 1,
+                "calcs_reversed.beta_eigenvalues": 1,
+                "calcs_reversed.alpha_coeff_matrix": 1,
+                "calcs_reversed.beta_coeff_matrix": 1,
+                "calcs_reversed.alpha_fock_matrix": 1,
+                "calcs_reversed.beta_fock_matrix": 1,
+                f"tags.{identifier}": 1,
+            },
+        ).sort(f"tags.{self.state_identifier}", 1)
+
+        data = {}
+        for document in cursor:
+            for key, value in document["calcs_reversed"][0].items():
+                if key not in data:
+                    data[key] = []
+                data[key].append(value)
+            for key, value in document["output"].items():
+                if key not in data:
+                    data[key] = []
+                data[key].append(value)
+
+        data["tags"] = {}
+        data["tags"][self.identifier] = identifier
+        self.data.append(data)
+
+    def get_data(self) -> List[dict]:
+        """Parse the TaskDocuments and return a list of dictionaries."""
+        identifiers = self.get_all_identifiers()
+
+        for identifier in tqdm.tqdm(identifiers):
+            self.get_reaction_data(identifier)
+
+        return self.data
