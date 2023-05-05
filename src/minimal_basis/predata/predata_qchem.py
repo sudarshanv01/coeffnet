@@ -1,4 +1,4 @@
-from typing import List, Tuple, Union
+from typing import Any, List, Tuple, Union
 
 import numpy.typing as npt
 import numpy as np
@@ -106,6 +106,7 @@ class TaskdocsToData:
         reactant_tag: str = "reactant",
         product_tag: str = "product",
         transition_state_tag: str = "transition_state",
+        **kwargs: Any,
     ):
         """Convert TaskDocuments to a List[Dict] with reaction information."""
 
@@ -116,6 +117,11 @@ class TaskdocsToData:
         self.reactant_tag = reactant_tag
         self.product_tag = product_tag
         self.transition_state_tag = transition_state_tag
+
+        if "debug_number_of_reactions" in kwargs:
+            self.debug_number_of_reactions = kwargs["debug_number_of_reactions"]
+        else:
+            self.debug_number_of_reactions = 100
 
         self.data = []
 
@@ -128,17 +134,21 @@ class TaskdocsToData:
 
     def get_reaction_data(self, identifier: Union[str, float]) -> None:
         """Parse the output dataset and get the reaction data."""
-        cursor = self.collection.find(
-            {
-                f"tags.{self.identifier}": identifier,
-                f"tags.{self.state_identifier}": {
-                    "$in": [
-                        self.reactant_tag,
-                        self.product_tag,
-                        self.transition_state_tag,
-                    ]
-                },
+
+        find_filter = {
+            f"tags.{self.identifier}": identifier,
+            f"tags.{self.state_identifier}": {
+                "$in": [
+                    self.reactant_tag,
+                    self.product_tag,
+                    self.transition_state_tag,
+                ]
             },
+        }
+
+        find_filter.update(self.filter_collection)
+        cursor = self.collection.find(
+            find_filter,
             {
                 "output.initial_molecule": 1,
                 "output.final_energy": 1,
@@ -148,12 +158,12 @@ class TaskdocsToData:
                 "calcs_reversed.beta_coeff_matrix": 1,
                 "calcs_reversed.alpha_fock_matrix": 1,
                 "calcs_reversed.beta_fock_matrix": 1,
-                f"tags.{identifier}": 1,
+                f"tags.{self.state_identifier}": 1,
             },
         ).sort(f"tags.{self.state_identifier}", 1)
 
         data = {}
-        for document in cursor:
+        for idx, document in enumerate(cursor):
             for key, value in document["calcs_reversed"][0].items():
                 if key not in data:
                     data[key] = []
@@ -162,14 +172,53 @@ class TaskdocsToData:
                 if key not in data:
                     data[key] = []
                 data[key].append(value)
+            for key, value in document["tags"].items():
+                if key not in data:
+                    data[key] = []
+                data[key].append(value)
 
+        self.collate_data(data)
         data["tags"] = {}
         data["tags"][self.identifier] = identifier
         self.data.append(data)
 
-    def get_data(self) -> List[dict]:
+    def collate_data(self, data: dict) -> dict:
+        """Collate the data from the TaskDocument keys into a single key."""
+
+        if "beta_eigenvalues" in data:
+            data["eigenvalues"] = [
+                data.pop("alpha_eigenvalues"),
+                data.pop("beta_eigenvalues"),
+            ]
+        else:
+            data["eigenvalues"] = [data.pop("alpha_eigenvalues")]
+
+        if "beta_coeff_matrix" in data:
+            data["coeff_matrices"] = [
+                data.pop("alpha_coeff_matrix"),
+                data.pop("beta_coeff_matrix"),
+            ]
+        else:
+            data["coeff_matrices"] = [data.pop("alpha_coeff_matrix")]
+
+        if "beta_fock_matrix" in data:
+            data["fock_matrices"] = [
+                data.pop("alpha_fock_matrix"),
+                data.pop("beta_fock_matrix"),
+            ]
+        else:
+            data["fock_matrices"] = [data.pop("alpha_fock_matrix")]
+
+        data["structures"] = data.pop("initial_molecule")
+
+        return data
+
+    def get_data(self, debug: bool = False) -> List[dict]:
         """Parse the TaskDocuments and return a list of dictionaries."""
         identifiers = self.get_all_identifiers()
+
+        if debug:
+            identifiers = identifiers[: self.debug_number_of_reactions]
 
         for identifier in tqdm.tqdm(identifiers):
             self.get_reaction_data(identifier)
