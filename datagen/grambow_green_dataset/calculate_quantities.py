@@ -46,11 +46,11 @@ if __name__ == "__main__":
     params.update(nbo_params)
 
     count_structures = 0
-    for document in initial_structure_collection.find(find_tags):
+    for document in initial_structure_collection.find(
+        find_tags, no_cursor_timeout=True
+    ):
 
         for state in ["reactant", "transition_state", "product"]:
-            molecule = document[state]
-            molecule = Molecule.from_dict(molecule)
 
             tags = {
                 "functional": find_tags["functional"],
@@ -62,6 +62,9 @@ if __name__ == "__main__":
             if collection.count_documents({"tags": tags}) > 0:
                 logger.info(f"Skipping {tags}")
                 continue
+
+            molecule = document[state]
+            molecule = Molecule.from_dict(molecule)
 
             count_structures += 1
 
