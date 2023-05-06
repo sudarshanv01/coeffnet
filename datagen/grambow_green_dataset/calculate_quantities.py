@@ -46,8 +46,10 @@ if __name__ == "__main__":
     params.update(nbo_params)
 
     count_structures = 0
-    cursor = initial_structure_collection.find(find_tags, no_cursor_timeout=True)
-    for document in cursor:
+
+    unique_rxn_numbers = initial_structure_collection.distinct("rxn_number")
+
+    for rxn_number in unique_rxn_numbers:
 
         for state in ["reactant", "transition_state", "product"]:
 
@@ -55,12 +57,17 @@ if __name__ == "__main__":
                 "functional": find_tags["functional"],
                 "state": state,
                 "quantities": ["nbo", "coeff_matrix"],
-                "rxn_number": document["rxn_number"],
+                "rxn_number": rxn_number,
             }
 
             if collection.count_documents({"tags": tags}) > 0:
                 logger.info(f"Skipping {tags}")
                 continue
+
+            document = initial_structure_collection.find_one(
+                {"rxn_number": rxn_number},
+                {"_id": 0, state: 1},
+            )
 
             molecule = document[state]
             molecule = Molecule.from_dict(molecule)
