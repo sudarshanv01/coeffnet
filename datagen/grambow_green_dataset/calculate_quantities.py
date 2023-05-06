@@ -46,7 +46,7 @@ if __name__ == "__main__":
     params.update(nbo_params)
 
     count_structures = 0
-    cursor = initial_structure_collection.find(find_tags).no_cursor_timeout()
+    cursor = initial_structure_collection.find(find_tags, no_cursor_timeout=True)
     for document in cursor:
 
         for state in ["reactant", "transition_state", "product"]:
