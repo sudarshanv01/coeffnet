@@ -60,6 +60,8 @@ if __name__ == "__main__":
         molecule = doc["output"]["optimized_molecule"]
         molecule = Molecule.from_dict(molecule)
 
+        final_energy = doc["output"]["final_energy"]
+
         initial_molecule = doc["calcs_reversed"][-1]["initial_molecule"]
         initial_molecule = Molecule.from_dict(initial_molecule)
 
@@ -78,7 +80,12 @@ if __name__ == "__main__":
 
         data_collection.update_one(
             {"rxn_number": rxn_number, "reaction_name": reaction_name},
-            {"$set": {f"{state}_molecule": molecule.as_dict()}},
+            {
+                "$set": {
+                    f"{state}_molecule": molecule.as_dict(),
+                    f"{state}_energy": final_energy,
+                }
+            },
             upsert=True,
         )
         logger.info("Updated {} {} {}".format(state, rxn_number, reaction_name))
