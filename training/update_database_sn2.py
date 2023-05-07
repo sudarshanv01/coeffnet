@@ -20,6 +20,8 @@ from pymatgen.io.ase import AseAtomsAdaptor
 
 import plotly.express as px
 
+import tqdm
+
 from instance_mongodb import instance_mongodb_sei
 
 if __name__ == "__main__":
@@ -33,21 +35,15 @@ if __name__ == "__main__":
     groupname = "sn2_interpolated_from_transition_states"
 
     reaction_labels = collections_data.distinct("tags.label")
-    print(reaction_labels)
 
-    for reaction_label in reaction_labels:
-        print(reaction_label)
-        cursor = (
-            collections_data.find(
-                {
-                    "tags.label": reaction_label,
-                    "tags.group": groupname,
-                    "tags.scaling": {"$in": [-0.5, 0.0, 0.5]},
-                }
-            )
-            .sort("tags.scaling", 1)
-            .limit(3)
-        )
+    for reaction_label in tqdm.tqdm(reaction_labels):
+        cursor = collections_data.find(
+            {
+                "tags.label": reaction_label,
+                "tags.group": groupname,
+                "tags.scaling": {"$in": [-0.5, 0.0, 0.5]},
+            }
+        ).sort("tags.scaling", 1)
 
         for document in cursor:
             collections_data_new.insert_one(document)

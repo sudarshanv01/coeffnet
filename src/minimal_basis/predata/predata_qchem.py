@@ -203,7 +203,7 @@ class TaskdocsToData:
             )
             alpha_orthonal_coeff_matrix = base_quantities_qchem.get_ortho_coeff_matrix()
 
-            if beta_eigenvalues:
+            if beta_eigenvalues is not None:
                 base_quantities_qchem = BaseQuantitiesQChem(
                     fock_matrix=beta_fock_matrix,
                     coeff_matrix=beta_coeff_matrix,
@@ -220,7 +220,7 @@ class TaskdocsToData:
             coeff_matrix = [alpha_orthonal_coeff_matrix]
             orthogonalization_matrix = [alpha_orthogonalization_matrix]
 
-            if beta_eigenvalues:
+            if beta_eigenvalues is not None:
                 eigenvalues.append(beta_eigenvalues)
                 coeff_matrix.append(beta_orthonal_coeff_matrix)
                 orthogonalization_matrix.append(beta_orthogonalization_matrix)
