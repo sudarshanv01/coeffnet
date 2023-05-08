@@ -56,6 +56,6 @@ model_options:
   num_neighbors: 4
   typical_number_of_nodes: 12
   reduce_output: false
-  make_absolute: false
+  make_absolute: true
   mask_extra_basis: true
   normalize_sumsq: true
