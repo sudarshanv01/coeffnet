@@ -48,15 +48,18 @@ class ReactionDataPoint(Data):
         species: Dict[str, Union[npt.ArrayLike, List[int]]] = None,
         forces: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
         basis_mask: Union[npt.ArrayLike, List[bool]] = None,
+        reactant_tag: str = None,
+        product_tag: str = None,
+        transition_state_tag: str = None,
         **kwargs,
     ):
         """General purpose data class for reaction data."""
 
         if pos is not None:
-            pos_initial_state = pos["initial_state"]
-            pos_final_state = pos["final_state"]
+            pos_initial_state = pos[reactant_tag]
+            pos_final_state = pos[product_tag]
             pos_interpolated_transition_state = pos["interpolated_transition_state"]
-            pos_transition_state = pos["transition_state"]
+            pos_transition_state = pos[transition_state_tag]
 
             pos_initial_state = convert_to_tensor(pos_initial_state)
             pos_final_state = convert_to_tensor(pos_final_state)
@@ -71,9 +74,9 @@ class ReactionDataPoint(Data):
             pos_transition_state = None
 
         if x is not None:
-            x_initial_state = x["initial_state"]
-            x_final_state = x["final_state"]
-            x_transition_state = x["transition_state"]
+            x_initial_state = x[reactant_tag]
+            x_final_state = x[product_tag]
+            x_transition_state = x[transition_state_tag]
 
             x_initial_state = convert_to_tensor(x_initial_state)
             x_final_state = convert_to_tensor(x_final_state)
@@ -85,12 +88,12 @@ class ReactionDataPoint(Data):
             x_transition_state = None
 
         if edge_index is not None:
-            edge_index_initial_state = edge_index["initial_state"]
-            edge_index_final_state = edge_index["final_state"]
+            edge_index_initial_state = edge_index[reactant_tag]
+            edge_index_final_state = edge_index[product_tag]
             edge_index_interpolated_transition_state = edge_index[
                 "interpolated_transition_state"
             ]
-            edge_index_transition_state = edge_index["transition_state"]
+            edge_index_transition_state = edge_index[transition_state_tag]
 
             edge_index_initial_state = convert_to_tensor(
                 edge_index_initial_state, dtype=DTYPE_INT
@@ -111,9 +114,9 @@ class ReactionDataPoint(Data):
             edge_index_transition_state = None
 
         if total_energies is not None:
-            total_energy_initial_state = total_energies["initial_state"]
-            total_energy_final_state = total_energies["final_state"]
-            total_energy_transition_state = total_energies["transition_state"]
+            total_energy_initial_state = total_energies[reactant_tag]
+            total_energy_final_state = total_energies[product_tag]
+            total_energy_transition_state = total_energies[transition_state_tag]
 
             total_energy_initial_state = convert_to_tensor(total_energy_initial_state)
             total_energy_final_state = convert_to_tensor(total_energy_final_state)
@@ -127,9 +130,9 @@ class ReactionDataPoint(Data):
             total_energy_transition_state = None
 
         if species is not None:
-            species_initial_state = species["initial_state"]
-            species_final_state = species["final_state"]
-            species_transition_state = species["transition_state"]
+            species_initial_state = species[reactant_tag]
+            species_final_state = species[product_tag]
+            species_transition_state = species[transition_state_tag]
 
             species_initial_state = convert_to_tensor(species_initial_state)
             species_final_state = convert_to_tensor(species_final_state)
@@ -141,9 +144,9 @@ class ReactionDataPoint(Data):
             species_transition_state = None
 
         if forces is not None:
-            forces_initial_state = forces["initial_state"]
-            forces_final_state = forces["final_state"]
-            forces_transition_state = forces["transition_state"]
+            forces_initial_state = forces[reactant_tag]
+            forces_final_state = forces[product_tag]
+            forces_transition_state = forces[transition_state_tag]
 
             forces_initial_state = convert_to_tensor(forces_initial_state)
             forces_final_state = convert_to_tensor(forces_final_state)

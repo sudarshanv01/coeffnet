@@ -51,6 +51,12 @@ parser.add_argument(
     action="store_true",
     help="If set, the dataset is reprocessed.",
 )
+parser.add_argument(
+    "--model_config",
+    type=str,
+    default="config/interp_sn2_model.yaml",
+    help="Path to the model config file.",
+)
 args = parser.parse_args()
 
 
@@ -193,7 +199,7 @@ if __name__ == "__main__":
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     logging.info(f"Device: {DEVICE}")
 
-    inputs = read_inputs_yaml(os.path.join("input_files", "reaction_model.yaml"))
+    inputs = read_inputs_yaml(os.path.join(args.model_config))
     construct_irreps(inputs)
     transform = T.ToDevice(DEVICE)
 
