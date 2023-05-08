@@ -334,6 +334,8 @@ class CoefficientMatrix:
         """Split the coefficients to the atoms they belong to."""
 
         self.coefficient_matrix_atom = []
+        print(self.coefficient_matrix.shape)
+        print(self.basis_atom)
         for atom_idx, atom in enumerate(self.molecule_graph.molecule):
             _atom_basis = self.basis_atom[atom_idx]
             self.coefficient_matrix_atom.append(self.coefficient_matrix[_atom_basis, :])
