@@ -37,7 +37,7 @@ if __name__ == "__main__":
     args = get_cli()
     logger.info("Command line arguments: {}".format(args))
 
-    collection = db.rotate_water_calculations
+    collection = db.rotated_water_calculations
     initial_structure_collection = db.rotated_water_inital_structures
 
     params = {
