@@ -54,7 +54,7 @@ if __name__ == "__main__":
 
     count_structures = 0
 
-    for document in collection.find({}):
+    for document in initial_structure_collection.find({}):
 
         tags = {
             "angles": document["angles"],
