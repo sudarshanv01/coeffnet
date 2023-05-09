@@ -38,7 +38,7 @@ if __name__ == "__main__":
     logger.info("Command line arguments: {}".format(args))
 
     collection = db.rotated_water_calculations
-    initial_structure_collection = db.rotated_water_inital_structures
+    initial_structure_collection = db.rotated_water_initial_structures
 
     params = {
         "dft_rung": 1,
