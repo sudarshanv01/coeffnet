@@ -7,8 +7,8 @@ debug_train_json: "input/debug_grambow_green_train.json"
 debug_validate_json: "input/debug_grambow_green_validation.json"
 basis_file: "input/def2-msvp.json"
 
-batch_size: 16
-learning_rate: 0.01
+batch_size: 32
+learning_rate: 0.0001
 epochs: 250
 
 dataset_options:
@@ -45,16 +45,16 @@ use_minimal_basis_node_features: false
 prediction_mode: "coeff_matrix"
 model_options:
   irreps_in: "@construct"
-  irreps_hidden: "64x0e+288x1e+32x2e"
+  irreps_hidden: "64x0e+288x1e+128x2e"
   irreps_out: "@construct"
   irreps_node_attr: "1x0e"
   irreps_edge_attr: "@construct"
-  radial_layers: 2
+  radial_layers: 4
   radial_neurons: 64
   max_radius: 5
   num_basis: 12
   num_neighbors: 4
-  typical_number_of_nodes: 12
+  typical_number_of_nodes: 10
   reduce_output: false
   make_absolute: true
   mask_extra_basis: true
