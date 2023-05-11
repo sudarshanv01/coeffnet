@@ -197,7 +197,7 @@ class ReactionDataset(InMemoryDataset):
                 node_features = node_features.reshape(node_features.shape[0], -1)
                 data_to_store["node_features"][state] = node_features
                 basis_mask = coeff_matrix.basis_mask
-                data_to_store["basis_mask"][state] = basis_mask
+                data_to_store["basis_mask"][idx_state] = basis_mask
 
                 minimal_basis_irrep = coeff_matrix.minimal_basis_irrep
 

@@ -167,7 +167,7 @@ def construct_irreps(inputs):
             "irreps_in"
         ] += f"+{inputs['dataset_options']['max_p_functions']}x1{parity}"
         for i in range(inputs["dataset_options"]["max_d_functions"]):
-            inputs["model_options"]["irreps_in"] += f"+1x0e+1x2e"
+            inputs["model_options"]["irreps_in"] += f"+1x2e"
     if (
         inputs["model_options"]["irreps_out"] == "@construct"
         and inputs["use_minimal_basis_node_features"]
@@ -184,7 +184,7 @@ def construct_irreps(inputs):
             "irreps_out"
         ] += f"+{inputs['dataset_options']['max_p_functions']}x1{parity}"
         for i in range(inputs["dataset_options"]["max_d_functions"]):
-            inputs["model_options"]["irreps_out"] += f"+1x0e+1x2e"
+            inputs["model_options"]["irreps_out"] += f"+1x2e"
 
     if inputs["model_options"]["irreps_edge_attr"] == "@construct":
         inputs["model_options"][

@@ -310,10 +310,10 @@ class CoefficientMatrix:
                     atom_basis_counter += 3
                     irreps_atom += "+1x1o"
                 elif basis_function == "d":
-                    range_idx = list(range(atom_basis_counter, atom_basis_counter + 6))
+                    range_idx = list(range(atom_basis_counter, atom_basis_counter + 5))
                     basis_d_.append(range_idx)
-                    atom_basis_counter += 6
-                    irreps_atom += "+1x0e+1x2e"
+                    atom_basis_counter += 5
+                    irreps_atom += "1x2e"
 
             irreps_atom = irreps_atom[1:]
             irreps_all_atom.append(irreps_atom)
@@ -334,8 +334,6 @@ class CoefficientMatrix:
         """Split the coefficients to the atoms they belong to."""
 
         self.coefficient_matrix_atom = []
-        print(self.coefficient_matrix.shape)
-        print(self.basis_atom)
         for atom_idx, atom in enumerate(self.molecule_graph.molecule):
             _atom_basis = self.basis_atom[atom_idx]
             self.coefficient_matrix_atom.append(self.coefficient_matrix[_atom_basis, :])
@@ -469,7 +467,7 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
         self.coefficient_matrix_padded = np.zeros(
             [
                 num_atoms,
-                max_s + 3 * max_p + 6 * max_d,
+                max_s + 3 * max_p + 5 * max_d,
                 self.coefficient_matrix.shape[1],
             ],
         )
@@ -477,7 +475,7 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
         self.basis_mask = np.zeros(
             [
                 num_atoms,
-                max_s + 3 * max_p + 6 * max_d,
+                max_s + 3 * max_p + 5 * max_d,
             ],
         )
 
@@ -539,7 +537,7 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
             if _d_basis_idx.size == 0:
                 continue
 
-            pad = 6 * max_d - len(_d_basis_idx)
+            pad = 5 * max_d - len(_d_basis_idx)
             if pad < 0:
                 raise ValueError(
                     "The number of d functions is greater than the maximum number of d functions."
