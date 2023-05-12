@@ -57,9 +57,10 @@ if __name__ == "__main__":
                 molecule = Molecule.from_dict(molecule)
                 tags = {
                     "state": state,
-                    "quantities": ["optimization"],
+                    "quantities": ["constrained_optimization"],
                     "rxn_number": document["rxn_number"],
                     "reaction_name": document["reaction_name"],
+                    "constraints": "only carbon allowed to move",
                 }
 
                 _params = copy.deepcopy(params)
