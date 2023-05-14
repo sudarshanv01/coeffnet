@@ -54,7 +54,7 @@ if __name__ == "__main__":
 
         for state in keys:
             molecule_dict = document[state]
-            molecule = Molecule.from_dict(molecule)
+            molecule = Molecule.from_dict(molecule_dict)
             tags = {
                 "state": state,
                 "quantities": ["nbo", "coeff_matrix"],
