@@ -37,7 +37,9 @@ if __name__ == "__main__":
         reaction_name = doc["reaction_name"]
 
         perturbed_molecule_keys = [
-            key for key in doc.keys() if "perturbed_molecule" in key
+            key
+            for key in doc.keys()
+            if "perturbed_molecule" in key and "_energy" not in key
         ]
         conditional_accept = (
             len(perturbed_molecule_keys) > 0

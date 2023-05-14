@@ -43,7 +43,7 @@ if __name__ == "__main__":
     calculation_collection = db.rudorff_lilienfeld_calculation
 
     cursor = calculation_collection.find(
-        {"task_label": "frequency flattening structure optimization"},
+        {"task_label": "structure optimization"},
         {
             "calcs_reversed": 1,
             "tags": 1,
@@ -65,18 +65,18 @@ if __name__ == "__main__":
         initial_molecule = doc["calcs_reversed"][-1]["initial_molecule"]
         initial_molecule = Molecule.from_dict(initial_molecule)
 
-        if not expected_endstate(molecule, initial_molecule):
-            logger.info(
-                "Not expected endstate for {} {} {}".format(
-                    state, rxn_number, reaction_name
-                )
-            )
-            continue
-        if doc["structure_change"][0] != "no_change":
-            logger.info(
-                "Structure change for {} {} {}".format(state, rxn_number, reaction_name)
-            )
-            continue
+        # if not expected_endstate(molecule, initial_molecule):
+        #     logger.info(
+        #         "Not expected endstate for {} {} {}".format(
+        #             state, rxn_number, reaction_name
+        #         )
+        #     )
+        #     continue
+        # if doc["structure_change"][0] != "no_change":
+        #     logger.info(
+        #         "Structure change for {} {} {}".format(state, rxn_number, reaction_name)
+        #     )
+        #     continue
 
         ase_atoms = [AseAtomsAdaptor.get_atoms(molecule)]
         ase_atoms += [AseAtomsAdaptor.get_atoms(initial_molecule)]
