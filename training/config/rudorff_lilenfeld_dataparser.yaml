@@ -1,0 +1,10 @@
+---
+filter_collection: 
+  "input.job_type": "sp"
+identifier:
+  - "reaction_name"
+  - "rxn_number"
+state_identifier: "scaling"
+reactant_tag: "perturbed_molecule_-0.5_molecule"
+product_tag: "perturbed_molecule_0_5_molecule"
+transition_state_tag: "transition_state_molecule"
