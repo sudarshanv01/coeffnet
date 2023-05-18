@@ -51,9 +51,9 @@ if __name__ == "__main__":
 
     original_positions = water_atoms.get_positions()
 
-    for idx, (alpha, beta, gamma) in enumerate(random_euler_angles):
+    for idx, euler_angles in enumerate(random_euler_angles):
 
-        r_matrix = RotationMatrix(alpha, beta, gamma)
+        r_matrix = RotationMatrix(euler_angles)()
 
         water_rotated = water_atoms.copy()
 
@@ -65,12 +65,11 @@ if __name__ == "__main__":
         water_rotated.set_positions(new_positions)
 
         water_molecule = AseAtomsAdaptor.get_molecule(water_rotated)
-        angles = [alpha, beta, gamma]
 
         collection.insert_one(
             {
                 "molecule": water_molecule.as_dict(),
-                "angles": angles,
+                "euler_angles": euler_angles,
                 "idx": idx + 1,
             }
         )
