@@ -9,32 +9,9 @@ from ase import build as ase_build
 from pymatgen.core.structure import Molecule
 from pymatgen.io.ase import AseAtomsAdaptor
 
+from minimal_basis.transforms.rotations import RotationMatrix
+
 from instance_mongodb import instance_mongodb_sei
-
-
-def rotate_three_dimensions(alpha: float, beta: float, gamma: float):
-    """Rotate the molecule by arbitrary angles alpha
-    beta and gamma."""
-    cos = np.cos
-    sin = np.sin
-
-    r_matrix = [
-        [
-            cos(alpha) * cos(beta),
-            cos(alpha) * sin(beta) * sin(gamma) - sin(alpha) * cos(gamma),
-            cos(alpha) * sin(beta) * cos(gamma) + sin(alpha) * sin(gamma),
-        ],
-        [
-            sin(alpha) * cos(beta),
-            sin(alpha) * sin(beta) * sin(gamma) + cos(alpha) * cos(gamma),
-            sin(alpha) * sin(beta) * cos(gamma) - cos(alpha) * sin(gamma),
-        ],
-        [-sin(beta), cos(beta) * sin(gamma), cos(beta) * cos(gamma)],
-    ]
-
-    r_matrix = np.array(r_matrix)
-
-    return r_matrix
 
 
 def get_command_line_arguments():
@@ -64,16 +41,19 @@ if __name__ == "__main__":
         {
             "molecule": water_molecule.as_dict(),
             "angles": [0, 0, 0],
+            "idx": 0,
         }
     )
 
-    random_angles = 2 * np.pi * np.random.rand(args.number_points - 1, 3)
+    random_euler_angles = np.random.uniform(
+        low=0, high=2 * np.pi, size=(args.number_points, 3)
+    )
 
     original_positions = water_atoms.get_positions()
 
-    for (alpha, beta, gamma) in random_angles:
+    for idx, (alpha, beta, gamma) in enumerate(random_euler_angles):
 
-        r_matrix = rotate_three_dimensions(alpha, beta, gamma)
+        r_matrix = RotationMatrix(alpha, beta, gamma)
 
         water_rotated = water_atoms.copy()
 
@@ -91,5 +71,6 @@ if __name__ == "__main__":
             {
                 "molecule": water_molecule.as_dict(),
                 "angles": angles,
+                "idx": idx + 1,
             }
         )
