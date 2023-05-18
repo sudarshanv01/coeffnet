@@ -6,12 +6,14 @@ import numpy as np
 
 import argparse
 
+import wandb
+
 import torch
 from torch_geometric.loader import DataLoader
 import torch_geometric.transforms as T
 
-from minimal_basis.dataset.dataset_reaction import ReactionDataset as Dataset
-from minimal_basis.model.model_reaction import ReactionModel as Model
+from minimal_basis.dataset.reaction import ReactionDataset as Dataset
+from minimal_basis.model.reaction import ReactionModel as Model
 
 from utils import (
     get_test_data_path,
@@ -22,51 +24,8 @@ from utils import (
 
 import torch.nn.functional as F
 
-LOGFILES_FOLDER = "log_files"
-logging.basicConfig(
-    filename=os.path.join(LOGFILES_FOLDER, "reaction_model.log"),
-    filemode="w",
-    level=logging.INFO,
-)
-logger = logging.getLogger(__name__)
 
-parser = argparse.ArgumentParser()
-parser.add_argument(
-    "--debug",
-    action="store_true",
-    help="If set, the calculation is a DEBUG calculation.",
-)
-parser.add_argument(
-    "--use_wandb",
-    action="store_true",
-    help="If set, wandb is used for logging.",
-)
-parser.add_argument(
-    "--use_best_config",
-    action="store_true",
-    help="If set, the best configuration is used based on ray tune run.",
-)
-parser.add_argument(
-    "--reprocess_dataset",
-    action="store_true",
-    help="If set, the dataset is reprocessed.",
-)
-parser.add_argument(
-    "--model_config",
-    type=str,
-    default="config/interp_sn2_model.yaml",
-    help="Path to the model config file.",
-)
-args = parser.parse_args()
-
-
-if args.use_wandb:
-    import wandb
-
-    wandb.init(project="reaction", entity="sudarshanvj")
-
-
-def train(train_loader):
+def train(train_loader: DataLoader) -> float:
     """Train the model."""
 
     model.train()
@@ -85,14 +44,11 @@ def train(train_loader):
         elif inputs["prediction_mode"] == "relative_energy":
             real_y = data.total_energy_transition_state - data.total_energy
             predicted_y = predicted_y.mean(dim=1)
-        elif inputs["prediction_mode"] == "forces":
-            real_y = data.forces_transition_state
         else:
             raise ValueError(
                 f"Prediction mode {inputs['prediction_mode']} not recognized."
             )
 
-        # loss = F.mse_loss(predicted_y, real_y, reduction="sum")
         loss = F.l1_loss(predicted_y, real_y, reduction="sum")
         loss.backward()
 
@@ -108,7 +64,7 @@ def train(train_loader):
 
 
 @torch.no_grad()
-def validate(val_loader):
+def validate(val_loader: DataLoader) -> float:
     """Validate the model."""
     model.eval()
 
@@ -125,14 +81,11 @@ def validate(val_loader):
         elif inputs["prediction_mode"] == "relative_energy":
             real_y = data.total_energy_transition_state - data.total_energy
             predicted_y = predicted_y.mean(dim=1)
-        elif inputs["prediction_mode"] == "forces":
-            real_y = data.forces_transition_state
         else:
             raise ValueError(
                 f"Prediction mode {inputs['prediction_mode']} not recognized."
             )
 
-        # loss = F.mse_loss(predicted_y, real_y, reduction="sum")
         loss = F.l1_loss(predicted_y, real_y, reduction="sum")
 
         losses += loss.item()
@@ -143,8 +96,13 @@ def validate(val_loader):
     return output_metric
 
 
-def construct_irreps(inputs):
-    """Construct the inputs if needed."""
+def construct_irreps(inputs: dict) -> None:
+    """Construct the inputs if there is an @construct in the inputs.
+
+    Args:
+        inputs (dict): The inputs dictionary.
+
+    """
 
     if inputs["model_options"]["make_absolute"]:
         parity = "e"
@@ -191,24 +149,82 @@ def construct_irreps(inputs):
             "irreps_edge_attr"
         ] = f"{inputs['model_options']['num_basis']}x0e"
 
-    pprint(inputs)
+    logger.debug(f"irreps_in: {inputs['model_options']['irreps_in']}")
+    logger.debug(f"irreps_out: {inputs['model_options']['irreps_out']}")
+    logger.debug(f"irreps_edge_attr: {inputs['model_options']['irreps_edge_attr']}")
+    logger.debug(f"irreps_node_attr: {inputs['model_options']['irreps_node_attr']}")
+
+
+def construct_model_name() -> str:
+    """Construct the model name based on the config filename and
+    the debug flag."""
+
+    model_name = args.model_config.split("/")[-1].split(".")[0]
+    if args.debug:
+        model_name += "_debug"
+
+    return model_name
+
+
+def get_command_line_arguments() -> argparse.Namespace:
+    """Get the command line arguments."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="If set, the calculation is a DEBUG calculation.",
+    )
+    parser.add_argument(
+        "--use_best_config",
+        action="store_true",
+        help="If set, the best configuration is used based on ray tune run.",
+    )
+    parser.add_argument(
+        "--reprocess_dataset",
+        action="store_true",
+        help="If set, the dataset is reprocessed.",
+    )
+    parser.add_argument(
+        "--model_config",
+        type=str,
+        default="config/interp_sn2_model.yaml",
+        help="Path to the model config file.",
+    )
+    parser.add_argument(
+        "--wandb_username",
+        type=str,
+        default="sudarshanvj",
+    )
+    args = parser.parse_args()
+
+    return args
 
 
 if __name__ == "__main__":
 
+    args = get_command_line_arguments()
+
+    model_name = construct_model_name()
+
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(logging.StreamHandler())
+    logger.addHandler(logging.FileHandler(f"{model_name}.log"))
+
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    logging.info(f"Device: {DEVICE}")
+    logger.info(f"Device: {DEVICE}")
 
     inputs = read_inputs_yaml(os.path.join(args.model_config))
     construct_irreps(inputs)
     transform = T.ToDevice(DEVICE)
 
-    if args.use_wandb:
-        wandb.config = {
-            "learning_rate": inputs["learning_rate"],
-            "epochs": inputs["epochs"],
-            "batch_size": inputs["batch_size"],
-        }
+    wandb.init(project=model_name, entity=args.wandb_username)
+    wandb.config = {
+        "learning_rate": inputs["learning_rate"],
+        "epochs": inputs["epochs"],
+        "batch_size": inputs["batch_size"],
+    }
+
     if args.debug:
         train_json_filename = inputs["debug_train_json"]
         validate_json_filename = inputs["debug_validate_json"]
@@ -222,7 +238,7 @@ if __name__ == "__main__":
     ]
 
     train_dataset = Dataset(
-        root=get_train_data_path(),
+        root=get_train_data_path(model_name),
         filename=train_json_filename,
         basis_filename=inputs["basis_file"],
         transform=transform,
@@ -232,7 +248,7 @@ if __name__ == "__main__":
         train_dataset.process()
 
     validate_dataset = Dataset(
-        root=get_validation_data_path(),
+        root=get_validation_data_path(model_name),
         filename=validate_json_filename,
         basis_filename=inputs["basis_file"],
         transform=transform,
@@ -251,28 +267,28 @@ if __name__ == "__main__":
 
     model = Model(**inputs["model_options"])
     model = model.to(DEVICE)
-    print(model)
 
-    if args.use_wandb:
-        wandb.watch(model)
+    wandb.watch(model)
 
     optim = torch.optim.Adam(model.parameters(), lr=inputs["learning_rate"])
 
     for epoch in range(1, inputs["epochs"] + 1):
         train_loss = train(train_loader=train_loader)
-        print(f"Epoch: {epoch}, Train Loss: {train_loss}")
+        logger.info(f"Epoch: {epoch}, Train Loss: {train_loss}")
 
         validate_loss = validate(val_loader=validate_loader)
-        print(f"Epoch: {epoch}, Validation Loss: {validate_loss}")
+        logger.info(f"Epoch: {epoch}, Validation Loss: {validate_loss}")
 
-        if args.use_wandb:
-            wandb.log({"train_loss": train_loss})
-            wandb.log({"val_loss": validate_loss})
+        wandb.log({"train_loss": train_loss})
+        wandb.log({"val_loss": validate_loss})
 
-    torch.save(model, "output/reaction_model.pt")
+    torch.save(model, f"output/{model_name}.pt")
 
-    if args.use_wandb:
-        artifact = wandb.Artifact("reaction_model", type="model")
-        artifact.add_file("output/reaction_model.pt")
-        wandb.run.log_artifact(artifact)
-        wandb.finish()
+    artifact = wandb.Artifact(f"{model_name}", type="model")
+    artifact.add_file(f"output/f{model_name}.pt")
+    logger.debug(f"Added model to artifact: {artifact}.")
+
+    wandb.run.log_artifact(artifact)
+    logger.debug(f"Logged artifact: {artifact}.")
+
+    wandb.finish()

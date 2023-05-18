@@ -6,7 +6,7 @@ import logging
 
 from monty.serialization import dumpfn
 
-from minimal_basis.predata.predata_qchem import TaskdocsToData
+from minimal_basis.predata.qchem import TaskdocsToData
 
 from yaml import safe_load
 
@@ -45,6 +45,9 @@ if __name__ == "__main__":
     """Generate a list of dicts that contain data for the Grambow-Green dataset."""
 
     args = get_command_line_arguments()
+
+    if os.path.exists(__input_folder__) is False:
+        os.mkdir(__input_folder__)
 
     db = instance_mongodb_sei(project="mlts")
     collection = db[f"{args.dataset_name}_calculation"]
