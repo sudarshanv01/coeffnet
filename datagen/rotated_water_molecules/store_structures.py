@@ -40,7 +40,7 @@ if __name__ == "__main__":
     collection.insert_one(
         {
             "molecule": water_molecule.as_dict(),
-            "angles": [0, 0, 0],
+            "euler_angles": [0, 0, 0],
             "idx": 0,
         }
     )
