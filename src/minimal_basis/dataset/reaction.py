@@ -126,15 +126,23 @@ class ReactionDataset(InMemoryDataset):
         datapoint_list = []
 
         for reaction_idx, input_data_ in enumerate(self.input_data):
+            logger.debug(f"Processing reaction {reaction_idx}")
 
             data_to_store = defaultdict(dict)
 
             input_data = copy.deepcopy(input_data_)
 
             eigenvalues = input_data["eigenvalues"]
+            logger.debug(f"Shape of eigenvalues: {eigenvalues.shape}")
+
             final_energy = input_data["final_energy"]
+            logger.debug(f"Shape of final energy: {final_energy.shape}")
+
             coeff_matrices = input_data["coeff_matrices"]
+            logger.debug(f"Shape of coefficient matrices: {coeff_matrices.shape}")
+
             states = input_data["state"]
+            logger.debug(f"States considered: {states}")
 
             structures = input_data["structures"]
 

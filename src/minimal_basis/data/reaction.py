@@ -303,8 +303,6 @@ class CoefficientMatrixSphericalBasis:
         total set of basis functions for each atom.
         """
 
-        logger.debug(f"Parsing basis information from {self.basis_info_raw}")
-
         self.basis_info = {}
 
         for atom_number in self.basis_info_raw["elements"]:

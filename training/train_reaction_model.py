@@ -1,6 +1,5 @@
 import os
 import logging
-from pprint import pprint
 
 import numpy as np
 
@@ -206,10 +205,12 @@ if __name__ == "__main__":
 
     model_name = construct_model_name()
 
+    logging.basicConfig(level=logging.INFO)
+    logging.getLogger("minimal_basis").setLevel(logging.INFO)
+
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
     logger.addHandler(logging.StreamHandler())
-    logger.addHandler(logging.FileHandler(f"{model_name}.log"))
 
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     logger.info(f"Device: {DEVICE}")

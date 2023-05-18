@@ -51,7 +51,6 @@ class GenerateParametersInterpolator:
         else:
             self.use_torch = False
             self.lib = np
-        self.logger.debug("Using %s", self.lib)
 
         self.reactant_graphs = reactant_graphs
         self.product_graphs = product_graphs
