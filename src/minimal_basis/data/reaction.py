@@ -22,6 +22,7 @@ from minimal_basis.data._dtype import (
     TORCH_FLOATS,
     TORCH_INTS,
 )
+from minimal_basis.predata.cart_to_sph import cart_to_sph_d
 
 logger = logging.getLogger(__name__)
 
@@ -186,7 +187,7 @@ class ReactionDataPoint(Data):
         )
 
 
-class CoefficientMatrix:
+class CoefficientMatrixSphericalBasis:
 
     l_to_n_basis = {"s": 0, "p": 1, "d": 2, "f": 3, "g": 4, "h": 5}
     n_to_l_basis = {0: "s", 1: "p", 2: "d", 3: "f", 4: "g", 5: "h"}
@@ -198,9 +199,19 @@ class CoefficientMatrix:
         coefficient_matrix: npt.ArrayLike,
         store_idx_only: int = None,
         set_to_absolute: bool = False,
+        calculated_using_cartesian_basis: bool = False,
         **kwargs,
     ):
-        """Store the coefficient matrix and provides some utilities to manipulate it."""
+        """Store the coefficient matrix and provides some utilities to manipulate it.
+
+        Args:
+            molecule_graph (MoleculeGraph): The molecule graph.
+            basis_info_raw (Dict[str, Any]): The raw basis information.
+            coefficient_matrix (npt.ArrayLike): The coefficient matrix as computed.
+            store_idx_only (int, optional): If not None, only store the coefficient matrix for this index. Defaults to None.
+            set_to_absolute (bool, optional): If True, set the coefficient matrix to absolute value. Defaults to False.
+            calculated_using_cartesian_basis (bool, optional): If True, the coefficient matrix was calculated using cartesian basis. Defaults to False.
+        """
 
         if store_idx_only is not None:
             self.coefficient_matrix = coefficient_matrix[:, store_idx_only]
@@ -213,11 +224,52 @@ class CoefficientMatrix:
 
         self.molecule_graph = molecule_graph
         self.basis_info_raw = basis_info_raw
+        self.calculated_using_cartesian_basis = calculated_using_cartesian_basis
+        self.cart_to_spherical_d = cart_to_sph_d()
 
         self.parse_basis_data()
         self.get_basis_index()
 
+    def convert_cartesian_to_spherical(self):
+        """Convert the cartesian basis to spherical basis.
+        TODO: Only implemented for l=2, need to implement for higher l.
+        """
+
+        spherical_coefficient_matrix = []
+        for atom in self.molecule_graph.molecule.atoms:
+            atomic_number = self._get_atomic_number(atom.species_string)
+            basis_functions = self.basis_info[atomic_number]
+            basis_idx = 0
+            for basis_function in basis_functions:
+                if basis_function == "s":
+                    basis_idx += 1
+                    spherical_coefficient_matrix.append(
+                        self.coefficient_matrix[basis_idx]
+                    )
+                elif basis_function == "p":
+                    basis_idx += 1
+                    spherical_coefficient_matrix.append(
+                        self.coefficient_matrix[basis_idx]
+                    )
+                elif basis_function == "d":
+                    calculated_idx = list(range(basis_idx, basis_idx + 6))
+                    calculated_coefficients = self.coefficient_matrix[calculated_idx]
+                    spherical_coefficients = (
+                        self.cart_to_spherical_d @ calculated_coefficients
+                    )
+                    spherical_coefficient_matrix.append(spherical_coefficients)
+                    basis_idx += 6
+                else:
+                    raise NotImplementedError(
+                        f"Only implemented for l=2, but got {basis_function}."
+                    )
+
+        return np.array(spherical_coefficient_matrix)
+
     def get_coefficient_matrix(self):
+        if self.calculated_using_cartesian_basis:
+            self.convert_cartesian_to_spherical()
+
         return self.coefficient_matrix
 
     def get_coefficient_matrix_for_basis_function(self, basis_idx: int):
@@ -362,7 +414,7 @@ class CoefficientMatrix:
                 )
 
 
-class ModifiedCoefficientMatrix(CoefficientMatrix):
+class ModifiedCoefficientMatrixSphericalBasis(CoefficientMatrixSphericalBasis):
 
     minimal_basis_irrep = o3.Irreps("1x0e+1x1o")
 

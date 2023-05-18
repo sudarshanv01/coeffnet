@@ -28,9 +28,9 @@ from monty.serialization import loadfn
 
 from e3nn import o3
 
-from minimal_basis.data.data_reaction import ReactionDataPoint as DataPoint
-from minimal_basis.predata.predata_classifier import GenerateParametersClassifier
-from minimal_basis.data.data_reaction import ModifiedCoefficientMatrix
+from minimal_basis.data.reaction import ReactionDataPoint as DataPoint
+from minimal_basis.data.reaction import ModifiedCoefficientMatrixSphericalBasis
+from minimal_basis.predata.interpolator import GenerateParametersInterpolator
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +181,7 @@ class ReactionDataset(InMemoryDataset):
                     f"Selected eigenvalue {selected_eigenval} with index {selected_eigenval_index}"
                 )
 
-                coeff_matrix = ModifiedCoefficientMatrix(
+                coeff_matrix = ModifiedCoefficientMatrixSphericalBasis(
                     molecule_graph=molecule_graph,
                     basis_info_raw=self.basis_info_raw,
                     coefficient_matrix=alpha_coeff_matrix,
@@ -208,7 +208,7 @@ class ReactionDataset(InMemoryDataset):
             reactant_structure = structures[reactant_idx]
             product_structure = structures[product_idx]
 
-            instance_generate = GenerateParametersClassifier()
+            instance_generate = GenerateParametersInterpolator()
             interpolated_transition_state_pos = (
                 instance_generate.get_interpolated_transition_state_positions(
                     reactant_structure.cart_coords,

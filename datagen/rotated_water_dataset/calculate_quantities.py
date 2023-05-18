@@ -14,8 +14,6 @@ from fireworks import LaunchPad, Workflow
 
 from instance_mongodb import instance_mongodb_sei
 
-from fireworks.user_objects.dupefinders.dupefinder_exact import DupeFinderExact
-
 lp = LaunchPad.from_file("/global/u1/s/svijay/fw_config/my_launchpad_mlts.yaml")
 
 

@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-class GenerateParametersClassifier:
+class GenerateParametersInterpolator:
     def __init__(
         self,
         reactant_graphs: List[MoleculeGraph] = None,
