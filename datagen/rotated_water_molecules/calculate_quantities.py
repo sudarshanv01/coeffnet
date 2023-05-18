@@ -55,7 +55,8 @@ if __name__ == "__main__":
     for document in initial_structure_collection.find({}):
 
         tags = {
-            "angles": document["angles"],
+            "euler_angles": document["euler_angles"],
+            "idx": document["idx"],
         }
 
         molecule = Molecule.from_dict(document["molecule"])
