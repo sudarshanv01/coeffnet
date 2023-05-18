@@ -53,7 +53,8 @@ if __name__ == "__main__":
 
     for idx, euler_angles in enumerate(random_euler_angles):
 
-        r_matrix = RotationMatrix(euler_angles)()
+        rotation_matrix = RotationMatrix(angle_type="euler", angles=euler_angles)
+        r_matrix = rotation_matrix()
 
         water_rotated = water_atoms.copy()
 
