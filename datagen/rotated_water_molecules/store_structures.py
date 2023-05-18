@@ -70,7 +70,7 @@ if __name__ == "__main__":
         collection.insert_one(
             {
                 "molecule": water_molecule.as_dict(),
-                "euler_angles": euler_angles,
+                "euler_angles": euler_angles.tolist(),
                 "idx": idx + 1,
             }
         )
