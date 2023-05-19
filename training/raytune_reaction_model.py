@@ -157,6 +157,7 @@ def main(
     scheduler = ASHAScheduler(
         grace_period=grace_period,
         reduction_factor=reduction_factor,
+        time_attr="training_iteration",
     )
 
     config["wandb"] = {
