@@ -123,7 +123,9 @@ def train_model(config: Dict[str, float]):
         (model.state_dict(), optim.state_dict()), f"{args.output_dir}/checkpoint.pt"
     )
     checkpoint = Checkpoint.from_directory(args.output_dir)
-    session.report({"loss": validate_loss}, checkpoint=checkpoint)
+    session.report(
+        {"loss": validate_loss, "train_loss": train_loss}, checkpoint=checkpoint
+    )
     logger.info("Finished Training")
 
 
@@ -197,6 +199,7 @@ def main(
         max_t=max_num_epochs,
         grace_period=grace_period,
         reduction_factor=reduction_factor,
+        time_attr="training_iteration",
     )
 
     config["wandb"] = {
@@ -258,7 +261,7 @@ def get_command_line_arguments():
     parser.add_argument(
         "--max_num_epochs",
         type=int,
-        default=200,
+        default=20,
         help="Maximum number of epochs to train for.",
     )
     parser.add_argument(
