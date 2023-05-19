@@ -199,7 +199,7 @@ def main(
         max_t=max_num_epochs,
         grace_period=grace_period,
         reduction_factor=reduction_factor,
-        time_attr="training_iteration",
+        time_attr="epochs",
     )
 
     config["wandb"] = {
