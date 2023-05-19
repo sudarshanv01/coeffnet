@@ -111,7 +111,7 @@ class ReactionModel(torch.nn.Module):
 
         p = data.p
         p_prime = 1 - p
-        x_interpolated_transition_state = p[0] * x + p_prime[0] * x_final_state
+        x_interpolated_transition_state = p[0] * x_final_state + p_prime[0] * x
 
         output_network_interpolated_transition_state = (
             self.network_interpolated_transition_state(
