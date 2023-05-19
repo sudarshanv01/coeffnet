@@ -275,10 +275,7 @@ if __name__ == "__main__":
 
     for epoch in range(1, inputs["epochs"] + 1):
         train_loss = train(train_loader=train_loader)
-        logger.info(f"Epoch: {epoch}, Train Loss: {train_loss}")
-
         validate_loss = validate(val_loader=validate_loader)
-        logger.info(f"Epoch: {epoch}, Validation Loss: {validate_loss}")
 
         wandb.log({"train_loss": train_loss})
         wandb.log({"val_loss": validate_loss})
