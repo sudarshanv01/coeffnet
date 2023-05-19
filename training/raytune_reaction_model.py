@@ -217,7 +217,7 @@ def get_command_line_arguments():
     parser.add_argument(
         "--max_num_epochs",
         type=int,
-        default=20,
+        default=200,
         help="Maximum number of epochs to train for.",
     )
     parser.add_argument(
