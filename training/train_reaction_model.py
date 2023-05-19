@@ -209,7 +209,7 @@ if __name__ == "__main__":
     logging.getLogger("minimal_basis").setLevel(logging.INFO)
 
     logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
     logger.addHandler(logging.StreamHandler())
 
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -279,11 +279,14 @@ if __name__ == "__main__":
 
         wandb.log({"train_loss": train_loss})
         wandb.log({"val_loss": validate_loss})
+        logger.info(
+            f"Epoch: {epoch}, Train Loss: {train_loss}, Validation Loss: {validate_loss}"
+        )
 
     torch.save(model, f"output/{model_name}.pt")
 
     artifact = wandb.Artifact(f"{model_name}", type="model")
-    artifact.add_file(f"output/f{model_name}.pt")
+    artifact.add_file(f"output/{model_name}.pt")
     logger.debug(f"Added model to artifact: {artifact}.")
 
     wandb.run.log_artifact(artifact)
