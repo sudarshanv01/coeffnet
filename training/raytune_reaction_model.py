@@ -108,7 +108,7 @@ def train_model(config: Dict[str, float]):
         optim.load_state_dict(optimizer_state)
 
     model.train()
-    for epoch in range(1, _inputs["epochs"]):
+    for epoch in range(1, _inputs["epochs"] + 1):
 
         logger.info(f"Epoch {epoch}")
 
@@ -117,6 +117,9 @@ def train_model(config: Dict[str, float]):
         )
         validate_loss = validate(
             val_loader=validate_loader, model=model, inputs=_inputs
+        )
+        session.report(
+            {"loss": validate_loss, "train_loss": train_loss},
         )
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -238,7 +241,7 @@ def main(
     logger.info("Best trial config: {}".format(best_result.config))
     logger.info("Best trial final loss: {}".format(best_result.metrics["loss"]))
     best_config = best_result.config
-    json.dump(best_config, open(f"output/best_config_{args.model}.json", "w"))
+    json.dump(best_config, open(f"output/best_config_{model_name}.json", "w"))
 
 
 def get_command_line_arguments():
