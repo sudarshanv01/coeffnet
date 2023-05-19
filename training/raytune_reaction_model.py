@@ -34,10 +34,8 @@ from utils import (
 from model_functions import construct_model_name, construct_irreps, train, validate
 
 
-def load_data(model_config: str) -> Tuple[ReactionDataset, ReactionDataset, Dict]:
+def load_data() -> Tuple[ReactionDataset, ReactionDataset, Dict]:
     """Load the data for the model."""
-
-    inputs = read_inputs_yaml(model_config)
 
     train_json_filename = inputs["train_json"]
     validate_json_filename = inputs["validate_json"]
@@ -76,7 +74,7 @@ def load_data(model_config: str) -> Tuple[ReactionDataset, ReactionDataset, Dict
 def train_model(config: Dict[str, float]):
     """Train the model."""
 
-    train_dataset, validate_dataset, inputs = load_data(args.model_config)
+    train_dataset, validate_dataset, inputs = load_data()
 
     train_loader = DataLoader(
         train_dataset, batch_size=config["batch_size"], shuffle=True
@@ -138,16 +136,61 @@ def main(
 ):
     """Construct the hyperparameter search space and run the experiment."""
 
+    # config = {
+    #     "batch_size": tune.grid_search([5, 10, 15, 20, 25, 30]),
+    #     "learning_rate": tune.loguniform(1e-4, 1e-1),
+    #     "radial_layers": tune.grid_search([1, 2, 3, 4, 5]),
+    #     "max_radius": tune.grid_search([1, 2, 3, 4, 5]),
+    #     "num_basis": tune.grid_search([2, 4, 8, 16]),
+    #     "radial_neurons": tune.grid_search([32, 64, 128]),
+    #     "hidden_s_functions": tune.grid_search([16, 32, 64, 128, 256]),
+    #     "hidden_p_functions": tune.grid_search([16, 32, 64, 128, 256]),
+    #     "hidden_d_functions": tune.grid_search([16, 32, 64, 128, 256]),
+    # }
+
     config = {
-        "batch_size": tune.grid_search([5, 10, 15, 20, 25, 30]),
+        "batch_size": tune.grid_search(
+            [
+                5,
+                10,
+            ]
+        ),
         "learning_rate": tune.loguniform(1e-4, 1e-1),
-        "radial_layers": tune.grid_search([1, 2, 3, 4, 5]),
-        "max_radius": tune.grid_search([1, 2, 3, 4, 5]),
-        "num_basis": tune.grid_search([2, 4, 8, 16]),
-        "radial_neurons": tune.grid_search([32, 64, 128]),
-        "hidden_s_functions": tune.grid_search([16, 32, 64, 128, 256]),
-        "hidden_p_functions": tune.grid_search([16, 32, 64, 128, 256]),
-        "hidden_d_functions": tune.grid_search([16, 32, 64, 128, 256]),
+        "radial_layers": tune.grid_search(
+            [
+                1,
+            ]
+        ),
+        "max_radius": tune.grid_search(
+            [
+                1,
+            ]
+        ),
+        "num_basis": tune.grid_search(
+            [
+                2,
+            ]
+        ),
+        "radial_neurons": tune.grid_search(
+            [
+                32,
+            ]
+        ),
+        "hidden_s_functions": tune.grid_search(
+            [
+                16,
+            ]
+        ),
+        "hidden_p_functions": tune.grid_search(
+            [
+                16,
+            ]
+        ),
+        "hidden_d_functions": tune.grid_search(
+            [
+                16,
+            ]
+        ),
     }
 
     scheduler = ASHAScheduler(
@@ -246,6 +289,8 @@ if __name__ == "__main__":
     args = get_command_line_arguments()
 
     model_name = construct_model_name(args.model_config)
+
+    inputs = read_inputs_yaml(args.model_config)
 
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
