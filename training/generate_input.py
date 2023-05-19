@@ -6,7 +6,7 @@ import logging
 
 from monty.serialization import dumpfn
 
-from minimal_basis.predata.qchem import TaskdocsToData
+from minimal_basis.predata.matrices import TaskdocsToData
 
 from yaml import safe_load
 

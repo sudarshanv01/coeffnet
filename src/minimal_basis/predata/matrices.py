@@ -101,6 +101,40 @@ class BaseQuantitiesQChem:
         self.eigenval_ortho_fock = eigenval_ortho_fock
 
 
+class ConvertToReducedBasis:
+    def __init__(
+        self,
+        eigenvalues: npt.ArrayLike,
+        coeff_matrix: npt.ArrayLike,
+        indices_to_keep: List[int],
+    ):
+        """Convert the eigenvalues and coefficient matrix to the reduced basis.
+
+        Args:
+            eigenvalues (npt.ArrayLike): The eigenvalues.
+            coeff_matrix (npt.ArrayLike): The coefficient matrix.
+            indices_to_keep (List[int]): Indices of the basis function to keep.
+        """
+
+        self.eigenvalues = np.array(eigenvalues)
+        self.coeff_matrix = np.array(coeff_matrix)
+        self.indices_to_keep = indices_to_keep
+
+    def get_reduced_hamiltonian(self) -> npt.ArrayLike:
+        """Reduce the number of basis functions in the Hamiltonian."""
+        diagonalised_eigen = np.zeros((len(self.eigenvalues), len(self.eigenvalues)))
+        np.fill_diagonal(diagonalised_eigen, self.eigenvalues)
+
+        reduced_coeff_matrix = self.coeff_matrix[self.indices_to_keep, :]
+
+        self.reduced_hamiltonian = np.dot(
+            np.dot(reduced_coeff_matrix, diagonalised_eigen),
+            reduced_coeff_matrix.T,
+        )
+
+        return self.reduced_hamiltonian
+
+
 class TaskdocsToData:
     def __init__(
         self,
