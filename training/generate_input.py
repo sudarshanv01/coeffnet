@@ -6,7 +6,7 @@ import logging
 
 from monty.serialization import dumpfn
 
-from minimal_basis.predata.predata_qchem import TaskdocsToData
+from minimal_basis.predata.qchem import TaskdocsToData
 
 from yaml import safe_load
 
@@ -31,6 +31,11 @@ def get_command_line_arguments():
         help="Run a debug version of the script.",
     )
     parser.add_argument(
+        "--collection_name",
+        type=str,
+        help="Name of the collection.",
+    )
+    parser.add_argument(
         "--dataset_name",
         type=str,
         help="Name of the dataset.",
@@ -46,8 +51,14 @@ if __name__ == "__main__":
 
     args = get_command_line_arguments()
 
+    if os.path.exists(__input_folder__) is False:
+        os.mkdir(__input_folder__)
+
+    if args.collection_name is None:
+        args.collection_name = args.dataset_name
+
     db = instance_mongodb_sei(project="mlts")
-    collection = db[f"{args.dataset_name}_calculation"]
+    collection = db[f"{args.collection_name}_calculation"]
     logger.info(f"Using collection: {collection}")
 
     config = safe_load(

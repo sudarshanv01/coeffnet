@@ -22,6 +22,7 @@ from minimal_basis.data._dtype import (
     TORCH_FLOATS,
     TORCH_INTS,
 )
+from minimal_basis.predata.cart_to_sph import cart_to_sph_d
 
 logger = logging.getLogger(__name__)
 
@@ -48,15 +49,18 @@ class ReactionDataPoint(Data):
         species: Dict[str, Union[npt.ArrayLike, List[int]]] = None,
         forces: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
         basis_mask: Union[npt.ArrayLike, List[bool]] = None,
+        reactant_tag: str = None,
+        product_tag: str = None,
+        transition_state_tag: str = None,
         **kwargs,
     ):
         """General purpose data class for reaction data."""
 
         if pos is not None:
-            pos_initial_state = pos["initial_state"]
-            pos_final_state = pos["final_state"]
+            pos_initial_state = pos[reactant_tag]
+            pos_final_state = pos[product_tag]
             pos_interpolated_transition_state = pos["interpolated_transition_state"]
-            pos_transition_state = pos["transition_state"]
+            pos_transition_state = pos[transition_state_tag]
 
             pos_initial_state = convert_to_tensor(pos_initial_state)
             pos_final_state = convert_to_tensor(pos_final_state)
@@ -71,9 +75,9 @@ class ReactionDataPoint(Data):
             pos_transition_state = None
 
         if x is not None:
-            x_initial_state = x["initial_state"]
-            x_final_state = x["final_state"]
-            x_transition_state = x["transition_state"]
+            x_initial_state = x[reactant_tag]
+            x_final_state = x[product_tag]
+            x_transition_state = x[transition_state_tag]
 
             x_initial_state = convert_to_tensor(x_initial_state)
             x_final_state = convert_to_tensor(x_final_state)
@@ -85,12 +89,12 @@ class ReactionDataPoint(Data):
             x_transition_state = None
 
         if edge_index is not None:
-            edge_index_initial_state = edge_index["initial_state"]
-            edge_index_final_state = edge_index["final_state"]
+            edge_index_initial_state = edge_index[reactant_tag]
+            edge_index_final_state = edge_index[product_tag]
             edge_index_interpolated_transition_state = edge_index[
                 "interpolated_transition_state"
             ]
-            edge_index_transition_state = edge_index["transition_state"]
+            edge_index_transition_state = edge_index[transition_state_tag]
 
             edge_index_initial_state = convert_to_tensor(
                 edge_index_initial_state, dtype=DTYPE_INT
@@ -111,9 +115,9 @@ class ReactionDataPoint(Data):
             edge_index_transition_state = None
 
         if total_energies is not None:
-            total_energy_initial_state = total_energies["initial_state"]
-            total_energy_final_state = total_energies["final_state"]
-            total_energy_transition_state = total_energies["transition_state"]
+            total_energy_initial_state = total_energies[reactant_tag]
+            total_energy_final_state = total_energies[product_tag]
+            total_energy_transition_state = total_energies[transition_state_tag]
 
             total_energy_initial_state = convert_to_tensor(total_energy_initial_state)
             total_energy_final_state = convert_to_tensor(total_energy_final_state)
@@ -127,9 +131,9 @@ class ReactionDataPoint(Data):
             total_energy_transition_state = None
 
         if species is not None:
-            species_initial_state = species["initial_state"]
-            species_final_state = species["final_state"]
-            species_transition_state = species["transition_state"]
+            species_initial_state = species[reactant_tag]
+            species_final_state = species[product_tag]
+            species_transition_state = species[transition_state_tag]
 
             species_initial_state = convert_to_tensor(species_initial_state)
             species_final_state = convert_to_tensor(species_final_state)
@@ -141,9 +145,9 @@ class ReactionDataPoint(Data):
             species_transition_state = None
 
         if forces is not None:
-            forces_initial_state = forces["initial_state"]
-            forces_final_state = forces["final_state"]
-            forces_transition_state = forces["transition_state"]
+            forces_initial_state = forces[reactant_tag]
+            forces_final_state = forces[product_tag]
+            forces_transition_state = forces[transition_state_tag]
 
             forces_initial_state = convert_to_tensor(forces_initial_state)
             forces_final_state = convert_to_tensor(forces_final_state)
@@ -183,7 +187,7 @@ class ReactionDataPoint(Data):
         )
 
 
-class CoefficientMatrix:
+class CoefficientMatrixSphericalBasis:
 
     l_to_n_basis = {"s": 0, "p": 1, "d": 2, "f": 3, "g": 4, "h": 5}
     n_to_l_basis = {0: "s", 1: "p", 2: "d", 3: "f", 4: "g", 5: "h"}
@@ -195,9 +199,19 @@ class CoefficientMatrix:
         coefficient_matrix: npt.ArrayLike,
         store_idx_only: int = None,
         set_to_absolute: bool = False,
+        calculated_using_cartesian_basis: bool = False,
         **kwargs,
     ):
-        """Store the coefficient matrix and provides some utilities to manipulate it."""
+        """Store the coefficient matrix and provides some utilities to manipulate it.
+
+        Args:
+            molecule_graph (MoleculeGraph): The molecule graph.
+            basis_info_raw (Dict[str, Any]): The raw basis information.
+            coefficient_matrix (npt.ArrayLike): The coefficient matrix as computed.
+            store_idx_only (int, optional): If not None, only store the coefficient matrix for this index. Defaults to None.
+            set_to_absolute (bool, optional): If True, set the coefficient matrix to absolute value. Defaults to False.
+            calculated_using_cartesian_basis (bool, optional): If True, the coefficient matrix was calculated using cartesian basis. Defaults to False.
+        """
 
         if store_idx_only is not None:
             self.coefficient_matrix = coefficient_matrix[:, store_idx_only]
@@ -210,11 +224,52 @@ class CoefficientMatrix:
 
         self.molecule_graph = molecule_graph
         self.basis_info_raw = basis_info_raw
+        self.calculated_using_cartesian_basis = calculated_using_cartesian_basis
+        self.cart_to_spherical_d = cart_to_sph_d()
 
         self.parse_basis_data()
         self.get_basis_index()
 
+    def convert_cartesian_to_spherical(self):
+        """Convert the cartesian basis to spherical basis.
+        TODO: Only implemented for l=2, need to implement for higher l.
+        """
+
+        spherical_coefficient_matrix = []
+        for atom in self.molecule_graph.molecule.atoms:
+            atomic_number = self._get_atomic_number(atom.species_string)
+            basis_functions = self.basis_info[atomic_number]
+            basis_idx = 0
+            for basis_function in basis_functions:
+                if basis_function == "s":
+                    basis_idx += 1
+                    spherical_coefficient_matrix.append(
+                        self.coefficient_matrix[basis_idx]
+                    )
+                elif basis_function == "p":
+                    basis_idx += 1
+                    spherical_coefficient_matrix.append(
+                        self.coefficient_matrix[basis_idx]
+                    )
+                elif basis_function == "d":
+                    calculated_idx = list(range(basis_idx, basis_idx + 6))
+                    calculated_coefficients = self.coefficient_matrix[calculated_idx]
+                    spherical_coefficients = (
+                        self.cart_to_spherical_d @ calculated_coefficients
+                    )
+                    spherical_coefficient_matrix.append(spherical_coefficients)
+                    basis_idx += 6
+                else:
+                    raise NotImplementedError(
+                        f"Only implemented for l=2, but got {basis_function}."
+                    )
+
+        return np.array(spherical_coefficient_matrix)
+
     def get_coefficient_matrix(self):
+        if self.calculated_using_cartesian_basis:
+            self.convert_cartesian_to_spherical()
+
         return self.coefficient_matrix
 
     def get_coefficient_matrix_for_basis_function(self, basis_idx: int):
@@ -247,8 +302,6 @@ class CoefficientMatrix:
         for each atom. The resulting dictionary, self.basis_info contains the
         total set of basis functions for each atom.
         """
-
-        logger.debug(f"Parsing basis information from {self.basis_info_raw}")
 
         self.basis_info = {}
 
@@ -307,10 +360,10 @@ class CoefficientMatrix:
                     atom_basis_counter += 3
                     irreps_atom += "+1x1o"
                 elif basis_function == "d":
-                    range_idx = list(range(atom_basis_counter, atom_basis_counter + 6))
+                    range_idx = list(range(atom_basis_counter, atom_basis_counter + 5))
                     basis_d_.append(range_idx)
-                    atom_basis_counter += 6
-                    irreps_atom += "+1x0e+1x2e"
+                    atom_basis_counter += 5
+                    irreps_atom += "1x2e"
 
             irreps_atom = irreps_atom[1:]
             irreps_all_atom.append(irreps_atom)
@@ -359,7 +412,7 @@ class CoefficientMatrix:
                 )
 
 
-class ModifiedCoefficientMatrix(CoefficientMatrix):
+class ModifiedCoefficientMatrixSphericalBasis(CoefficientMatrixSphericalBasis):
 
     minimal_basis_irrep = o3.Irreps("1x0e+1x1o")
 
@@ -464,7 +517,7 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
         self.coefficient_matrix_padded = np.zeros(
             [
                 num_atoms,
-                max_s + 3 * max_p + 6 * max_d,
+                max_s + 3 * max_p + 5 * max_d,
                 self.coefficient_matrix.shape[1],
             ],
         )
@@ -472,7 +525,7 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
         self.basis_mask = np.zeros(
             [
                 num_atoms,
-                max_s + 3 * max_p + 6 * max_d,
+                max_s + 3 * max_p + 5 * max_d,
             ],
         )
 
@@ -534,7 +587,7 @@ class ModifiedCoefficientMatrix(CoefficientMatrix):
             if _d_basis_idx.size == 0:
                 continue
 
-            pad = 6 * max_d - len(_d_basis_idx)
+            pad = 5 * max_d - len(_d_basis_idx)
             if pad < 0:
                 raise ValueError(
                     "The number of d functions is greater than the maximum number of d functions."

@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-class GenerateParametersClassifier:
+class GenerateParametersInterpolator:
     def __init__(
         self,
         reactant_graphs: List[MoleculeGraph] = None,
@@ -51,7 +51,6 @@ class GenerateParametersClassifier:
         else:
             self.use_torch = False
             self.lib = np
-        self.logger.debug("Using %s", self.lib)
 
         self.reactant_graphs = reactant_graphs
         self.product_graphs = product_graphs

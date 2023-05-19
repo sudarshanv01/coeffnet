@@ -7,7 +7,7 @@ from bson.objectid import ObjectId
 
 from pymatgen.core import Molecule
 
-from atomate.qchem.fireworks.core import SinglePointFW, ForceFW
+from atomate.qchem.fireworks.core import SinglePointFW
 from atomate.common.powerups import add_tags
 
 from fireworks import LaunchPad, Workflow
@@ -36,9 +36,10 @@ if __name__ == "__main__":
     args = get_cli()
     logger.info("Command line arguments: {}".format(args))
 
-    collection = db.grambow_green_calculation
-    initial_structure_collection = db.grambow_green_initial_structures
-    find_tags = {"functional": "b97d3"}
+    collection = db.rudorff_lilienfeld_calculation
+    data_collection = db.rudorff_lilienfeld_data
+    initial_structure_collection = db.rudorff_lilienfeld_initial_structures
+    find_tags = {}
 
     with open("config/reproduce_paper_parameters.yaml", "r") as f:
         params = yaml.safe_load(f)
@@ -46,22 +47,27 @@ if __name__ == "__main__":
     params.update(nbo_params)
 
     count_structures = 0
-    for document in initial_structure_collection.find(find_tags):
+    for document in data_collection.find(find_tags):
 
-        for state in ["reactant", "transition_state", "product"]:
-            molecule = document[state]
-            molecule = Molecule.from_dict(molecule)
+        keys = list(document.keys())
+        keys = [key for key in keys if key.endswith("_molecule")]
 
+        for state in keys:
+            molecule_dict = document[state]
+            molecule = Molecule.from_dict(molecule_dict)
             tags = {
-                "functional": find_tags["functional"],
                 "state": state,
                 "quantities": ["nbo", "coeff_matrix"],
                 "rxn_number": document["rxn_number"],
+                "reaction_name": document["reaction_name"],
+                "constraints": "only carbon allowed to move",
             }
 
             if collection.count_documents({"tags": tags}) > 0:
                 logger.info(f"Skipping {tags}")
                 continue
+            else:
+                logger.info(f"Processing {tags}")
 
             count_structures += 1
 

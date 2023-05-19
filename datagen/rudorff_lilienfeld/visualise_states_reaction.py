@@ -12,6 +12,8 @@ from pymatgen.core.structure import Molecule
 from pymatgen.io.ase import AseAtomsAdaptor
 
 import ase.io as ase_io
+from ase.neb import NEB
+
 
 from instance_mongodb import instance_mongodb_sei
 
@@ -35,7 +37,9 @@ if __name__ == "__main__":
         reaction_name = doc["reaction_name"]
 
         perturbed_molecule_keys = [
-            key for key in doc.keys() if "perturbed_molecule" in key
+            key
+            for key in doc.keys()
+            if "perturbed_molecule" in key and "_energy" not in key
         ]
         conditional_accept = (
             len(perturbed_molecule_keys) > 0
@@ -62,11 +66,23 @@ if __name__ == "__main__":
         initial_state_atoms = AseAtomsAdaptor.get_atoms(initial_state_molecule)
         final_state_atoms = AseAtomsAdaptor.get_atoms(final_state_molecule)
         transition_state_atoms = AseAtomsAdaptor.get_atoms(transition_state_molecule)
-        write_list = [
-            initial_state_atoms,
-            transition_state_atoms,
-            final_state_atoms,
-        ]
+
+        initial_to_transition = NEB(
+            [initial_state_atoms.copy() for i in range(5)]
+            + [transition_state_atoms.copy()],
+        )
+        transition_to_final = NEB(
+            [transition_state_atoms.copy() for i in range(5)]
+            + [final_state_atoms.copy()],
+        )
+        initial_to_transition.interpolate()
+        transition_to_final.interpolate()
+
+        write_list = []
+        for atoms in initial_to_transition.images:
+            write_list.append(atoms)
+        for atoms in transition_to_final.images:
+            write_list.append(atoms)
 
         ase_io.write(
             "output/visualise_states/{}_{}.xyz".format(rxn_number, reaction_name),

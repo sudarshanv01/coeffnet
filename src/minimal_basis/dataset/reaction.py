@@ -28,9 +28,9 @@ from monty.serialization import loadfn
 
 from e3nn import o3
 
-from minimal_basis.data.data_reaction import ReactionDataPoint as DataPoint
-from minimal_basis.predata.predata_classifier import GenerateParametersClassifier
-from minimal_basis.data.data_reaction import ModifiedCoefficientMatrix
+from minimal_basis.data.reaction import ReactionDataPoint as DataPoint
+from minimal_basis.data.reaction import ModifiedCoefficientMatrixSphericalBasis
+from minimal_basis.predata.interpolator import GenerateParametersInterpolator
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +54,9 @@ class ReactionDataset(InMemoryDataset):
         max_d_functions: int = None,
         use_minimal_basis_node_features: bool = False,
         idx_eigenvalue: int = 0,
+        reactant_tag: str = "reactant",
+        product_tag: str = "product",
+        transition_state_tag: str = "transition_state",
     ):
         """Dataset for the reaction.
         
@@ -87,6 +90,9 @@ class ReactionDataset(InMemoryDataset):
         self.max_d_functions = max_d_functions
         self.use_minimal_basis_node_features = use_minimal_basis_node_features
         self.idx_eigenvalue = idx_eigenvalue
+        self.reactant_tag = reactant_tag
+        self.product_tag = product_tag
+        self.transition_state_tag = transition_state_tag
 
         super().__init__(
             root=root,
@@ -120,21 +126,23 @@ class ReactionDataset(InMemoryDataset):
         datapoint_list = []
 
         for reaction_idx, input_data_ in enumerate(self.input_data):
+            logger.debug(f"Processing reaction {reaction_idx}")
 
             data_to_store = defaultdict(dict)
 
             input_data = copy.deepcopy(input_data_)
 
             eigenvalues = input_data["eigenvalues"]
-            final_energy = input_data["final_energy"]
-            coeff_matrices = input_data["coeff_matrices"]
-            states = input_data["state"]
-            forces = input_data["atom_centered_forces"]
+            logger.debug(f"Shape of eigenvalues: {eigenvalues.shape}")
 
-            eigenvalues = np.array(eigenvalues)
-            final_energy = np.array(final_energy)
-            coeff_matrices = np.array(coeff_matrices)
-            forces = np.array(forces)
+            final_energy = input_data["final_energy"]
+            logger.debug(f"Shape of final energy: {final_energy.shape}")
+
+            coeff_matrices = input_data["coeff_matrices"]
+            logger.debug(f"Shape of coefficient matrices: {coeff_matrices.shape}")
+
+            states = input_data["state"]
+            logger.debug(f"States considered: {states}")
 
             structures = input_data["structures"]
 
@@ -181,7 +189,7 @@ class ReactionDataset(InMemoryDataset):
                     f"Selected eigenvalue {selected_eigenval} with index {selected_eigenval_index}"
                 )
 
-                coeff_matrix = ModifiedCoefficientMatrix(
+                coeff_matrix = ModifiedCoefficientMatrixSphericalBasis(
                     molecule_graph=molecule_graph,
                     basis_info_raw=self.basis_info_raw,
                     coefficient_matrix=alpha_coeff_matrix,
@@ -197,33 +205,33 @@ class ReactionDataset(InMemoryDataset):
                 node_features = node_features.reshape(node_features.shape[0], -1)
                 data_to_store["node_features"][state] = node_features
                 basis_mask = coeff_matrix.basis_mask
-                data_to_store["basis_mask"][state] = basis_mask
+                data_to_store["basis_mask"][idx_state] = basis_mask
 
                 minimal_basis_irrep = coeff_matrix.minimal_basis_irrep
 
-                forces_ = forces[idx_state]
-                data_to_store["forces"][state] = forces_
+            reactant_idx = np.where(states == self.reactant_tag)[0][0]
+            product_idx = np.where(states == self.product_tag)[0][0]
+            transition_state_idx = np.where(states == self.transition_state_tag)[0][0]
 
-            initial_states_structure = structures[states.index("initial_state")]
-            final_states_structure = structures[states.index("final_state")]
+            reactant_structure = structures[reactant_idx]
+            product_structure = structures[product_idx]
 
-            instance_generate = GenerateParametersClassifier()
+            instance_generate = GenerateParametersInterpolator()
             interpolated_transition_state_pos = (
                 instance_generate.get_interpolated_transition_state_positions(
-                    initial_states_structure.cart_coords,
-                    final_states_structure.cart_coords,
+                    reactant_structure.cart_coords,
+                    product_structure.cart_coords,
                     mu=self.mu,
                     sigma=self.sigma,
                     alpha=self.alpha,
-                    deltaG=final_energy[states.index("final_state")]
-                    - final_energy[states.index("initial_state")],
+                    deltaG=final_energy[product_idx] - final_energy[reactant_idx],
                 )
             )
             interpolated_transition_state_structure = Molecule(
-                initial_states_structure.species,
+                reactant_structure.species,
                 interpolated_transition_state_pos,
-                charge=initial_states_structure.charge,
-                spin_multiplicity=initial_states_structure.spin_multiplicity,
+                charge=reactant_structure.charge,
+                spin_multiplicity=reactant_structure.spin_multiplicity,
             )
 
             p, p_prime = instance_generate.get_p_and_pprime(
@@ -257,15 +265,16 @@ class ReactionDataset(InMemoryDataset):
                 edge_index=data_to_store["edge_index"],
                 x=data_to_store["node_features"],
                 total_energies=data_to_store["total_energies"],
-                forces=data_to_store["forces"],
                 minimal_basis_irrep=minimal_basis_irrep,
                 species=data_to_store["species"],
                 p=p,
-                basis_mask=data_to_store["basis_mask"]["initial_state"],
+                basis_mask=data_to_store["basis_mask"][reactant_idx],
+                reactant_tag=self.reactant_tag,
+                product_tag=self.product_tag,
+                transition_state_tag=self.transition_state_tag,
             )
 
             datapoint_list.append(datapoint)
 
-        # Store the list of datapoints in the dataset
         data, slices = self.collate(datapoint_list)
         torch.save((data, slices), self.processed_paths[0])

@@ -71,38 +71,6 @@ class ReactionModel(torch.nn.Module):
             reference_reduced_output_to_initial_state
         )
 
-        self.network_initial_state = Network(
-            irreps_in=irreps_in,
-            irreps_hidden=irreps_hidden,
-            irreps_out=irreps_in,
-            irreps_node_attr=irreps_node_attr,
-            irreps_edge_attr=irreps_edge_attr,
-            layers=radial_layers,
-            max_radius=max_radius,
-            number_of_basis=num_basis,
-            radial_layers=radial_layers,
-            radial_neurons=radial_neurons,
-            num_neighbors=num_neighbors,
-            num_nodes=typical_number_of_nodes,
-            reduce_output=False,
-        )
-
-        self.network_final_state = Network(
-            irreps_in=irreps_in,
-            irreps_hidden=irreps_hidden,
-            irreps_out=irreps_in,
-            irreps_node_attr=irreps_node_attr,
-            irreps_edge_attr=irreps_edge_attr,
-            layers=radial_layers,
-            max_radius=max_radius,
-            number_of_basis=num_basis,
-            radial_layers=radial_layers,
-            radial_neurons=radial_neurons,
-            num_neighbors=num_neighbors,
-            num_nodes=typical_number_of_nodes,
-            reduce_output=False,
-        )
-
         self.network_interpolated_transition_state = Network(
             irreps_in=irreps_in,
             irreps_hidden=irreps_hidden,
@@ -141,50 +109,9 @@ class ReactionModel(torch.nn.Module):
             x = data.x
             x_final_state = data.x_final_state
 
-        output_network_initial_state = self.network_initial_state(
-            {
-                "pos": data.pos,
-                "x": x,
-                "batch": data.batch,
-            }
-        )
-
-        if self.make_absolute:
-            output_network_initial_state = torch.abs(output_network_initial_state)
-
-        if self.mask_extra_basis:
-            output_network_initial_state = (
-                output_network_initial_state * data.basis_mask
-            )
-        if self.normalize_sumsq:
-            output_network_initial_state = self._normalize_to_sum_squares_one(
-                output_network_initial_state, data.batch
-            )
-
-        output_network_final_state = self.network_final_state(
-            {
-                "pos": data.pos_final_state,
-                "x": x_final_state,
-                "batch": data.batch,
-            }
-        )
-
-        if self.make_absolute:
-            output_network_final_state = torch.abs(output_network_final_state)
-
-        if self.mask_extra_basis:
-            output_network_final_state = output_network_final_state * data.basis_mask
-        if self.normalize_sumsq:
-            output_network_final_state = self._normalize_to_sum_squares_one(
-                output_network_final_state, data.batch
-            )
-
         p = data.p
         p_prime = 1 - p
-        x_interpolated_transition_state = (
-            p[0] * output_network_initial_state
-            + p_prime[0] * output_network_final_state
-        )
+        x_interpolated_transition_state = p[0] * x_final_state + p_prime[0] * x
 
         output_network_interpolated_transition_state = (
             self.network_interpolated_transition_state(
@@ -217,12 +144,10 @@ class ReactionModel(torch.nn.Module):
 
             if self.reference_reduced_output_to_initial_state:
 
-                output_network_initial_state = scatter(
-                    output_network_initial_state, data.batch, dim=0
-                ).div(self.num_nodes**0.5)
-
-                output_network_interpolated_transition_state -= (
-                    output_network_initial_state
+                x_reference_state = scatter(x, data.batch, dim=0).div(
+                    self.num_nodes**0.5
                 )
+
+                output_network_interpolated_transition_state -= x_reference_state
 
         return output_network_interpolated_transition_state

@@ -7,7 +7,7 @@ from bson.objectid import ObjectId
 
 from pymatgen.core import Molecule
 
-from atomate.qchem.fireworks.core import FrequencyFlatteningOptimizeFW
+from atomate.qchem.fireworks.core import OptimizeFW
 from atomate.common.powerups import add_tags
 
 from fireworks import LaunchPad, Workflow
@@ -47,31 +47,49 @@ if __name__ == "__main__":
     for document in initial_structure_collection.find(find_tags):
 
         for _state in ["perturbed_molecule_0", "perturbed_molecule_-0"]:
+
             if _state not in document:
                 continue
+
             molecule_dict = document[_state]
             for perturbation, molecule in molecule_dict.items():
                 state = _state + "_" + perturbation
                 molecule = Molecule.from_dict(molecule)
                 tags = {
                     "state": state,
-                    "quantities": ["optimization"],
+                    "quantities": ["constrained_optimization"],
                     "rxn_number": document["rxn_number"],
                     "reaction_name": document["reaction_name"],
+                    "constraints": "only carbon allowed to move",
                 }
+
+                _params = copy.deepcopy(params)
+                _params["overwrite_inputs"]["opt"] = {}
+                _params["overwrite_inputs"]["opt"]["FIXED"] = []
+                for i, site in enumerate(molecule):
+                    _fixed_string = f"{i+1} XYZ"
+                    if document["reaction_name"] == "sn2":
+                        if i == 0 or i == 4:
+                            continue
+                    elif document["reaction_name"] == "e2":
+                        if i == 0 or i == 1:
+                            continue
+                    _params["overwrite_inputs"]["opt"]["FIXED"].append(_fixed_string)
+
+                print(_params)
 
                 if collection.count_documents({"tags": tags}) > 0:
                     logger.info(f"Skipping {tags}")
                     continue
+                else:
+                    logger.info(f"Processing {tags}")
 
                 count_structures += 1
 
-                firew = FrequencyFlatteningOptimizeFW(
+                firew = OptimizeFW(
                     molecule=molecule,
-                    qchem_input_params=params,
+                    qchem_input_params=_params,
                     db_file=">>db_file<<",
-                    linked=True,
-                    freq_before_opt=True,
                 )
 
                 wf = Workflow([firew])

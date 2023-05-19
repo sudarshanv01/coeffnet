@@ -45,29 +45,31 @@ def check_no_of_gpus():
         raise NotImplementedError("Multiple GPUs not yet implemented")
 
 
-def get_test_data_path():
+def get_test_data_path(suffix):
     """The tests folder in the conftest file."""
     confpath = os.path.dirname(os.path.abspath(__file__))
-    test_data_path = os.path.join(confpath, "datasets_chkpoint", "test_data")
+    test_data_path = os.path.join(confpath, "datasets_chkpoint", f"test_data_{suffix}")
     if not os.path.exists(test_data_path):
         os.makedirs(test_data_path, exist_ok=True)
     return test_data_path
 
 
-def get_train_data_path():
+def get_train_data_path(suffix):
     """The trains folder in the conftrain file."""
     confpath = os.path.dirname(os.path.abspath(__file__))
-    train_data_path = os.path.join(confpath, "datasets_chkpoint", "train_data")
+    train_data_path = os.path.join(
+        confpath, "datasets_chkpoint", f"train_data_{suffix}"
+    )
     if not os.path.exists(train_data_path):
         os.makedirs(train_data_path, exist_ok=True)
     return train_data_path
 
 
-def get_validation_data_path():
+def get_validation_data_path(suffix):
     """The validations folder in the confvalidation file."""
     confpath = os.path.dirname(os.path.abspath(__file__))
     validation_data_path = os.path.join(
-        confpath, "datasets_chkpoint", "validation_data"
+        confpath, "datasets_chkpoint", f"validation_data_{suffix}"
     )
     if not os.path.exists(validation_data_path):
         os.makedirs(validation_data_path, exist_ok=True)

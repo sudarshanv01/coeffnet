@@ -39,7 +39,7 @@ if __name__ == "__main__":
 
         perturbed_atoms = []
 
-        for _scaling in [-0.3, 0.3]:
+        for _scaling in [-0.1, 0.1]:
             idx_imag_freq = np.argwhere(transition_state_frequencies < 0)[0][0]
             transition_state_frequency_mode = transition_state_frequency_modes[
                 idx_imag_freq

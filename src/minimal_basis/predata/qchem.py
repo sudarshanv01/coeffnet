@@ -3,6 +3,8 @@ from typing import Any, List, Tuple, Union
 import numpy.typing as npt
 import numpy as np
 
+from collections import defaultdict
+
 from pymongo.cursor import Cursor
 
 import tqdm
@@ -48,6 +50,7 @@ class BaseQuantitiesQChem:
         return self.overlap_matrix
 
     def get_orthogonalization_matrix(self) -> npt.ArrayLike:
+        self.generate_overlap_matrix()
         self.generate_orthogonalization_matrix()
         return self.orthogonalisation_matrix
 
@@ -164,56 +167,84 @@ class TaskdocsToData:
             },
         ).sort(f"tags.{self.state_identifier}", 1)
 
-        data = {}
-        for idx, document in enumerate(cursor):
-            for key, value in document["calcs_reversed"][0].items():
-                if key not in data:
-                    data[key] = []
-                data[key].append(value)
-            for key, value in document["output"].items():
-                if key not in data:
-                    data[key] = []
-                data[key].append(value)
-            for key, value in document["tags"].items():
-                if key not in data:
-                    data[key] = []
-                data[key].append(value)
+        data = defaultdict(list)
+        for document in cursor:
 
-        self._collate_data(data)
-        data["tags"] = {}
-        data["tags"][self.identifier] = identifier
-        self.data.append(data)
+            alpha_eigenvalues = document["calcs_reversed"][0]["alpha_eigenvalues"]
+            beta_eigenvalues = (
+                document["calcs_reversed"][0]["beta_eigenvalues"]
+                if "beta_eigenvalues" in document["calcs_reversed"][0]
+                else None
+            )
 
-    def _collate_data(self, data: dict) -> dict:
-        """Collate the data from the TaskDocument keys into a single key."""
+            alpha_coeff_matrix = document["calcs_reversed"][0]["alpha_coeff_matrix"]
+            beta_coeff_matrix = (
+                document["calcs_reversed"][0]["beta_coeff_matrix"]
+                if "beta_coeff_matrix" in document["calcs_reversed"][0]
+                else None
+            )
 
-        if "beta_eigenvalues" in data:
-            data["eigenvalues"] = [
-                data.pop("alpha_eigenvalues"),
-                data.pop("beta_eigenvalues"),
-            ]
-        else:
-            data["eigenvalues"] = [data.pop("alpha_eigenvalues")]
+            alpha_fock_matrix = document["calcs_reversed"][0]["alpha_fock_matrix"]
+            beta_fock_matrix = (
+                document["calcs_reversed"][0]["beta_fock_matrix"]
+                if "beta_fock_matrix" in document["calcs_reversed"][0]
+                else None
+            )
 
-        if "beta_coeff_matrix" in data:
-            data["coeff_matrices"] = [
-                data.pop("alpha_coeff_matrix"),
-                data.pop("beta_coeff_matrix"),
-            ]
-        else:
-            data["coeff_matrices"] = [data.pop("alpha_coeff_matrix")]
+            state = document[f"tags"][f"{self.state_identifier}"]
 
-        if "beta_fock_matrix" in data:
-            data["fock_matrices"] = [
-                data.pop("alpha_fock_matrix"),
-                data.pop("beta_fock_matrix"),
-            ]
-        else:
-            data["fock_matrices"] = [data.pop("alpha_fock_matrix")]
+            base_quantities_qchem = BaseQuantitiesQChem(
+                fock_matrix=alpha_fock_matrix,
+                coeff_matrix=alpha_coeff_matrix,
+                eigenvalues=alpha_eigenvalues,
+            )
+            alpha_orthogonalization_matrix = (
+                base_quantities_qchem.get_orthogonalization_matrix()
+            )
+            alpha_orthogonal_coeff_matrix = (
+                base_quantities_qchem.get_ortho_coeff_matrix()
+            )
 
-        data["structures"] = data.pop("initial_molecule")
+            if beta_eigenvalues is not None:
+                base_quantities_qchem = BaseQuantitiesQChem(
+                    fock_matrix=beta_fock_matrix,
+                    coeff_matrix=beta_coeff_matrix,
+                    eigenvalues=beta_eigenvalues,
+                )
+                beta_orthogonalization_matrix = (
+                    base_quantities_qchem.get_orthogonalization_matrix()
+                )
+                beta_orthogonal_coeff_matrix = (
+                    base_quantities_qchem.get_ortho_coeff_matrix()
+                )
 
-        return data
+            eigenvalues = [alpha_eigenvalues]
+            coeff_matrix = [alpha_orthogonal_coeff_matrix]
+            orthogonalization_matrix = [alpha_orthogonalization_matrix]
+
+            if beta_eigenvalues is not None:
+                eigenvalues.append(beta_eigenvalues)
+                coeff_matrix.append(beta_orthogonal_coeff_matrix)
+                orthogonalization_matrix.append(beta_orthogonalization_matrix)
+
+            data["eigenvalues"].append(eigenvalues)
+            data["coeff_matrices"].append(coeff_matrix)
+            data["orthogonalization_matrices"].append(orthogonalization_matrix)
+            data["state"].append(state)
+            data["structures"].append(document["output"]["initial_molecule"])
+            data["identifiers"].append(identifier)
+            data["final_energy"].append(document["output"]["final_energy"])
+
+        data = {key: np.array(value) for key, value in data.items()}
+
+        if (
+            np.isnan(data["coeff_matrices"]).any()
+            or np.isnan(data["orthogonalization_matrices"]).any()
+        ):
+            return
+
+        if len(data["state"]) == 3:
+            self.data.append(data)
 
     def _parse_data(self, debug: bool = False) -> None:
         identifiers = self._get_all_identifiers()

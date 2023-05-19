@@ -1,1 +1,1 @@
-from .predata_classifier import GenerateParametersClassifier
+from .interpolator import GenerateParametersInterpolator
