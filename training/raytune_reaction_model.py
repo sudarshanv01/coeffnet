@@ -138,7 +138,7 @@ def main(
 
     # config = {
     #     "batch_size": tune.grid_search([5, 10, 15, 20, 25, 30]),
-    #     "learning_rate": tune.grid_search([1e-4, 1e-1]),
+    #     "learning_rate": tune.grid_search([1e-4, 1e-3, 1e-2, 1e-1]),
     #     "radial_layers": tune.grid_search([1, 2, 3, 4, 5]),
     #     "max_radius": tune.grid_search([1, 2, 3, 4, 5]),
     #     "num_basis": tune.grid_search([2, 4, 8, 16]),
@@ -217,8 +217,8 @@ def main(
         ),
         param_space=config,
         run_config=RunConfig(
-            local_dir="./results",
-            name="test_experiment",
+            local_dir=args.output_dir,
+            name=model_name,
             callbacks=[
                 WandbLoggerCallback(
                     project=model_name,
@@ -246,7 +246,7 @@ def get_command_line_arguments():
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="my_model",
+        default="output",
         help="Name of the output directory.",
     )
     parser.add_argument(
