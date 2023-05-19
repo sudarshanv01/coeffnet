@@ -1,0 +1,31 @@
+channels:
+  - pytorch
+  - conda-forge
+  - anaconda
+  - defaults
+dependencies:
+  - ase
+  - matplotlib
+  - monty
+  - mp-api
+  - numpy
+  - openbabel
+  - pip
+  - plotly
+  - pre-commit
+  - pymatgen
+  - pytest
+  - pytorch
+  - pip:
+      - basis-set-exchange
+      - chemcoord
+      - e3nn
+      - minimal-basis
+      - pymongo
+      - scipy
+      - torch-cluster
+      - torch-geometric
+      - torch-scatter
+      - torch-sparse
+      - torch-spline-conv
+      - wandb
