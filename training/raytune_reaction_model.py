@@ -108,7 +108,7 @@ def train_model(config: Dict[str, float]):
         optim.load_state_dict(optimizer_state)
 
     model.train()
-    for epoch in range(1, inputs["epochs"]):
+    for epoch in range(1, _inputs["epochs"]):
 
         logger.info(f"Epoch {epoch}")
 
