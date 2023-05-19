@@ -142,61 +142,16 @@ def main(
 ):
     """Construct the hyperparameter search space and run the experiment."""
 
-    # config = {
-    #     "batch_size": tune.grid_search([5, 10, 15, 20, 25, 30]),
-    #     "learning_rate": tune.grid_search([1e-4, 1e-3, 1e-2, 1e-1]),
-    #     "radial_layers": tune.grid_search([1, 2, 3, 4, 5]),
-    #     "max_radius": tune.grid_search([1, 2, 3, 4, 5]),
-    #     "num_basis": tune.grid_search([2, 4, 8, 16]),
-    #     "radial_neurons": tune.grid_search([32, 64, 128]),
-    #     "hidden_s_functions": tune.grid_search([16, 32, 64, 128, 256]),
-    #     "hidden_p_functions": tune.grid_search([16, 32, 64, 128, 256]),
-    #     "hidden_d_functions": tune.grid_search([16, 32, 64, 128, 256]),
-    # }
-
     config = {
-        "batch_size": tune.grid_search(
-            [
-                5,
-                10,
-            ]
-        ),
-        "learning_rate": tune.grid_search([1e-4, 1e-1]),
-        "radial_layers": tune.grid_search(
-            [
-                1,
-            ]
-        ),
-        "max_radius": tune.grid_search(
-            [
-                1,
-            ]
-        ),
-        "num_basis": tune.grid_search(
-            [
-                2,
-            ]
-        ),
-        "radial_neurons": tune.grid_search(
-            [
-                32,
-            ]
-        ),
-        "hidden_s_functions": tune.grid_search(
-            [
-                16,
-            ]
-        ),
-        "hidden_p_functions": tune.grid_search(
-            [
-                16,
-            ]
-        ),
-        "hidden_d_functions": tune.grid_search(
-            [
-                16,
-            ]
-        ),
+        "batch_size": tune.grid_search([5, 10, 15, 20, 25, 30]),
+        "learning_rate": tune.grid_search([1e-4, 1e-3, 1e-2, 1e-1]),
+        "radial_layers": tune.grid_search([1, 2, 3, 4, 5]),
+        "max_radius": tune.grid_search([1, 2, 3, 4, 5]),
+        "num_basis": tune.grid_search([2, 4, 8, 16]),
+        "radial_neurons": tune.grid_search([32, 64, 128]),
+        "hidden_s_functions": tune.grid_search([16, 32, 64, 128, 256]),
+        "hidden_p_functions": tune.grid_search([16, 32, 64, 128, 256]),
+        "hidden_d_functions": tune.grid_search([16, 32, 64, 128, 256]),
     }
 
     scheduler = ASHAScheduler(
@@ -206,7 +161,6 @@ def main(
 
     config["wandb"] = {
         "api_key_file": api_key_file,
-        "project": f"raytune_reaction_model",
     }
 
     tuner = tune.Tuner(
