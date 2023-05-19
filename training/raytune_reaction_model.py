@@ -91,6 +91,7 @@ def train_model(config: Dict[str, float]):
     _inputs["model_options"][
         "irreps_hidden"
     ] = f"{config['hidden_s_functions']}x0e+{config['hidden_p_functions']}x1o+{config['hidden_d_functions']}x2e"
+    _inputs["epochs"] = args.max_num_epochs
 
     model = ReactionModel(**_inputs["model_options"])
     model.to(DEVICE)
@@ -196,10 +197,8 @@ def main(
     }
 
     scheduler = ASHAScheduler(
-        max_t=max_num_epochs,
         grace_period=grace_period,
         reduction_factor=reduction_factor,
-        time_attr="epochs",
     )
 
     config["wandb"] = {
