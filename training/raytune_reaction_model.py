@@ -49,7 +49,7 @@ def load_data() -> Tuple[ReactionDataset, ReactionDataset, Dict]:
     with FileLock(os.path.expanduser("~/.data.lock")):
 
         train_dataset = ReactionDataset(
-            root=get_train_data_path(),
+            root=get_train_data_path(model_name),
             filename=os.path.join(BASEDIR, train_json_filename),
             basis_filename=os.path.join(BASEDIR, inputs["basis_file"]),
             transform=transform,
@@ -57,7 +57,7 @@ def load_data() -> Tuple[ReactionDataset, ReactionDataset, Dict]:
         )
 
         validate_dataset = ReactionDataset(
-            root=get_validation_data_path(),
+            root=get_validation_data_path(model_name),
             filename=os.path.join(BASEDIR, validate_json_filename),
             basis_filename=os.path.join(BASEDIR, inputs["basis_file"]),
             transform=transform,
@@ -252,7 +252,7 @@ def get_command_line_arguments():
     parser.add_argument(
         "--num_samples",
         type=int,
-        default=2,
+        default=1,
         help="Number of samples to run.",
     )
     parser.add_argument(
