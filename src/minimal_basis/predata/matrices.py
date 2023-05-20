@@ -1,9 +1,13 @@
-from typing import Any, List, Tuple, Union
+from typing import Any, List, Tuple, Union, Dict, Optional
 
 import numpy.typing as npt
 import numpy as np
 
+from scipy.linalg import eigh
+
 from collections import defaultdict
+
+from pymatgen.core.structure import Molecule
 
 from pymongo.cursor import Cursor
 
@@ -12,14 +16,14 @@ import tqdm
 import random
 
 
-class BaseQuantitiesQChem:
+class BaseMatrices:
     def __init__(
         self,
         fock_matrix: npt.ArrayLike,
         eigenvalues: npt.ArrayLike,
         coeff_matrix: npt.ArrayLike,
     ):
-        """QChem provides the Fock matrix, the eigenvalues and the
+        """Start form the Fock matrix, the eigenvalues and the
         coeffient matrix. The other quantities in the current basis
         and orthogonal form are provided by the methods in this class.
 
@@ -45,55 +49,92 @@ class BaseQuantitiesQChem:
         )
         np.fill_diagonal(self.diagonalised_eigen, self.eigenvalues)
 
+    def get_fock_matrix(self) -> npt.ArrayLike:
+        """Get the Fock matrix."""
+        return self.fock_matrix
+
     def get_overlap_matrix(self) -> npt.ArrayLike:
-        self.generate_overlap_matrix()
+        """Get the overlap matrix."""
+        if self.overlap_matrix is None:
+            self._generate_overlap_matrix()
         return self.overlap_matrix
 
     def get_orthogonalization_matrix(self) -> npt.ArrayLike:
-        self.generate_overlap_matrix()
-        self.generate_orthogonalization_matrix()
+        """Get the orthogonalization matrix."""
+        if self.overlap_matrix is None:
+            self._generate_overlap_matrix()
+        if self.orthogonalisation_matrix is None:
+            self._generate_orthogonalization_matrix()
         return self.orthogonalisation_matrix
 
     def get_orthogonal_fock_matrix(self) -> npt.ArrayLike:
-        self.generate_orthogonal_fock_matrix()
+        """Get the orthogonal Fock matrix."""
+        if self.overlap_matrix is None:
+            self._generate_overlap_matrix()
+        if self.orthogonalisation_matrix is None:
+            self._generate_orthogonalization_matrix()
+        if self.orthogonal_fock_matrix is None:
+            self._generate_orthogonal_fock_matrix()
         return self.orthogonal_fock_matrix
 
     def get_ortho_coeff_matrix(self) -> npt.ArrayLike:
-        self.generate_overlap_matrix()
-        self.generate_orthogonalization_matrix()
-        self.generate_orthogonal_fock_matrix()
-        self.generate_orthogonal_coeff_matrix()
+        """Get the orthogonal coefficient matrix."""
+        if self.overlap_matrix is None:
+            self._generate_overlap_matrix()
+        if self.orthogonalisation_matrix is None:
+            self._generate_orthogonalization_matrix()
+        if self.orthogonal_fock_matrix is None:
+            self._generate_orthogonal_fock_matrix()
+        if self.ortho_coeff_matrix is None:
+            self._generate_orthogonal_coeff_matrix()
         return self.ortho_coeff_matrix
 
-    def get_eigenvalues_ortho_fock(self) -> npt.ArrayLike:
-        self.generate_orthogonal_fock_matrix()
-        self.generate_orthogonal_coeff_matrix()
-        return self.eigenval_ortho_fock
-
-    def generate_overlap_matrix(self) -> None:
+    def _generate_overlap_matrix(self) -> None:
         """Determine the overlap element from the Hamiltonian, the
-        eigen energies and the cofficient matrix."""
+        eigen energies and the cofficient matrix.
+        The transformation to get the overlap matrix is:
+
+        S = F * C * (C * E)^-1
+
+        where, F is the Fock matrix, C is the coefficient matrix and
+        E is the diagonalised eigenvalues."""
         self.overlap_matrix = np.dot(
             np.dot(self.fock_matrix, self.coeff_matrix),
             np.linalg.inv(np.dot(self.coeff_matrix, self.diagonalised_eigen)),
         )
 
-    def generate_orthogonalization_matrix(self):
-        """Determine the orthogonalization matrix from the overlap matrix."""
+    def _generate_orthogonalization_matrix(self):
+        """Determine the orthogonalization matrix from the overlap matrix.
+        The transformation to get the orthogonalization matrix is X = S^(-1/2)
+        S * D = L * D
+        X = L * D^(-1/2) * L^T
+
+        where S is the overlap matrix, L is the matrix of eigenvectors
+        and D is the diagonal matrix of eigenvalues."""
         eigenval_overlap, eigenvec_overlap = np.linalg.eigh(self.overlap_matrix)
         self.orthogonalisation_matrix = np.dot(
             eigenvec_overlap,
             np.dot(np.diag(1 / np.sqrt(eigenval_overlap)), eigenvec_overlap.T),
         )
 
-    def generate_orthogonal_fock_matrix(self):
+    def _generate_orthogonal_fock_matrix(self):
+        """Determine the orthogonal Fock matrix from the orthogonalisation
+        F' = X^T * F * X
+
+        where F is the Fock matrix and X is the orthogonalisation matrix and F'
+        is the orthogonal Fock matrix."""
         self.orthogonal_fock_matrix = np.dot(
             np.dot(self.orthogonalisation_matrix.T, self.fock_matrix),
             self.orthogonalisation_matrix,
         )
 
-    def generate_orthogonal_coeff_matrix(self):
-        """Diagonalize the Fock matrix."""
+    def _generate_orthogonal_coeff_matrix(self):
+        """Diagonalize the Fock matrix to get the orthogonal coefficient matrix.
+        F' * C' = E' * C'
+        where F' is the orthogonal Fock matrix, C' is the orthogonal coefficient
+        matrix and E' is the diagonalised eigenvalues of the orthogonal Fock
+        matrix.
+        """
         eigenval_ortho_fock, eigenvec_ortho_fock = np.linalg.eigh(
             self.orthogonal_fock_matrix
         )
@@ -101,38 +142,87 @@ class BaseQuantitiesQChem:
         self.eigenval_ortho_fock = eigenval_ortho_fock
 
 
-class ConvertToReducedBasis:
+class ReducedBasisMatrices(BaseMatrices):
     def __init__(
         self,
+        fock_matrix: npt.ArrayLike,
         eigenvalues: npt.ArrayLike,
         coeff_matrix: npt.ArrayLike,
         indices_to_keep: List[int],
     ):
-        """Convert the eigenvalues and coefficient matrix to the reduced basis.
+        """Reduce the basis set of the Hamiltonian and calculate
+        all the matrices for this reduced basis set. This class
+        would be useful to create a minimal basis representation.
 
         Args:
-            eigenvalues (npt.ArrayLike): The eigenvalues.
-            coeff_matrix (npt.ArrayLike): The coefficient matrix.
-            indices_to_keep (List[int]): Indices of the basis function to keep.
+            fock_matrix (npt.ArrayLike): Fock matrix
+            eigenvalues (npt.ArrayLike): Eigenvalues of the Fock matrix
+            coeff_matrix (npt.ArrayLike): Coefficient matrix
+            indices_to_keep (List[int]): Indices of the basis functions
+                to keep.
         """
 
-        self.eigenvalues = np.array(eigenvalues)
-        self.coeff_matrix = np.array(coeff_matrix)
+        super().__init__(fock_matrix, eigenvalues, coeff_matrix)
         self.indices_to_keep = indices_to_keep
 
-    def get_reduced_hamiltonian(self) -> npt.ArrayLike:
-        """Reduce the number of basis functions in the Hamiltonian."""
-        diagonalised_eigen = np.zeros((len(self.eigenvalues), len(self.eigenvalues)))
+        if not isinstance(self.indices_to_keep, list):
+            raise TypeError("indices_to_keep must be a list of integers")
+
+        if not all(isinstance(i, int) for i in self.indices_to_keep):
+            raise TypeError("indices_to_keep must be a list of integers")
+
+        if len(self.indices_to_keep) > self.coeff_matrix.shape[0]:
+            raise ValueError(
+                "indices_to_keep cannot be greater than the number of basis functions"
+            )
+
+        if len(self.indices_to_keep) < self.coeff_matrix.shape[0]:
+            self.set_reduced_overlap_matrix()
+            self.set_reduced_fock_matrix()
+            self.set_reduced_coeff_matrix_and_eigenvalues()
+
+    def set_reduced_overlap_matrix(
+        self,
+    ):
+        """Get the overlap matrix for the reduced basis set.
+        The overlap matrix is reduced by removing the rows and columns
+        corresponding to the indices_to_remove."""
+        overlap_matrix = self.get_overlap_matrix()
+        reduced_overlap_matrix = overlap_matrix[self.indices_to_keep, :][
+            :, self.indices_to_keep
+        ]
+        self.overlap_matrix = reduced_overlap_matrix
+
+    def set_reduced_fock_matrix(self):
+        """Reduce the number of basis functions in the Hamiltonian. This is done
+        by removing the rows and columns corresponding to the indices_to_remove.
+        F' = C' * E' * C'^T
+        where F' is the reduced Fock matrix, C' is the reduced coefficient matrix
+        and E' is the diagonalised eigenvalues of the reduced coefficient matrix.
+        """
+        diagonalised_eigen = np.zeros(
+            self.eigenvalues.shape[0], self.eigenvalues.shape[0]
+        )
         np.fill_diagonal(diagonalised_eigen, self.eigenvalues)
 
         reduced_coeff_matrix = self.coeff_matrix[self.indices_to_keep, :]
 
-        self.reduced_hamiltonian = np.dot(
+        reduced_fock_matrix = np.dot(
             np.dot(reduced_coeff_matrix, diagonalised_eigen),
             reduced_coeff_matrix.T,
         )
+        self.fock_matrix = reduced_fock_matrix
 
-        return self.reduced_hamiltonian
+    def set_reduced_coeff_matrix_and_eigenvalues(self):
+        """Solve the generalised eigenvalue problem for the reduced basis set.
+        F' * C' = E' * S * C'
+        where F' is the reduced Fock matrix, C' is the reduced coefficient matrix
+        and E' is the diagonalised eigenvalues of the reduced coefficient matrix and
+        S is the overlap matrix.
+        """
+        eigenvalues, eigenvectors = eigh(self.fock_matrix, self.overlap_matrix)
+        self.coeff_matrix = eigenvectors
+        self.eigenvalues = eigenvalues
 
 
 class TaskdocsToData:
@@ -145,6 +235,8 @@ class TaskdocsToData:
         reactant_tag: str = "reactant",
         product_tag: str = "product",
         transition_state_tag: str = "transition_state",
+        basis_set_type: str = "full",
+        basis_info_raw: Dict[str, Any] = None,
         **kwargs: Any,
     ):
         """Convert TaskDocuments to a List[Dict] with reaction information."""
@@ -156,6 +248,13 @@ class TaskdocsToData:
         self.reactant_tag = reactant_tag
         self.product_tag = product_tag
         self.transition_state_tag = transition_state_tag
+
+        self.basis_info = None
+        self.basis_info_raw = basis_info_raw
+
+        assert basis_set_type in ["full", "minimal"]
+        "Basis set type must be either full or minimal"
+        self.basis_set_type = basis_set_type
 
         if "debug_number_of_reactions" in kwargs:
             self.debug_number_of_reactions = kwargs["debug_number_of_reactions"]
@@ -170,6 +269,54 @@ class TaskdocsToData:
             f"tags.{self.identifier}"
         )
         return identifiers
+
+    def parse_basis_data(self):
+        """Parse the basis information from data from basissetexchange.org
+        json format to a dict containing the number of s, p and d functions
+        for each atom. The resulting dictionary, self.basis_info contains the
+        total set of basis functions for each atom.
+        """
+
+        self.basis_info = {}
+
+        for atom_number in self.basis_info_raw["elements"]:
+            angular_momentum_all = []
+            for basis_index, basis_functions in enumerate(
+                self.basis_info_raw["elements"][atom_number]["electron_shells"]
+            ):
+                angular_momentum_all.extend(basis_functions["angular_momentum"])
+            angular_momentum_all = [
+                self.n_to_l_basis[element] for element in angular_momentum_all
+            ]
+            self.basis_info[int(atom_number)] = angular_momentum_all
+
+    def get_indices_to_keep(self, molecule: Molecule):
+        """Decide on the indices to keep for the minimal basis set."""
+
+        if self.basis_set_type == "full":
+            return list(range(self.coeff_matrix.shape[0]))
+
+        atom_basis_counter = 0
+        indices_to_keep = []
+
+        for atom in molecule:
+
+            atomic_number = self._get_atomic_number(atom.species_string)
+            basis_functions = self.basis_info[atomic_number]
+
+            for basis_function in basis_functions:
+                if basis_function == "s":
+                    indices_to_keep.append(atom_basis_counter)
+                    atom_basis_counter += 1
+                elif basis_function == "p":
+                    indices_to_keep.append(atom_basis_counter)
+                    atom_basis_counter += 1
+                    indices_to_keep.append(atom_basis_counter)
+                    atom_basis_counter += 1
+                    indices_to_keep.append(atom_basis_counter)
+                    atom_basis_counter += 1
+                else:
+                    pass
 
     def _get_reaction_data(self, identifier: Union[str, float]) -> None:
         """Parse the output dataset and get the reaction data."""
@@ -227,11 +374,17 @@ class TaskdocsToData:
 
             state = document[f"tags"][f"{self.state_identifier}"]
 
-            base_quantities_qchem = BaseQuantitiesQChem(
+            molecule = document["output"]["initial_molecule"]
+            molecule = Molecule.from_dict(molecule)
+            indices_to_keep = self.get_indices_to_keep(molecule)
+
+            base_quantities_qchem = ReducedBasisMatrices(
                 fock_matrix=alpha_fock_matrix,
                 coeff_matrix=alpha_coeff_matrix,
                 eigenvalues=alpha_eigenvalues,
+                indices_to_keep=indices_to_keep,
             )
+
             alpha_orthogonalization_matrix = (
                 base_quantities_qchem.get_orthogonalization_matrix()
             )
@@ -240,10 +393,11 @@ class TaskdocsToData:
             )
 
             if beta_eigenvalues is not None:
-                base_quantities_qchem = BaseQuantitiesQChem(
+                base_quantities_qchem = ReducedBasisMatrices(
                     fock_matrix=beta_fock_matrix,
                     coeff_matrix=beta_coeff_matrix,
                     eigenvalues=beta_eigenvalues,
+                    indices_to_keep=indices_to_keep,
                 )
                 beta_orthogonalization_matrix = (
                     base_quantities_qchem.get_orthogonalization_matrix()

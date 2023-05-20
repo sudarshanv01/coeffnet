@@ -4,7 +4,7 @@ import argparse
 
 import logging
 
-from monty.serialization import dumpfn
+from monty.serialization import dumpfn, loadfn
 
 from minimal_basis.predata.matrices import TaskdocsToData
 
@@ -47,7 +47,7 @@ def get_command_line_arguments():
 
 
 if __name__ == "__main__":
-    """Generate a list of dicts that contain data for the Grambow-Green dataset."""
+    """Generate a list of dicts that contain data in the format required by the model."""
 
     args = get_command_line_arguments()
 
@@ -65,6 +65,10 @@ if __name__ == "__main__":
         open(
             os.path.join(__config_folder__, f"{args.dataset_name}_dataparser.yaml"), "r"
         )
+    )
+    basis_set_name = config.pop("basis_set_name")
+    config["basis_info_raw"] = loadfn(
+        os.path.join(__config_folder__, basis_set_name + ".json")
     )
     logger.info(f"Using config: {config}")
 
