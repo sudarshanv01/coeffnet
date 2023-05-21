@@ -67,8 +67,9 @@ if __name__ == "__main__":
         )
     )
     basis_set_name = config.pop("basis_set_name")
+    basis_set_name = basis_set_name.replace("*", "star")
     config["basis_info_raw"] = loadfn(
-        os.path.join(__config_folder__, basis_set_name + ".json")
+        os.path.join(__input_folder__, basis_set_name + ".json")
     )
     logger.info(f"Using config: {config}")
 

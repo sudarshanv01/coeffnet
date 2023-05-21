@@ -7,6 +7,8 @@ from scipy.linalg import eigh
 
 from collections import defaultdict
 
+from ase import data as ase_data
+
 from pymatgen.core.structure import Molecule
 
 from pymongo.cursor import Cursor
@@ -52,6 +54,14 @@ class BaseMatrices:
     def get_fock_matrix(self) -> npt.ArrayLike:
         """Get the Fock matrix."""
         return self.fock_matrix
+
+    def get_coeff_matrix(self) -> npt.ArrayLike:
+        """Get the coefficient matrix."""
+        return self.coeff_matrix
+
+    def get_eigenvalues(self) -> npt.ArrayLike:
+        """Get the eigenvalues."""
+        return self.eigenvalues
 
     def get_overlap_matrix(self) -> npt.ArrayLike:
         """Get the overlap matrix."""
@@ -201,7 +211,7 @@ class ReducedBasisMatrices(BaseMatrices):
         and E' is the diagonalised eigenvalues of the reduced coefficient matrix.
         """
         diagonalised_eigen = np.zeros(
-            self.eigenvalues.shape[0], self.eigenvalues.shape[0]
+            (self.eigenvalues.shape[0], self.eigenvalues.shape[0])
         )
         np.fill_diagonal(diagonalised_eigen, self.eigenvalues)
 
@@ -226,6 +236,10 @@ class ReducedBasisMatrices(BaseMatrices):
 
 
 class TaskdocsToData:
+
+    l_to_n_basis = {"s": 0, "p": 1, "d": 2, "f": 3, "g": 4, "h": 5}
+    n_to_l_basis = {0: "s", 1: "p", 2: "d", 3: "f", 4: "g", 5: "h"}
+
     def __init__(
         self,
         collection,
@@ -237,6 +251,7 @@ class TaskdocsToData:
         transition_state_tag: str = "transition_state",
         basis_set_type: str = "full",
         basis_info_raw: Dict[str, Any] = None,
+        d_functions_are_spherical: bool = True,
         **kwargs: Any,
     ):
         """Convert TaskDocuments to a List[Dict] with reaction information."""
@@ -248,6 +263,7 @@ class TaskdocsToData:
         self.reactant_tag = reactant_tag
         self.product_tag = product_tag
         self.transition_state_tag = transition_state_tag
+        self.d_functions_are_spherical = d_functions_are_spherical
 
         self.basis_info = None
         self.basis_info_raw = basis_info_raw
@@ -270,7 +286,7 @@ class TaskdocsToData:
         )
         return identifiers
 
-    def parse_basis_data(self):
+    def _parse_basis_data(self):
         """Parse the basis information from data from basissetexchange.org
         json format to a dict containing the number of s, p and d functions
         for each atom. The resulting dictionary, self.basis_info contains the
@@ -290,6 +306,10 @@ class TaskdocsToData:
             ]
             self.basis_info[int(atom_number)] = angular_momentum_all
 
+    def _get_atomic_number(cls, symbol):
+        """Get the atomic number of an element based on the symbol."""
+        return ase_data.atomic_numbers[symbol]
+
     def get_indices_to_keep(self, molecule: Molecule):
         """Decide on the indices to keep for the minimal basis set."""
 
@@ -298,6 +318,8 @@ class TaskdocsToData:
 
         atom_basis_counter = 0
         indices_to_keep = []
+
+        self._parse_basis_data()
 
         for atom in molecule:
 
@@ -315,8 +337,14 @@ class TaskdocsToData:
                     atom_basis_counter += 1
                     indices_to_keep.append(atom_basis_counter)
                     atom_basis_counter += 1
-                else:
+                elif basis_function == "d":
+                    if self.d_functions_are_spherical:
+                        atom_basis_counter += 5
+                    else:
+                        atom_basis_counter += 6
                     pass
+
+        return indices_to_keep
 
     def _get_reaction_data(self, identifier: Union[str, float]) -> None:
         """Parse the output dataset and get the reaction data."""
