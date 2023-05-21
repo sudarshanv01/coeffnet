@@ -119,7 +119,7 @@ def train_model(config: Dict[str, float]):
             val_loader=validate_loader, model=model, inputs=_inputs
         )
         session.report(
-            {"loss": validate_loss, "train_loss": train_loss},
+            {"validate_loss": validate_loss, "train_loss": train_loss},
         )
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -128,7 +128,8 @@ def train_model(config: Dict[str, float]):
     )
     checkpoint = Checkpoint.from_directory(args.output_dir)
     session.report(
-        {"loss": validate_loss, "train_loss": train_loss}, checkpoint=checkpoint
+        {"validate_loss": validate_loss, "train_loss": train_loss},
+        checkpoint=checkpoint,
     )
     logger.info("Finished Training")
 
@@ -143,15 +144,15 @@ def main(
     """Construct the hyperparameter search space and run the experiment."""
 
     config = {
-        "batch_size": tune.grid_search([5, 10, 15, 20, 25, 30]),
+        "batch_size": tune.grid_search([16, 32, 64]),
         "learning_rate": tune.grid_search([1e-4, 1e-3, 1e-2, 1e-1]),
-        "radial_layers": tune.grid_search([1, 2, 3, 4, 5]),
-        "max_radius": tune.grid_search([1, 2, 3, 4, 5]),
-        "num_basis": tune.grid_search([2, 4, 8, 16]),
+        "radial_layers": tune.grid_search([2, 4]),
+        "max_radius": tune.grid_search([2, 4, 6]),
+        "num_basis": tune.grid_search([4, 8, 12]),
         "radial_neurons": tune.grid_search([32, 64, 128]),
-        "hidden_s_functions": tune.grid_search([16, 32, 64, 128, 256]),
-        "hidden_p_functions": tune.grid_search([16, 32, 64, 128, 256]),
-        "hidden_d_functions": tune.grid_search([16, 32, 64, 128, 256]),
+        "hidden_s_functions": tune.grid_search([64, 128, 256]),
+        "hidden_p_functions": tune.grid_search([64, 128, 256]),
+        "hidden_d_functions": tune.grid_search([64, 128, 256]),
     }
 
     scheduler = ASHAScheduler(
@@ -170,7 +171,7 @@ def main(
             resources={"cpu": 2, "gpu": gpus_per_trial},
         ),
         tune_config=tune.TuneConfig(
-            metric="loss",
+            metric="train_loss",
             mode="min",
             scheduler=scheduler,
             num_samples=num_samples,
@@ -191,11 +192,16 @@ def main(
     )
     results = tuner.fit()
 
-    best_result = results.get_best_result("loss", "min")
+    best_result = results.get_best_result("train_loss", "min")
 
     logger.info("Best trial config: {}".format(best_result.config))
-    logger.info("Best trial final loss: {}".format(best_result.metrics["loss"]))
+    logger.info(
+        "Best trial final train loss: {}".format(best_result.metrics["train_loss"])
+    )
     best_config = best_result.config
+    logger.info(
+        "Corresponding validate loss: {}".format(best_result.metrics["validate_loss"])
+    )
     json.dump(best_config, open(f"output/best_config_{model_name}.json", "w"))
 
 
