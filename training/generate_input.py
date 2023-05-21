@@ -85,10 +85,27 @@ if __name__ == "__main__":
     )
 
     if args.debug:
-        dumpfn(train_data, f"input/debug_{args.dataset_name}_train.json")
-        dumpfn(test_data, f"input/debug_{args.dataset_name}_test.json")
-        dumpfn(validation_data, f"input/debug_{args.dataset_name}_validation.json")
+        dumpfn(
+            train_data,
+            f"input/debug_{args.dataset_name}_{config['basis_set_type']}_train.json",
+        )
+        dumpfn(
+            test_data,
+            f"input/debug_{args.dataset_name}_{config['basis_set_type']}_test.json",
+        )
+        dumpfn(
+            validation_data,
+            f"input/debug_{args.dataset_name}_{config['basis_set_type']}_validation.json",
+        )
     else:
-        dumpfn(train_data, f"input/{args.dataset_name}_train.json")
-        dumpfn(test_data, f"input/{args.dataset_name}_test.json")
-        dumpfn(validation_data, f"input/{args.dataset_name}_validation.json")
+        dumpfn(
+            train_data,
+            f"input/{args.dataset_name}_{config['basis_set_type']}_train.json",
+        )
+        dumpfn(
+            test_data, f"input/{args.dataset_name}_{config['basis_set_type']}_test.json"
+        )
+        dumpfn(
+            validation_data,
+            f"input/{args.dataset_name}_{config['basis_set_type']}_validation.json",
+        )
