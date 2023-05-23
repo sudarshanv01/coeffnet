@@ -10,7 +10,7 @@ basis_file: "input/6-31gstar.json"
 
 batch_size: 16
 learning_rate: 0.01
-epochs: 250
+epochs: 200
 
 dataset_options:
   max_s_functions: 5
@@ -59,6 +59,6 @@ model_options:
  num_neighbors: 4
  typical_number_of_nodes: 12
  reduce_output: false
- make_absolute: true
+ make_absolute: false 
  mask_extra_basis: true
  normalize_sumsq: true
