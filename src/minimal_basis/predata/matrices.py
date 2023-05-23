@@ -201,26 +201,36 @@ class ReducedBasisMatrices(BaseMatrices):
         reduced_overlap_matrix = overlap_matrix[self.indices_to_keep, :][
             :, self.indices_to_keep
         ]
+        self.full_basis_overlap_matrix = self.overlap_matrix
         self.overlap_matrix = reduced_overlap_matrix
 
     def set_reduced_fock_matrix(self):
         """Reduce the number of basis functions in the Hamiltonian. This is done
         by removing the rows and columns corresponding to the indices_to_remove.
-        F' = C' * E' * C'^T
-        where F' is the reduced Fock matrix, C' is the reduced coefficient matrix
+        F' = B * E' * B^T
+        where F' is the reduced Fock matrix, B is the projection matrix,
         and E' is the diagonalised eigenvalues of the reduced coefficient matrix.
+
+        The projection matrix is given by:
+        B = S' * C'
+        where S' is the reduced overlap matrix (of dimensions MxN) and C' is the
+        reduced coefficient matrix (of dimensions NxN) where N is the number of
+        basis functions in the full basis set and M is the number of basis functions
+        in the reduced basis set.
         """
         diagonalised_eigen = np.zeros(
             (self.eigenvalues.shape[0], self.eigenvalues.shape[0])
         )
         np.fill_diagonal(diagonalised_eigen, self.eigenvalues)
 
-        reduced_coeff_matrix = self.coeff_matrix[self.indices_to_keep, :]
+        reduced_overlap_matrix = self.full_basis_overlap_matrix[self.indices_to_keep, :]
+        projector = reduced_overlap_matrix @ self.coeff_matrix
 
         reduced_fock_matrix = np.dot(
-            np.dot(reduced_coeff_matrix, diagonalised_eigen),
-            reduced_coeff_matrix.T,
+            np.dot(projector, diagonalised_eigen),
+            projector.T,
         )
+        self.full_basis_fock_matrix = self.fock_matrix
         self.fock_matrix = reduced_fock_matrix
 
     def set_reduced_coeff_matrix_and_eigenvalues(self):
@@ -450,6 +460,7 @@ class TaskdocsToData:
             data["structures"].append(document["output"]["initial_molecule"])
             data["identifiers"].append(identifier)
             data["final_energy"].append(document["output"]["final_energy"])
+            data["indices_to_keep"].append(indices_to_keep)
 
         data = {key: np.array(value) for key, value in data.items()}
 
