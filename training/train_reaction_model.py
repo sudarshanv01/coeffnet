@@ -71,7 +71,6 @@ if __name__ == "__main__":
 
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
-    logger.addHandler(logging.StreamHandler())
 
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     logger.info(f"Device: {DEVICE}")
