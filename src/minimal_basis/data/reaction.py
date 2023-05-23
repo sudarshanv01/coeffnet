@@ -200,6 +200,8 @@ class CoefficientMatrixSphericalBasis:
         store_idx_only: int = None,
         set_to_absolute: bool = False,
         calculated_using_cartesian_basis: bool = False,
+        is_minimal_basis: bool = False,
+        indices_to_keep: List[int] = None,
         **kwargs,
     ):
         """Store the coefficient matrix and provides some utilities to manipulate it.
@@ -211,6 +213,7 @@ class CoefficientMatrixSphericalBasis:
             store_idx_only (int, optional): If not None, only store the coefficient matrix for this index. Defaults to None.
             set_to_absolute (bool, optional): If True, set the coefficient matrix to absolute value. Defaults to False.
             calculated_using_cartesian_basis (bool, optional): If True, the coefficient matrix was calculated using cartesian basis. Defaults to False.
+            indices_to_keep (List[int], optional): The indices of the basis functions to keep. Defaults to None.
         """
 
         if store_idx_only is not None:
@@ -225,7 +228,13 @@ class CoefficientMatrixSphericalBasis:
         self.molecule_graph = molecule_graph
         self.basis_info_raw = basis_info_raw
         self.calculated_using_cartesian_basis = calculated_using_cartesian_basis
+        self.is_minimal_basis = is_minimal_basis
         self.cart_to_spherical_d = cart_to_sph_d()
+
+        if indices_to_keep is None:
+            self.indices_to_keep = list(range(len(self.coefficient_matrix)))
+        else:
+            self.indices_to_keep = indices_to_keep
 
         self.parse_basis_data()
         self.get_basis_index()
@@ -268,7 +277,8 @@ class CoefficientMatrixSphericalBasis:
 
     def get_coefficient_matrix(self):
         if self.calculated_using_cartesian_basis:
-            self.convert_cartesian_to_spherical()
+            if not self.is_minimal_basis:
+                self.convert_cartesian_to_spherical()
 
         return self.coefficient_matrix
 
@@ -330,40 +340,65 @@ class CoefficientMatrixSphericalBasis:
         irreps_all_atom = []
 
         atom_basis_counter = 0
+        overall_atom_basis_counter = 0
 
         for atom in self.molecule_graph.molecule:
 
-            # Store the irreps
             irreps_atom = ""
 
-            # Get the basis functions for this atom
             atomic_number = self._get_atomic_number(atom.species_string)
             basis_functions = self.basis_info[atomic_number]
 
-            # Get the atom specific list
             basis_s_ = []
             basis_p_ = []
             basis_d_ = []
 
-            # Store the initial basis functions
             counter_tot_basis_idx = atom_basis_counter
+            overall_counter_tot_basis_idx = overall_atom_basis_counter
 
             for basis_function in basis_functions:
                 if basis_function == "s":
-                    range_idx = list(range(atom_basis_counter, atom_basis_counter + 1))
-                    basis_s_.append(range_idx)
-                    atom_basis_counter += 1
-                    irreps_atom += "+1x0e"
+                    range_idx = list(
+                        range(
+                            overall_atom_basis_counter, overall_atom_basis_counter + 1
+                        )
+                    )
+                    if any(idx in range_idx for idx in self.indices_to_keep):
+                        basis_s_.append(
+                            list(range(atom_basis_counter, atom_basis_counter + 1))
+                        )
+                        atom_basis_counter += 1
+                        irreps_atom += "+1x0e"
+                    overall_atom_basis_counter += 1
                 elif basis_function == "p":
-                    range_idx = list(range(atom_basis_counter, atom_basis_counter + 3))
-                    basis_p_.append(range_idx)
-                    atom_basis_counter += 3
-                    irreps_atom += "+1x1o"
+                    range_idx = list(
+                        range(
+                            overall_atom_basis_counter, overall_atom_basis_counter + 3
+                        )
+                    )
+                    if any(idx in range_idx for idx in self.indices_to_keep):
+                        basis_p_.append(
+                            list(range(atom_basis_counter, atom_basis_counter + 3))
+                        )
+                        atom_basis_counter += 3
+                        irreps_atom += "+1x1o"
+                    overall_atom_basis_counter += 3
                 elif basis_function == "d":
-                    range_idx = list(range(atom_basis_counter, atom_basis_counter + 5))
-                    basis_d_.append(range_idx)
-                    atom_basis_counter += 5
-                    irreps_atom += "1x2e"
+                    range_idx = list(
+                        range(
+                            overall_atom_basis_counter, overall_atom_basis_counter + 5
+                        )
+                    )
+                    if any(idx in range_idx for idx in self.indices_to_keep):
+                        basis_d_.append(
+                            list(range(atom_basis_counter, atom_basis_counter + 5))
+                        )
+                        atom_basis_counter += 5
+                        irreps_atom += "+1x2e"
+                    if self.calculated_using_cartesian_basis:
+                        overall_atom_basis_counter += 6
+                    else:
+                        overall_atom_basis_counter += 5
 
             irreps_atom = irreps_atom[1:]
             irreps_all_atom.append(irreps_atom)
@@ -427,6 +462,9 @@ class ModifiedCoefficientMatrixSphericalBasis(CoefficientMatrixSphericalBasis):
         max_p_functions: Union[str, int] = None,
         max_d_functions: Union[str, int] = None,
         use_minimal_basis_node_features: bool = False,
+        indices_to_keep: List[int] = None,
+        calculated_using_cartesian_basis: bool = False,
+        is_minimal_basis: bool = False,
         **kwargs,
     ):
         """Modify the coefficient matrix representing each atom by a fixed basis.
@@ -451,6 +489,9 @@ class ModifiedCoefficientMatrixSphericalBasis(CoefficientMatrixSphericalBasis):
             coefficient_matrix=coefficient_matrix,
             store_idx_only=store_idx_only,
             set_to_absolute=set_to_absolute,
+            indices_to_keep=indices_to_keep,
+            calculated_using_cartesian_basis=calculated_using_cartesian_basis,
+            is_minimal_basis=is_minimal_basis,
             **kwargs,
         )
 
@@ -521,7 +562,6 @@ class ModifiedCoefficientMatrixSphericalBasis(CoefficientMatrixSphericalBasis):
                 self.coefficient_matrix.shape[1],
             ],
         )
-        # Also create a boolean mask to indicate which basis functions are present
         self.basis_mask = np.zeros(
             [
                 num_atoms,
@@ -614,7 +654,7 @@ class ModifiedCoefficientMatrixSphericalBasis(CoefficientMatrixSphericalBasis):
         self.coefficient_matrix_minimal_basis = np.zeros(
             [
                 len(self.molecule_graph.molecule),
-                4,  # 1 s + 3 p
+                4,
                 self.coefficient_matrix.shape[1],
             ],
         )

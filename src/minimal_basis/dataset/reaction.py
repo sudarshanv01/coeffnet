@@ -57,6 +57,8 @@ class ReactionDataset(InMemoryDataset):
         reactant_tag: str = "reactant",
         product_tag: str = "product",
         transition_state_tag: str = "transition_state",
+        is_minimal_basis: bool = False,
+        calculated_using_cartesian_basis: bool = False,
     ):
         """Dataset for the reaction.
         
@@ -93,6 +95,8 @@ class ReactionDataset(InMemoryDataset):
         self.reactant_tag = reactant_tag
         self.product_tag = product_tag
         self.transition_state_tag = transition_state_tag
+        self.is_minimal_basis = is_minimal_basis
+        self.calculated_using_cartesian_basis = calculated_using_cartesian_basis
 
         super().__init__(
             root=root,
@@ -189,6 +193,8 @@ class ReactionDataset(InMemoryDataset):
                     f"Selected eigenvalue {selected_eigenval} with index {selected_eigenval_index}"
                 )
 
+                indices_to_keep = input_data["indices_to_keep"][idx_state]
+
                 coeff_matrix = ModifiedCoefficientMatrixSphericalBasis(
                     molecule_graph=molecule_graph,
                     basis_info_raw=self.basis_info_raw,
@@ -199,6 +205,9 @@ class ReactionDataset(InMemoryDataset):
                     max_p_functions=self.max_p_functions,
                     max_d_functions=self.max_d_functions,
                     use_minimal_basis_node_features=self.use_minimal_basis_node_features,
+                    indices_to_keep=indices_to_keep,
+                    is_minimal_basis=self.is_minimal_basis,
+                    calculated_using_cartesian_basis=self.calculated_using_cartesian_basis,
                 )
 
                 node_features = coeff_matrix.get_node_features()
