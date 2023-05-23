@@ -460,6 +460,7 @@ class TaskdocsToData:
             data["structures"].append(document["output"]["initial_molecule"])
             data["identifiers"].append(identifier)
             data["final_energy"].append(document["output"]["final_energy"])
+            data["indices_to_keep"].append(indices_to_keep)
 
         data = {key: np.array(value) for key, value in data.items()}
 
