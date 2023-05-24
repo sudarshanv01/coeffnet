@@ -81,9 +81,6 @@ def coeff2density_loss(data, predicted_y, do_backward=True):
         real_c_ij = real_y[data.batch == i]
         predicted_c_ij = predicted_y[data.batch == i]
 
-        real_c_ij = real_c_ij.reshape(-1, 1)
-        predicted_c_ij = predicted_c_ij.reshape(-1, 1)
-
         loss_positive = F.l1_loss(predicted_c_ij, real_c_ij, reduction="sum")
         loss_negative = F.l1_loss(-predicted_c_ij, real_c_ij, reduction="sum")
 
