@@ -88,9 +88,7 @@ def coeff2density_loss(data, predicted_y, do_backward=True):
         real_cij_dot_cij_T = real_c_ij @ real_c_ij.T
         predicted_c_ij_dot_c_ij_T = predicted_c_ij @ predicted_c_ij.T
 
-        loss = F.l1_loss(
-            predicted_c_ij_dot_c_ij_T, real_cij_dot_cij_T, reduction="mean"
-        )
+        loss = F.l1_loss(predicted_c_ij_dot_c_ij_T, real_cij_dot_cij_T, reduction="sum")
         if do_backward:
             loss.backward(retain_graph=True)
         losses += loss.item()
