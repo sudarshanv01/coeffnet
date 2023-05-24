@@ -76,7 +76,6 @@ def coeff2density_loss(data, predicted_y, do_backward=True):
     """Get the loss when converting the coefficient matrix to the density."""
 
     real_y = data.x_transition_state
-    losses = 0
 
     for i in range(data.num_graphs):
         real_c_ij = real_y[data.batch == i]
@@ -85,14 +84,18 @@ def coeff2density_loss(data, predicted_y, do_backward=True):
         real_c_ij = real_c_ij.reshape(-1, 1)
         predicted_c_ij = predicted_c_ij.reshape(-1, 1)
 
-        real_cij_dot_cij_T = real_c_ij @ real_c_ij.T
-        predicted_c_ij_dot_c_ij_T = predicted_c_ij @ predicted_c_ij.T
+        loss_positive = F.l1_loss(predicted_c_ij, real_c_ij, reduction="sum")
+        loss_negative = F.l1_loss(-predicted_c_ij, real_c_ij, reduction="sum")
 
-        loss = F.l1_loss(predicted_c_ij_dot_c_ij_T, real_cij_dot_cij_T, reduction="sum")
+        if loss_positive.item() < loss_negative.item():
+            loss = loss_positive
+        else:
+            loss = loss_negative
+
         if do_backward:
             loss.backward(retain_graph=True)
-        losses += loss.item()
-        yield losses
+
+        yield loss.item()
 
 
 def relative_energy_loss(data, predicted_y, do_backward=True):
