@@ -10,7 +10,7 @@ basis_file: "input/6-31gstar.json"
 
 batch_size: 16
 learning_rate: 0.01
-epochs: 250
+epochs: 200
 
 dataset_options:
   max_s_functions: 5
@@ -48,7 +48,7 @@ use_minimal_basis_node_features: false
 prediction_mode: "coeff_matrix"
 model_options:
  irreps_in: "@construct"
- irreps_hidden: "64x0e+288x1e+32x2e"
+ irreps_hidden: "64x0e+288x1o"
  irreps_out: "@construct"
  irreps_node_attr: "1x0e"
  irreps_edge_attr: "@construct"
@@ -59,6 +59,6 @@ model_options:
  num_neighbors: 4
  typical_number_of_nodes: 12
  reduce_output: false
- make_absolute: true
+ make_absolute: false 
  mask_extra_basis: true
  normalize_sumsq: true

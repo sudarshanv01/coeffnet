@@ -72,6 +72,42 @@ def construct_irreps(inputs: dict) -> None:
         ] = f"{inputs['model_options']['num_basis']}x0e"
 
 
+def coeff2density_loss(data, predicted_y, do_backward=True):
+    """Get the loss when converting the coefficient matrix to the density."""
+
+    real_y = data.x_transition_state
+
+    for i in range(data.num_graphs):
+        real_c_ij = real_y[data.batch == i]
+        predicted_c_ij = predicted_y[data.batch == i]
+
+        loss_positive = F.mse_loss(predicted_c_ij, real_c_ij, reduction="sum")
+        loss_negative = F.mse_loss(-predicted_c_ij, real_c_ij, reduction="sum")
+
+        if loss_positive.item() < loss_negative.item():
+            loss = loss_positive
+        else:
+            loss = loss_negative
+
+        if do_backward:
+            loss.backward(retain_graph=True)
+
+        yield loss.item()
+
+
+def relative_energy_loss(data, predicted_y, do_backward=True):
+    """Get the loss when predicting the relative energy."""
+
+    real_y = data.total_energy_transition_state - data.total_energy
+    predicted_y = predicted_y.mean(dim=1)
+    loss = F.l1_loss(predicted_y, real_y, reduction="sum")
+
+    if do_backward:
+        loss.backward(retain_graph=True)
+
+    return loss.item()
+
+
 def train(model: Model, train_loader: DataLoader, optim, inputs: dict) -> float:
     """Train the model."""
 
@@ -85,24 +121,15 @@ def train(model: Model, train_loader: DataLoader, optim, inputs: dict) -> float:
         predicted_y = model(data)
 
         if inputs["prediction_mode"] == "coeff_matrix":
-            real_y = data.x_transition_state
-            if inputs["model_options"]["make_absolute"]:
-                real_y = torch.abs(real_y)
+            losses += sum(coeff2density_loss(data, predicted_y))
         elif inputs["prediction_mode"] == "relative_energy":
-            real_y = data.total_energy_transition_state - data.total_energy
-            predicted_y = predicted_y.mean(dim=1)
+            losses += relative_energy_loss(data, predicted_y)
         else:
             raise ValueError(
                 f"Prediction mode {inputs['prediction_mode']} not recognized."
             )
 
-        loss = F.l1_loss(predicted_y, real_y, reduction="sum")
-        loss.backward()
-
-        losses += loss.item()
-
         num_graphs += data.num_graphs
-
         optim.step()
 
     output_metric = losses / num_graphs
@@ -122,20 +149,14 @@ def validate(model: Model, val_loader: DataLoader, inputs: dict) -> float:
         predicted_y = model(data)
 
         if inputs["prediction_mode"] == "coeff_matrix":
-            real_y = data.x_transition_state
-            if inputs["model_options"]["make_absolute"]:
-                real_y = torch.abs(real_y)
+            losses += sum(coeff2density_loss(data, predicted_y, do_backward=False))
         elif inputs["prediction_mode"] == "relative_energy":
-            real_y = data.total_energy_transition_state - data.total_energy
-            predicted_y = predicted_y.mean(dim=1)
+            losses += relative_energy_loss(data, predicted_y, do_backward=False)
         else:
             raise ValueError(
                 f"Prediction mode {inputs['prediction_mode']} not recognized."
             )
 
-        loss = F.l1_loss(predicted_y, real_y, reduction="sum")
-
-        losses += loss.item()
         num_graphs += data.num_graphs
 
     output_metric = losses / num_graphs
