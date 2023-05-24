@@ -81,8 +81,8 @@ def coeff2density_loss(data, predicted_y, do_backward=True):
         real_c_ij = real_y[data.batch == i]
         predicted_c_ij = predicted_y[data.batch == i]
 
-        loss_positive = F.l1_loss(predicted_c_ij, real_c_ij, reduction="sum")
-        loss_negative = F.l1_loss(-predicted_c_ij, real_c_ij, reduction="sum")
+        loss_positive = F.mse_loss(predicted_c_ij, real_c_ij, reduction="sum")
+        loss_negative = F.mse_loss(-predicted_c_ij, real_c_ij, reduction="sum")
 
         if loss_positive.item() < loss_negative.item():
             loss = loss_positive
