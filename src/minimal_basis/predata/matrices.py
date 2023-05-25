@@ -1,9 +1,11 @@
 from typing import Any, List, Tuple, Union, Dict, Optional
 
+import logging
+
 import numpy.typing as npt
 import numpy as np
 
-from scipy.linalg import eigh
+from scipy.linalg import eigh as scipy_eigh
 
 from collections import defaultdict
 
@@ -16,6 +18,8 @@ from pymongo.cursor import Cursor
 import tqdm
 
 import random
+
+logger = logging.getLogger(__name__)
 
 
 class BaseMatrices:
@@ -240,7 +244,15 @@ class ReducedBasisMatrices(BaseMatrices):
         and E' is the diagonalised eigenvalues of the reduced coefficient matrix and
         S is the overlap matrix.
         """
-        eigenvalues, eigenvectors = eigh(self.fock_matrix, self.overlap_matrix)
+        try:
+            eigenvalues, eigenvectors = scipy_eigh(
+                self.fock_matrix, self.overlap_matrix
+            )
+        except np.linalg.LinAlgError:
+            raise np.linalg.LinAlgError(
+                "The overlap matrix is not positive definite. "
+                "This is likely due to the basis set being linearly dependent."
+            )
         self.coeff_matrix = eigenvectors
         self.eigenvalues = eigenvalues
 
@@ -322,9 +334,6 @@ class TaskdocsToData:
 
     def get_indices_to_keep(self, molecule: Molecule):
         """Decide on the indices to keep for the minimal basis set."""
-
-        if self.basis_set_type == "full":
-            return list(range(self.coeff_matrix.shape[0]))
 
         atom_basis_counter = 0
         indices_to_keep = []
@@ -414,14 +423,26 @@ class TaskdocsToData:
 
             molecule = document["output"]["initial_molecule"]
             molecule = Molecule.from_dict(molecule)
-            indices_to_keep = self.get_indices_to_keep(molecule)
+            if self.basis_set_type == "minimal":
+                indices_to_keep = self.get_indices_to_keep(
+                    molecule,
+                )
+            else:
+                indices_to_keep = list(range(len(alpha_eigenvalues)))
 
-            base_quantities_qchem = ReducedBasisMatrices(
-                fock_matrix=alpha_fock_matrix,
-                coeff_matrix=alpha_coeff_matrix,
-                eigenvalues=alpha_eigenvalues,
-                indices_to_keep=indices_to_keep,
-            )
+            try:
+                base_quantities_qchem = ReducedBasisMatrices(
+                    fock_matrix=alpha_fock_matrix,
+                    coeff_matrix=alpha_coeff_matrix,
+                    eigenvalues=alpha_eigenvalues,
+                    indices_to_keep=indices_to_keep,
+                )
+            except np.linalg.LinAlgError:
+                logger.warning(
+                    f"Could not compute the reduced basis matrices for {identifier} "
+                    f"with state {state} due to a linear algebra error."
+                )
+                continue
 
             alpha_orthogonalization_matrix = (
                 base_quantities_qchem.get_orthogonalization_matrix()
@@ -431,12 +452,19 @@ class TaskdocsToData:
             )
 
             if beta_eigenvalues is not None:
-                base_quantities_qchem = ReducedBasisMatrices(
-                    fock_matrix=beta_fock_matrix,
-                    coeff_matrix=beta_coeff_matrix,
-                    eigenvalues=beta_eigenvalues,
-                    indices_to_keep=indices_to_keep,
-                )
+                try:
+                    base_quantities_qchem = ReducedBasisMatrices(
+                        fock_matrix=beta_fock_matrix,
+                        coeff_matrix=beta_coeff_matrix,
+                        eigenvalues=beta_eigenvalues,
+                        indices_to_keep=indices_to_keep,
+                    )
+                except np.linalg.LinAlgError:
+                    logger.warning(
+                        f"Could not compute the reduced basis matrices for {identifier} "
+                        f"with state {state} due to a linear algebra error."
+                    )
+                    continue
                 beta_orthogonalization_matrix = (
                     base_quantities_qchem.get_orthogonalization_matrix()
                 )
