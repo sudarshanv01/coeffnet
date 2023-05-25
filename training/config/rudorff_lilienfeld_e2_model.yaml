@@ -1,11 +1,11 @@
 ---
-test_json: "input/rudorff_lilienfeld_e2_test.json" 
-train_json: "input/rudorff_lilienfeld_e2_train.json"
-validate_json: "input/rudorff_lilienfeld_e2_validation.json"
-debug_test_json: "input/debug_rudorff_lilienfeld_e2_test.json" 
-debug_train_json: "input/debug_rudorff_lilienfeld_e2_train.json"
-debug_validate_json: "input/debug_rudorff_lilienfeld_e2_validation.json"
-basis_file: "input/6-31G_star.json"
+test_json: "input/rudorff_lilienfeld_e2_dataset_minimal_basis_test.json"
+train_json: "input/rudorff_lilienfeld_e2_dataset_minimal_basis_train.json"
+validate_json: "input/rudorff_lilienfeld_e2_dataset_minimal_basis_validate.json"
+debug_test_json: "input/rudorff_lilienfeld_e2_dataset_minimal_basis_test_debug.json"
+debug_train_json: "input/rudorff_lilienfeld_e2_dataset_minimal_basis_train_debug.json"
+debug_validate_json: "input/rudorff_lilienfeld_e2_dataset_minimal_basis_validate_debug.json"
+basis_file: "input/6-31gstar.json"
 
 batch_size: 16
 learning_rate: 0.01
@@ -14,7 +14,7 @@ epochs: 250
 dataset_options:
   max_s_functions: 5
   max_p_functions: 4
-  max_d_functions: 3
+  max_d_functions: 0
   idx_eigenvalue: 0
   reactant_tag: "perturbed_molecule_-0_5_molecule"
   product_tag: "perturbed_molecule_0_5_molecule"
@@ -45,7 +45,7 @@ use_minimal_basis_node_features: false
 prediction_mode: "coeff_matrix"
 model_options:
  irreps_in: "@construct"
- irreps_hidden: "64x0e+288x1e+32x2e"
+ irreps_hidden: "64x0e+288x1o"
  irreps_out: "@construct"
  irreps_node_attr: "1x0e"
  irreps_edge_attr: "@construct"
