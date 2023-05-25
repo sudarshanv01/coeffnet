@@ -19,6 +19,8 @@ dataset_options:
   reactant_tag: "perturbed_molecule_-0_5_molecule"
   product_tag: "perturbed_molecule_0_5_molecule"
   transition_state_tag: "transition_state_molecule"
+  calculated_using_cartesian_basis: true
+  is_minimal_basis: true
 
 # use_minimal_basis_node_features: true
 use_minimal_basis_node_features: false
@@ -56,6 +58,6 @@ model_options:
  num_neighbors: 4
  typical_number_of_nodes: 12
  reduce_output: false
- make_absolute: true
+ make_absolute: false
  mask_extra_basis: true
  normalize_sumsq: true
