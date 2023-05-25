@@ -36,17 +36,13 @@ logger = logging.getLogger(__name__)
 
 
 class ReactionDataset(InMemoryDataset):
-
-    mu = 0.5
-    sigma = 0.25
-    alpha = 1.0
-
     def __init__(
         self,
         filename: Union[str, Path] = None,
         basis_filename: Union[str, Path] = None,
         root: str = None,
         transform: str = None,
+        spin_channel: str = "alpha",
         pre_transform: bool = None,
         pre_filter: bool = None,
         max_s_functions: int = None,
@@ -59,6 +55,9 @@ class ReactionDataset(InMemoryDataset):
         transition_state_tag: str = "transition_state",
         is_minimal_basis: bool = False,
         calculated_using_cartesian_basis: bool = False,
+        mu: float = 0.5,
+        sigma: float = 0.25,
+        alpha: float = 1.0,
     ):
         """Dataset for the reaction.
         
@@ -68,6 +67,7 @@ class ReactionDataset(InMemoryDataset):
                   The format of the file must be the "JSON" option from basissetexchange.com. Defaults to None.
             root (str, optional): Root directory. Defaults to None.
             transform (str, optional): Transform to apply. Defaults to None.
+            spin_channel (str, optional): Spin channel to use; either alpha | beta. Defaults to "alpha".
             pre_transform (bool, optional): Pre-transform to apply. Defaults to None.
             pre_filter (bool, optional): Pre-filter to apply. Defaults to None.
             max_s_functions (int, optional): Maximum number of s functions to be used in constructing node\
@@ -82,10 +82,20 @@ class ReactionDataset(InMemoryDataset):
             idx_eigenvalue (int, optional): Index of the eigenvalue to be used for the reaction. If set at 0
                 then the smallest occupied eigenvalue is used (i.e. smallest negative number). Any positive or
                 negative number will be referenced to this zero value.
+            reactant_tag (str, optional): Tag to be used for the reactant. Defaults to "reactant".
+            product_tag (str, optional): Tag to be used for the product. Defaults to "product".
+            transition_state_tag (str, optional): Tag to be used for the transition state. Defaults to "transition_state".
+            is_minimal_basis (bool, optional): Whether the data is in minimal basis representation. Defaults to False.
+            calculated_using_cartesian_basis (bool, optional): Whether the data was calculated using a cartesian basis.\
+                Defaults to False.
+            mu (float, optional): Mu parameter for the interpolation. Defaults to 0.5.
+            sigma (float, optional): Sigma parameter for the interpolation. Defaults to 0.25.
+            alpha (float, optional): Alpha parameter for the interpolation. Defaults to 1.0.
         """
 
         self.filename = filename
         self.root = root
+        self.spin_channel = spin_channel
         self.basis_filename = basis_filename
         self.max_s_functions = max_s_functions
         self.max_p_functions = max_p_functions
@@ -97,6 +107,16 @@ class ReactionDataset(InMemoryDataset):
         self.transition_state_tag = transition_state_tag
         self.is_minimal_basis = is_minimal_basis
         self.calculated_using_cartesian_basis = calculated_using_cartesian_basis
+        self.mu = mu
+        self.sigma = sigma
+        self.alpha = alpha
+
+        if self.spin_channel not in ["alpha", "beta"]:
+            raise ValueError("Spin channel must be either alpha or beta.")
+        elif self.spin_channel == "alpha":
+            self.spin_index = 0
+        elif self.spin_channel == "beta":
+            self.spin_index = 1
 
         super().__init__(
             root=root,
@@ -145,6 +165,11 @@ class ReactionDataset(InMemoryDataset):
             coeff_matrices = input_data["coeff_matrices"]
             logger.debug(f"Shape of coefficient matrices: {coeff_matrices.shape}")
 
+            orthogonalization_matrices = input_data["orthogonalization_matrices"]
+            logger.debug(
+                f"Shape of orthogonalization matrices: {orthogonalization_matrices.shape}"
+            )
+
             states = input_data["state"]
             logger.debug(f"States considered: {states}")
 
@@ -180,25 +205,28 @@ class ReactionDataset(InMemoryDataset):
                 edge_index = np.array(edges_for_graph).T
                 data_to_store["edge_index"][state] = edge_index
 
-                alpha_coeff_matrix = coeff_matrices[idx_state, 0]
-                alpha_eigenvalues = eigenvalues[idx_state, 0]
-                selected_eigenval = alpha_eigenvalues[alpha_eigenvalues < 0]
+                coeff_matrix_spin = coeff_matrices[idx_state, self.spin_index]
+                eigenvalues_spin = eigenvalues[idx_state, self.spin_index]
+                selected_eigenval = eigenvalues_spin[eigenvalues_spin < 0]
                 selected_eigenval = np.sort(selected_eigenval)
                 selected_eigenval = selected_eigenval[-1]
                 selected_eigenval_index = np.where(
-                    alpha_eigenvalues == selected_eigenval
+                    eigenvalues_spin == selected_eigenval
                 )[0][0]
                 selected_eigenval_index = selected_eigenval_index + self.idx_eigenvalue
                 logger.debug(
                     f"Selected eigenvalue {selected_eigenval} with index {selected_eigenval_index}"
                 )
-
                 indices_to_keep = input_data["indices_to_keep"][idx_state]
+                data_to_store["indices_to_keep"][idx_state] = indices_to_keep
+                orthogonalization_matrices_spin = orthogonalization_matrices[
+                    idx_state, self.spin_index
+                ]
 
                 coeff_matrix = ModifiedCoefficientMatrixSphericalBasis(
                     molecule_graph=molecule_graph,
                     basis_info_raw=self.basis_info_raw,
-                    coefficient_matrix=alpha_coeff_matrix,
+                    coefficient_matrix=coeff_matrix_spin,
                     store_idx_only=selected_eigenval_index,
                     set_to_absolute=False,
                     max_s_functions=self.max_s_functions,
@@ -215,6 +243,10 @@ class ReactionDataset(InMemoryDataset):
                 data_to_store["node_features"][state] = node_features
                 basis_mask = coeff_matrix.basis_mask
                 data_to_store["basis_mask"][idx_state] = basis_mask
+
+                data_to_store["orthogonalization_matrix"][
+                    state
+                ] = orthogonalization_matrices_spin.flatten()
 
                 minimal_basis_irrep = coeff_matrix.minimal_basis_irrep
 
@@ -281,6 +313,8 @@ class ReactionDataset(InMemoryDataset):
                 reactant_tag=self.reactant_tag,
                 product_tag=self.product_tag,
                 transition_state_tag=self.transition_state_tag,
+                orthogonalization_matrix=data_to_store["orthogonalization_matrix"],
+                indices_to_keep=data_to_store["indices_to_keep"][reactant_idx],
             )
 
             datapoint_list.append(datapoint)
