@@ -47,11 +47,12 @@ class ReactionDataPoint(Data):
         pos: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
         total_energies: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
         species: Dict[str, Union[npt.ArrayLike, List[int]]] = None,
-        forces: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
+        orthogonalization_matrix: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
         basis_mask: Union[npt.ArrayLike, List[bool]] = None,
         reactant_tag: str = None,
         product_tag: str = None,
         transition_state_tag: str = None,
+        indices_to_keep: Union[npt.ArrayLike, List[int]] = None,
         **kwargs,
     ):
         """General purpose data class for reaction data."""
@@ -144,24 +145,39 @@ class ReactionDataPoint(Data):
             species_final_state = None
             species_transition_state = None
 
-        if forces is not None:
-            forces_initial_state = forces[reactant_tag]
-            forces_final_state = forces[product_tag]
-            forces_transition_state = forces[transition_state_tag]
+        if orthogonalization_matrix is not None:
+            orthogonalization_matrix_initial_state = orthogonalization_matrix[
+                reactant_tag
+            ]
+            orthogonalization_matrix_final_state = orthogonalization_matrix[product_tag]
+            orthogonalization_matrix_transition_state = orthogonalization_matrix[
+                transition_state_tag
+            ]
 
-            forces_initial_state = convert_to_tensor(forces_initial_state)
-            forces_final_state = convert_to_tensor(forces_final_state)
-            forces_transition_state = convert_to_tensor(forces_transition_state)
+            orthogonalization_matrix_initial_state = convert_to_tensor(
+                orthogonalization_matrix_initial_state
+            )
+            orthogonalization_matrix_final_state = convert_to_tensor(
+                orthogonalization_matrix_final_state
+            )
+            orthogonalization_matrix_transition_state = convert_to_tensor(
+                orthogonalization_matrix_transition_state
+            )
 
         else:
-            forces_initial_state = None
-            forces_final_state = None
-            forces_transition_state = None
+            orthogonalization_matrix_initial_state = None
+            orthogonalization_matrix_final_state = None
+            orthogonalization_matrix_transition_state = None
 
         if basis_mask is not None:
             basis_mask = convert_to_tensor(basis_mask, dtype=DTYPE_BOOL)
         else:
             basis_mask = None
+
+        if indices_to_keep is not None:
+            indices_to_keep = convert_to_tensor(indices_to_keep, dtype=DTYPE_INT)
+        else:
+            indices_to_keep = None
 
         super().__init__(
             x=x_initial_state,
@@ -179,10 +195,11 @@ class ReactionDataPoint(Data):
             total_energy_final_state=total_energy_final_state,
             total_energy_transition_state=total_energy_transition_state,
             species=species_initial_state,
-            forces=forces_initial_state,
-            forces_final_state=forces_final_state,
-            forces_transition_state=forces_transition_state,
+            orthogonalization_matrix=orthogonalization_matrix_initial_state,
+            orthogonalization_matrix_final_state=orthogonalization_matrix_final_state,
+            orthogonalization_matrix_transition_state=orthogonalization_matrix_transition_state,
             basis_mask=basis_mask,
+            indices_to_keep=indices_to_keep,
             **kwargs,
         )
 
