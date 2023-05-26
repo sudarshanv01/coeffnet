@@ -175,6 +175,8 @@ class ReactionDataset(InMemoryDataset):
 
             structures = input_data["structures"]
 
+            identifier = input_data["identifiers"][0]
+
             if isinstance(structures[0], dict):
                 structures = [Molecule.from_dict(structure) for structure in structures]
 
@@ -315,6 +317,7 @@ class ReactionDataset(InMemoryDataset):
                 transition_state_tag=self.transition_state_tag,
                 orthogonalization_matrix=data_to_store["orthogonalization_matrix"],
                 indices_to_keep=data_to_store["indices_to_keep"][reactant_idx],
+                identifier=identifier,
             )
 
             datapoint_list.append(datapoint)
