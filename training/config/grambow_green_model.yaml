@@ -1,20 +1,20 @@
 ---
-test_json: "input/grambow_green_test.json" 
-train_json: "input/grambow_green_train.json"
-validate_json: "input/grambow_green_validation.json"
-debug_test_json: "input/debug_grambow_green_test.json" 
-debug_train_json: "input/debug_grambow_green_train.json"
-debug_validate_json: "input/debug_grambow_green_validation.json"
+test_json: "input/grambow_green_minimal_basis_test.json" 
+train_json: "input/grambow_green_minimal_basis_train.json"
+validate_json: "input/grambow_green_minimal_basis_validation.json"
+debug_test_json: "input/debug_grambow_green_minimal_basis_test.json" 
+debug_train_json: "input/debug_grambow_green_minimal_basis_train.json"
+debug_validate_json: "input/debug_grambow_green_minimal_basis_validation.json"
 basis_file: "input/def2-msvp.json"
 
-batch_size: 32
-learning_rate: 0.0001
+batch_size: 16
+learning_rate: 0.01
 epochs: 250
 
 dataset_options:
   max_s_functions: 5
   max_p_functions: 4
-  max_d_functions: 3
+  max_d_functions: 0
   idx_eigenvalue: 0
   reactant_tag: "reactant"
   product_tag: "product"
@@ -23,29 +23,10 @@ dataset_options:
 # use_minimal_basis_node_features: true
 use_minimal_basis_node_features: false
 
-prediction_mode: "relative_energy"
-model_options:
-  irreps_in: "@construct"
-  irreps_hidden: "64x0e+288x1o+128x2e"
-  irreps_out: "@construct"
-  irreps_node_attr: "1x0e"
-  irreps_edge_attr: "@construct"
-  radial_layers: 4
-  radial_neurons: 64
-  max_radius: 5
-  num_basis: 12
-  num_neighbors: 4
-  typical_number_of_nodes: 10
-  reduce_output: true 
-  reference_reduced_output_to_initial_state: true
-  make_absolute: false 
-  mask_extra_basis: true
-  normalize_sumsq: true
-
-# prediction_mode: "coeff_matrix"
+# prediction_mode: "relative_energy"
 # model_options:
 #   irreps_in: "@construct"
-#   irreps_hidden: "64x0e+288x1e+128x2e"
+#   irreps_hidden: "64x0e+288x1o"
 #   irreps_out: "@construct"
 #   irreps_node_attr: "1x0e"
 #   irreps_edge_attr: "@construct"
@@ -55,7 +36,26 @@ model_options:
 #   num_basis: 12
 #   num_neighbors: 4
 #   typical_number_of_nodes: 10
-#   reduce_output: false
-#   make_absolute: true
+#   reduce_output: true 
+#   reference_reduced_output_to_initial_state: true
+#   make_absolute: false 
 #   mask_extra_basis: true
 #   normalize_sumsq: true
+
+prediction_mode: "coeff_matrix"
+model_options:
+  irreps_in: "@construct"
+  irreps_hidden: "64x0e+288x1o"
+  irreps_out: "@construct"
+  irreps_node_attr: "1x0e"
+  irreps_edge_attr: "@construct"
+  radial_layers: 4
+  radial_neurons: 64
+  max_radius: 5
+  num_basis: 12
+  num_neighbors: 4
+  typical_number_of_nodes: 10
+  reduce_output: false
+  make_absolute: false 
+  mask_extra_basis: true
+  normalize_sumsq: true
