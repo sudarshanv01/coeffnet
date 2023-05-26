@@ -1,10 +1,10 @@
 ---
-test_json: "input/grambow_green_minimal_basis_test.json" 
-train_json: "input/grambow_green_minimal_basis_train.json"
-validate_json: "input/grambow_green_minimal_basis_validation.json"
-debug_test_json: "input/debug_grambow_green_minimal_basis_test.json" 
-debug_train_json: "input/debug_grambow_green_minimal_basis_train.json"
-debug_validate_json: "input/debug_grambow_green_minimal_basis_validation.json"
+test_json: "input/grambow_green_dataset_minimal_basis_test.json" 
+train_json: "input/grambow_green_dataset_minimal_basis_train.json"
+validate_json: "input/grambow_green_dataset_minimal_basis_validate.json"
+debug_test_json: "input/grambow_green_dataset_minimal_basis_test_debug.json" 
+debug_train_json: "input/grambow_green_dataset_minimal_basis_train_debug.json"
+debug_validate_json: "input/grambow_green_dataset_minimal_basis_validate_debug.json"
 basis_file: "input/def2-msvp.json"
 
 batch_size: 16
