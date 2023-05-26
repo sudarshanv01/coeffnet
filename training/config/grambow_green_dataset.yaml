@@ -8,4 +8,4 @@ product_tag: "product"
 transition_state_tag: "transition_state"
 basis_set_name: "def2-msvp"
 basis_set_type: "minimal"
-d_functions_are_spherical: false 
+d_functions_are_spherical: true 
