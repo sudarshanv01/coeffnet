@@ -14,9 +14,6 @@ dependencies:
   - pre-commit
   - pymatgen
   - mamba
-  - pip:
-      - basis-set-exchange
-      - chemcoord
-      - pymongo
-      - scipy
-      - pyscf
+  - basis_set_exchange
+  - pymongo
+  - scipy
