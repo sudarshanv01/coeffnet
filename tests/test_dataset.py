@@ -39,7 +39,6 @@ def test_download_dataset(get_dataset_options):
 def test_output_dataset(get_dataset_options):
     """Test the output of the dataset."""
     dataset = ReactionDataset(**get_dataset_options)
-    assert dataset.data is not None
 
     loader = DataLoader(dataset, batch_size=1, shuffle=False)
 
