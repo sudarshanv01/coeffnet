@@ -18,8 +18,6 @@ from pymatgen.core.structure import Molecule
 from pymatgen.analysis.graphs import MoleculeGraph
 from pymatgen.analysis.local_env import OpenBabelNN
 
-import chemcoord as cc
-
 import torch
 
 from torch_geometric.data import InMemoryDataset

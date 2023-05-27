@@ -1,29 +1,17 @@
 import logging
 import json
-from typing import List, Tuple, Dict, Any, Union, Optional
+from typing import List, Union
 
 import numpy as np
 import numpy.typing as npt
 
 import scipy
-from scipy import special
-from scipy import optimize
 
 from pymatgen.core.structure import Molecule
 from pymatgen.analysis.graphs import MoleculeGraph
 from pymatgen.analysis.local_env import OpenBabelNN, metal_edge_extender
 
 import torch
-
-from monty.serialization import loadfn, dumpfn
-
-from minimal_basis.data._dtype import (
-    DTYPE,
-    DTYPE_INT,
-    DTYPE_BOOL,
-    TORCH_FLOATS,
-    TORCH_INTS,
-)
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
