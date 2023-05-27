@@ -1,4 +1,4 @@
-from typing import Any, List, Tuple, Union, Dict, Optional
+from typing import Any, List, Tuple, Union, Dict
 
 import logging
 
@@ -12,8 +12,6 @@ from collections import defaultdict
 from ase import data as ase_data
 
 from pymatgen.core.structure import Molecule
-
-from pymongo.cursor import Cursor
 
 import tqdm
 

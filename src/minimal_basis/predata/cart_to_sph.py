@@ -56,9 +56,3 @@ def norm_cart_d_gauss(zeta):
     norm_110 = 2.0 * (8.0 * zeta**7 / np.pi**3) ** (0.25)
     norm_200 = norm_110 / 3.0 ** (0.25)
     return np.array([norm_200, norm_200, norm_200, norm_110, norm_110, norm_110])
-
-
-if __name__ == "__main__":
-    cmat = cart_to_sph_d()
-    print(cmat, cmat.shape)
-    print(norm_cart_d_gauss(1.0))
