@@ -1,0 +1,6 @@
+torch-cluster
+torch-scatter
+torch-sparse
+torch-spline-conv
+e3nn
+wandb

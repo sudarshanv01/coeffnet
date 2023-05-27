@@ -1,15 +1,9 @@
 name: molml
 channels:
-  - pytorch
   - conda-forge
   - anaconda
   - defaults
-  - pyg
 dependencies:
-  - pytorch==1.12.1
-  - torchvision==0.13.1
-  - torchaudio==0.12.1
-  - pyg
   - ase
   - matplotlib
   - monty
@@ -24,10 +18,4 @@ dependencies:
       - chemcoord
       - pymongo
       - scipy
-      - torch-cluster
-      - torch-scatter
-      - torch-sparse
-      - torch-spline-conv
-      - e3nn
-      - wandb
       - pyscf

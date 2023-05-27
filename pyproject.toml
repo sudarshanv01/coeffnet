@@ -24,10 +24,3 @@ xfail_strict = true
 filterwarnings = ["error"]
 log_cli_level = "warning"
 testpaths = ["tests"]
-markers = [ 
-  "dataset",
-  "eigenvalue_number",
-  "type_coeff_matrix",
-  "set_absolute",
-]
-
