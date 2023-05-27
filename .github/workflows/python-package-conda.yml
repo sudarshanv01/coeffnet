@@ -23,10 +23,12 @@ jobs:
         environment-file: environment.yml
 
     - name: Install current package 
+      shell: bash -l {0}
       run: |
         pip install .
 
     - name: Test with pytest
+      shell: bash -l {0}
       run: |
         conda install pytest
         pytest
