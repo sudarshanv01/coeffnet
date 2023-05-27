@@ -13,17 +13,15 @@ dependencies:
   - plotly
   - pre-commit
   - pymatgen
-  - pytorch
   - pip:
       - basis-set-exchange
       - chemcoord
-      - e3nn
       - pymongo
       - scipy
       - torch-cluster
-      - torch-geometric
       - torch-scatter
       - torch-sparse
       - torch-spline-conv
+      - e3nn
       - wandb
       - pyscf
