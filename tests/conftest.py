@@ -29,6 +29,30 @@ def get_dataset_options(tmp_path):
 
 
 @pytest.fixture
+def get_default_model_options(tmp_path):
+    """Returns the model options common to all tests."""
+
+    return {
+        "irreps_in": "5x0e+3x1o",
+        "irreps_hidden": "64x0e+288x1o",
+        "irreps_out": "5x0e+3x1o",
+        "irreps_node_attr": "1x0e",
+        "irreps_edge_attr": "12x0e",
+        "radial_layers": 2,
+        "radial_neurons": 64,
+        "max_radius": 5,
+        "num_basis": 12,
+        "num_neighbors": 4,
+        "typical_number_of_nodes": 12,
+        "reduce_output": True,
+        "reference_reduced_output_to_initial_state": True,
+        "make_absolute": False,
+        "mask_extra_basis": True,
+        "normalize_sumsq": True,
+    }
+
+
+@pytest.fixture
 def get_mapping_idx_to_euler_angles():
     """Read in the idx to euler angles mapping."""
     filename = Path(__file__).parent / "input" / "idx_to_euler_angles.yaml"
