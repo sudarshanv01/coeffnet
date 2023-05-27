@@ -1,3 +1,4 @@
+name: molml
 channels:
   - pytorch
   - conda-forge
