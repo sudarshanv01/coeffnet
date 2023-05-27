@@ -13,6 +13,7 @@ dependencies:
   - plotly
   - pre-commit
   - pymatgen
+  - mamba
   - pip:
       - basis-set-exchange
       - chemcoord
