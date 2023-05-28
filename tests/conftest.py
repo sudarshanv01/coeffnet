@@ -32,7 +32,7 @@ def get_dataset_options(tmp_path):
 def model_options_factory():
     """Returns the model options common to all tests."""
 
-    def model_factory(prediction_mode, **kwargs):
+    def _model_options_factory(prediction_mode, **kwargs):
         options = {
             "irreps_in": "5x0e+3x1o",
             "irreps_hidden": "64x0e+288x1o",
@@ -70,6 +70,8 @@ def model_options_factory():
         options.update(kwargs)
 
         return options
+
+    return _model_options_factory
 
 
 @pytest.fixture
