@@ -1,4 +1,3 @@
-torch-scatter
 e3nn
 wandb
 pyscf
