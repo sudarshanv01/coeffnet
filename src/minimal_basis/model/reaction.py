@@ -63,7 +63,15 @@ class ReactionModel(torch.nn.Module):
         self.num_basis = num_basis
         self.reduce_output = reduce_output
         self.irreps_in = irreps_in
+        self.irreps_hidden = irreps_hidden
         self.irreps_out = irreps_out
+        self.irreps_node_attr = irreps_node_attr
+        self.irreps_edge_attr = irreps_edge_attr
+        self.radial_layers = radial_layers
+        self.radial_neurons = radial_neurons
+        self.max_radius = max_radius
+        self.num_neighbors = num_neighbors
+        self.typical_number_of_nodes = typical_number_of_nodes
         self.make_absolute = make_absolute
         self.mask_extra_basis = mask_extra_basis
         self.normalize_sumsq = normalize_sumsq
