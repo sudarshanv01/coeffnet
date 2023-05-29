@@ -4,10 +4,9 @@
 ![example workflow](https://github.com/sudarshanv01/minimal-basis/actions/workflows/main.yml/badge.svg?event=push)
 
 
-Predict transition state properties with knowledge of only the reactant and product graphs and coefficient matrices.  
+Equivariant Neural Network to predict transition state properties with knowledge of only the reactant and product graphs and coefficient matrices. 
 
 ## Installation
-
 
 Install non-pytorch dependencies with conda:
 ```
