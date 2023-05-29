@@ -9,12 +9,12 @@ Predict transition state properties with knowledge of only the reactant and prod
 ## Installation
 
 
-- Install non-pytorch dependencies with conda:
+Install non-pytorch dependencies with conda:
 ```
 conda env create -f environment.yml
 ```
 
-- Install pytorch dependencies with mamba:
+Install pytorch dependencies with mamba:
 ```
 mamba install pytorch==1.12.1 torchvision==0.13.1 torchaudio==0.12.1 -c pytorch -c conda-forge
 mamba install pyg -c pyg
@@ -22,18 +22,24 @@ mamba install pytorch-scatter -c pyg
 mamba install pytorch-cluster -c pyg
 ```
 
-- Install `pip`-only dependencies:
+Install `pip`-only dependencies:
 ```
 pip install -r requirements.txt
 ```
 
-- Install `minimal-basis`:
+Install `minimal-basis`:
 ```
 pip install -e .
 ```
 
-- (Optional) Install requirements for testing
+(Optional) Install requirements for testing
 
 ```
 pip install -r requirements-test.txt
+```
+
+(Optional) Install requirements for docs
+
+```
+pip install -r requirements-docs.txt
 ```
