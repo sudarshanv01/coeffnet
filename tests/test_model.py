@@ -145,7 +145,7 @@ def test_equivariance(get_dataset_options, network_factory):
         p = data.p
         pos_interpolated_transition_state = data.pos_interpolated_transition_state
 
-        equi_info = assert_equivariant(
+        assert_equivariant(
             func=wrapped_model,
             args_in=[data.x, data.x_final_state, data.pos, data.pos_final_state],
             irreps_in=[irreps_in, irreps_in, "cartesian_points", "cartesian_points"],

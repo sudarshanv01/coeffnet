@@ -448,6 +448,7 @@ class TaskdocsToData:
             alpha_orthogonal_coeff_matrix = (
                 base_quantities_qchem.get_ortho_coeff_matrix()
             )
+            alpha_eigenvalues = base_quantities_qchem.eigenvalues
 
             if beta_eigenvalues is not None:
                 try:
@@ -469,6 +470,7 @@ class TaskdocsToData:
                 beta_orthogonal_coeff_matrix = (
                     base_quantities_qchem.get_ortho_coeff_matrix()
                 )
+                beta_eigenvalues = base_quantities_qchem.eigenvalues
 
             eigenvalues = [alpha_eigenvalues]
             coeff_matrix = [alpha_orthogonal_coeff_matrix]
