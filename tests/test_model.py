@@ -4,6 +4,7 @@ import numpy as np
 
 import torch
 
+from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
 from e3nn import o3
@@ -16,6 +17,7 @@ from minimal_basis.transforms.rotations import RotationMatrix
 from conftest import (
     get_dataset_options,
     model_options_factory,
+    network_factory,
     get_mapping_idx_to_euler_angles,
 )
 
@@ -109,45 +111,43 @@ def test_make_absolute(get_dataset_options, model_options_factory):
         assert torch.allclose(output, torch.abs(output))
 
 
-# def test_equivariance(get_dataset_options, model_options_factory, get_mapping_idx_to_euler_angles):
-#     """Test that the output of each network pass is equivariant."""
-#     dataset_options = get_dataset_options
-#     model_options = model_options_factory(prediction_mode="coeff_matrix")
-#     model_options['irreps_hidden'] = model_options['irreps_out']
-#     model = ReactionModel(**model_options)
+def test_equivariance(get_dataset_options, network_factory):
+    """Test that the output of each network pass is equivariant."""
 
-#     node_irreps = model.irreps_out
-#     node_irreps = o3.Irreps(node_irreps)
+    def wrapped_model(x, x_final_state, pos, pos_final_state):
 
-#     dataset = ReactionDataset(**dataset_options)
-#     loader = DataLoader(dataset, batch_size=1, shuffle=False)
+        data = Data(
+            x=x,
+            x_final_state=x_final_state,
+            pos=pos,
+            pos_final_state=pos_final_state,
+            batch=batch,
+            basis_mask=basis_mask,
+            p=p,
+            pos_interpolated_transition_state=pos_interpolated_transition_state,
+        )
 
-#     idx_to_euler_angle = get_mapping_idx_to_euler_angles
+        return model(data)
 
-#     for _idx, data in enumerate(loader):
+    dataset_options = get_dataset_options
+    model = network_factory(prediction_mode="coeff_matrix")
+    irreps_in = model.irreps_in
 
-#         output = model(data)
+    irreps_out = model.irreps_out
 
-#         idx = data.identifier[0]
-#         euler_angles = idx_to_euler_angle[idx]
-#         rotation_matrix = RotationMatrix(angle_type="euler", angles=euler_angles)()
+    dataset = ReactionDataset(**dataset_options)
+    loader = DataLoader(dataset, batch_size=1, shuffle=False)
 
-#         if _idx == 0:
-#             rotation_matrix_0 = rotation_matrix
-#             output_0 = output
-#             continue
+    for data in loader:
 
-#         rotation_matrix = rotation_matrix @ rotation_matrix_0.T
+        batch = data.batch
+        basis_mask = data.basis_mask
+        p = data.p
+        pos_interpolated_transition_state = data.pos_interpolated_transition_state
 
-#         D_matrix = node_irreps.D_from_matrix(torch.tensor(rotation_matrix))
-#         D_matrix = D_matrix.detach().numpy()
-
-#         for i in range(output.shape[0]):
-#             rotated_output = output_0[i, :].detach().numpy() @ D_matrix.T
-#             computed_output = output[i, :].detach().numpy()
-#             print(rotated_output)
-#             print(computed_output)
-
-#             difference = np.allclose(rotated_output, computed_output, atol=1e-2)
-#             addition = np.allclose(rotated_output, -computed_output, atol=1e-2)
-#             assert difference or addition
+        equi_info = assert_equivariant(
+            func=wrapped_model,
+            args_in=[data.x, data.x_final_state, data.pos, data.pos_final_state],
+            irreps_in=[irreps_in, irreps_in, "cartesian_points", "cartesian_points"],
+            irreps_out=irreps_out,
+        )

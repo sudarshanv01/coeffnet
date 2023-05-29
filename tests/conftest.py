@@ -4,6 +4,8 @@ from pathlib import Path
 
 from monty.serialization import loadfn
 
+from minimal_basis.model.reaction import ReactionModel
+
 
 @pytest.fixture
 def get_dataset_options(tmp_path):
@@ -72,6 +74,17 @@ def model_options_factory():
         return options
 
     return _model_options_factory
+
+
+@pytest.fixture
+def network_factory(model_options_factory):
+    """Returns the network for different prediction modes."""
+
+    def _network_factory(prediction_mode, **kwargs):
+        options = model_options_factory(prediction_mode, **kwargs)
+        return ReactionModel(**options)
+
+    return _network_factory
 
 
 @pytest.fixture
