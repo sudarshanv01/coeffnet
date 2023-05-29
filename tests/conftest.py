@@ -4,6 +4,10 @@ from pathlib import Path
 
 from monty.serialization import loadfn
 
+import json
+
+import mongomock
+
 from minimal_basis.model.reaction import ReactionModel
 
 
@@ -91,4 +95,35 @@ def network_factory(model_options_factory):
 def get_mapping_idx_to_euler_angles():
     """Read in the idx to euler angles mapping."""
     filename = Path(__file__).parent / "input" / "idx_to_euler_angles.yaml"
+    return loadfn(filename)
+
+
+@pytest.fixture
+def mock_database():
+    """Mock a MongoDatabase for the purposes of testing."""
+
+    documents_file = Path(__file__).parent / "input" / "collection.json"
+
+    db = mongomock.MongoClient().db
+    collection = db.collection
+
+    documents_from_file = json.loads(documents_file.read_text())
+
+    for document in documents_from_file:
+        collection.insert_one(document)
+
+    return db
+
+
+@pytest.fixture
+def dataset_config():
+    """Return the dataset configuration."""
+    filename = Path(__file__).parent / "input" / "dataset.yaml"
+    return loadfn(filename)
+
+
+@pytest.fixture
+def basis_raw():
+    """Get the basis raw data."""
+    filename = Path(__file__).parent / "input" / "basis.json"
     return loadfn(filename)
