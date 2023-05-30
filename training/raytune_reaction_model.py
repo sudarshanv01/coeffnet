@@ -21,8 +21,8 @@ import ray
 from ray import tune
 from ray.air import session, RunConfig
 from ray.air.checkpoint import Checkpoint
-from ray.tune.schedulers import ASHAScheduler
 from ray.air.integrations.wandb import WandbLoggerCallback
+from ray.tune.schedulers import create_scheduler
 
 from e3nn import o3
 
@@ -156,10 +156,13 @@ def main(
         "hidden_d_functions": tune.grid_search([64, 128, 256]),
     }
 
-    scheduler = ASHAScheduler(
+    scheduler = create_scheduler(
+        args.scheduler_name,
         grace_period=grace_period,
         reduction_factor=reduction_factor,
         time_attr="training_iteration",
+        metric="train_loss",
+        mode="min",
     )
 
     config["wandb"] = {
@@ -172,10 +175,7 @@ def main(
             resources={"cpu": 2, "gpu": gpus_per_trial},
         ),
         tune_config=tune.TuneConfig(
-            metric="train_loss",
-            mode="min",
             scheduler=scheduler,
-            num_samples=num_samples,
         ),
         param_space=config,
         run_config=RunConfig(
@@ -251,6 +251,12 @@ def get_command_line_arguments():
         type=str,
         default="coeff_matrix",
         help="Mode of prediction. Can be either 'coeff_matrix' or 'relative_energy'.",
+    )
+    parser.add_argument(
+        "--scheduler_name",
+        type=str,
+        default="asha",
+        help="Scheduler to use. See ray for more details.",
     )
     args = parser.parse_args()
 
