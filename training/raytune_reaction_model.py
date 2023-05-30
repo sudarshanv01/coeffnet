@@ -21,8 +21,8 @@ import ray
 from ray import tune
 from ray.air import session, RunConfig
 from ray.air.checkpoint import Checkpoint
-from ray.tune.schedulers import ASHAScheduler
 from ray.air.integrations.wandb import WandbLoggerCallback
+from ray.tune.schedulers import create_scheduler
 
 from e3nn import o3
 
@@ -83,17 +83,18 @@ def train_model(config: Dict[str, float]):
 
     _inputs = inputs.copy()
     construct_irreps(_inputs)
-    _inputs["model_options"]["irreps_edge_attr"] = f"{config['num_basis']}x0e"
-    _inputs["model_options"]["radial_layers"] = config["radial_layers"]
-    _inputs["model_options"]["max_radius"] = config["max_radius"]
-    _inputs["model_options"]["num_basis"] = config["num_basis"]
-    _inputs["model_options"]["radial_neurons"] = config["radial_neurons"]
-    _inputs["model_options"][
+    model_options = _inputs[f"model_options_{args.prediction_mode}"]
+    model_options["irreps_edge_attr"] = f"{config['num_basis']}x0e"
+    model_options["radial_layers"] = config["radial_layers"]
+    model_options["max_radius"] = config["max_radius"]
+    model_options["num_basis"] = config["num_basis"]
+    model_options["radial_neurons"] = config["radial_neurons"]
+    model_options[
         "irreps_hidden"
     ] = f"{config['hidden_s_functions']}x0e+{config['hidden_p_functions']}x1o+{config['hidden_d_functions']}x2e"
     _inputs["epochs"] = args.max_num_epochs
 
-    model = ReactionModel(**_inputs["model_options"])
+    model = ReactionModel(**_inputs[f"model_options_{args.prediction_mode}"])
     model.to(DEVICE)
 
     optim = torch.optim.Adam(model.parameters(), lr=config["learning_rate"])
@@ -155,10 +156,13 @@ def main(
         "hidden_d_functions": tune.grid_search([64, 128, 256]),
     }
 
-    scheduler = ASHAScheduler(
+    scheduler = create_scheduler(
+        args.scheduler_name,
         grace_period=grace_period,
         reduction_factor=reduction_factor,
         time_attr="training_iteration",
+        metric="train_loss",
+        mode="min",
     )
 
     config["wandb"] = {
@@ -171,10 +175,7 @@ def main(
             resources={"cpu": 2, "gpu": gpus_per_trial},
         ),
         tune_config=tune.TuneConfig(
-            metric="train_loss",
-            mode="min",
             scheduler=scheduler,
-            num_samples=num_samples,
         ),
         param_space=config,
         run_config=RunConfig(
@@ -244,6 +245,18 @@ def get_command_line_arguments():
         type=str,
         default="config/interp_sn2_model.yaml",
         help="Path to the model config file.",
+    )
+    parser.add_argument(
+        "--prediction_mode",
+        type=str,
+        default="coeff_matrix",
+        help="Mode of prediction. Can be either 'coeff_matrix' or 'relative_energy'.",
+    )
+    parser.add_argument(
+        "--scheduler_name",
+        type=str,
+        default="asha",
+        help="Scheduler to use. See ray for more details.",
     )
     args = parser.parse_args()
 

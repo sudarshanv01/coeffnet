@@ -5,6 +5,7 @@ from torch.nn import functional as F
 
 from minimal_basis.dataset.reaction import ReactionDataset as Dataset
 from minimal_basis.model.reaction import ReactionModel as Model
+from minimal_basis.loss.eigenvectors import Unsigned_MSELoss
 
 
 def construct_model_name(model_config: str, debug: bool = False) -> str:
@@ -18,7 +19,7 @@ def construct_model_name(model_config: str, debug: bool = False) -> str:
     return model_name
 
 
-def construct_irreps(inputs: dict) -> None:
+def construct_irreps(inputs: dict, prediction_mode: str) -> None:
     """Construct the inputs if there is an @construct in the inputs.
 
     Args:
@@ -26,73 +27,64 @@ def construct_irreps(inputs: dict) -> None:
 
     """
 
-    if inputs["model_options"]["make_absolute"]:
+    model_options = inputs[f"model_options_{prediction_mode}"]
+
+    if model_options["make_absolute"]:
         parity = "e"
     else:
         parity = "o"
 
     if (
-        inputs["model_options"]["irreps_in"] == "@construct"
+        model_options["irreps_in"] == "@construct"
         and inputs["use_minimal_basis_node_features"]
     ):
-        inputs["model_options"]["irreps_in"] = f"1x0e+1x1{parity}"
+        model_options["irreps_in"] = f"1x0e+1x1{parity}"
     elif (
-        inputs["model_options"]["irreps_in"] == "@construct"
+        model_options["irreps_in"] == "@construct"
         and not inputs["use_minimal_basis_node_features"]
     ):
-        inputs["model_options"][
+        model_options[
             "irreps_in"
         ] = f"{inputs['dataset_options']['max_s_functions']}x0e"
-        inputs["model_options"][
+        model_options[
             "irreps_in"
         ] += f"+{inputs['dataset_options']['max_p_functions']}x1{parity}"
         for i in range(inputs["dataset_options"]["max_d_functions"]):
-            inputs["model_options"]["irreps_in"] += f"+1x2e"
+            model_options["irreps_in"] += f"+1x2e"
     if (
-        inputs["model_options"]["irreps_out"] == "@construct"
+        model_options["irreps_out"] == "@construct"
         and inputs["use_minimal_basis_node_features"]
     ):
-        inputs["model_options"]["irreps_out"] = f"1x0e+1x1{parity}"
+        model_options["irreps_out"] = f"1x0e+1x1{parity}"
     elif (
-        inputs["model_options"]["irreps_out"] == "@construct"
+        model_options["irreps_out"] == "@construct"
         and not inputs["use_minimal_basis_node_features"]
     ):
-        inputs["model_options"][
+        model_options[
             "irreps_out"
         ] = f"{inputs['dataset_options']['max_s_functions']}x0e"
-        inputs["model_options"][
+        model_options[
             "irreps_out"
         ] += f"+{inputs['dataset_options']['max_p_functions']}x1{parity}"
         for i in range(inputs["dataset_options"]["max_d_functions"]):
-            inputs["model_options"]["irreps_out"] += f"+1x2e"
+            model_options["irreps_out"] += f"+1x2e"
 
-    if inputs["model_options"]["irreps_edge_attr"] == "@construct":
-        inputs["model_options"][
-            "irreps_edge_attr"
-        ] = f"{inputs['model_options']['num_basis']}x0e"
+    if model_options["irreps_edge_attr"] == "@construct":
+        model_options["irreps_edge_attr"] = f"{model_options['num_basis']}x0e"
 
 
-def coeff2density_loss(data, predicted_y, do_backward=True):
+def signed_coeff_matrix_loss(data, predicted_y, do_backward=True):
     """Get the loss when converting the coefficient matrix to the density."""
 
     real_y = data.x_transition_state
+    batch = data.batch
+    batch_size = data.num_graphs
 
-    for i in range(data.num_graphs):
-        real_c_ij = real_y[data.batch == i]
-        predicted_c_ij = predicted_y[data.batch == i]
+    loss = Unsigned_MSELoss()(predicted_y, real_y, batch, batch_size, reduction="sum")
+    if do_backward:
+        loss.backward()
 
-        loss_positive = F.mse_loss(predicted_c_ij, real_c_ij, reduction="sum")
-        loss_negative = F.mse_loss(-predicted_c_ij, real_c_ij, reduction="sum")
-
-        if loss_positive.item() < loss_negative.item():
-            loss = loss_positive
-        else:
-            loss = loss_negative
-
-        if do_backward:
-            loss.backward(retain_graph=True)
-
-        yield loss.item()
+    return loss.item()
 
 
 def relative_energy_loss(data, predicted_y, do_backward=True):
@@ -103,12 +95,14 @@ def relative_energy_loss(data, predicted_y, do_backward=True):
     loss = F.l1_loss(predicted_y, real_y, reduction="sum")
 
     if do_backward:
-        loss.backward(retain_graph=True)
+        loss.backward()
 
     return loss.item()
 
 
-def train(model: Model, train_loader: DataLoader, optim, inputs: dict) -> float:
+def train(
+    model: Model, train_loader: DataLoader, optim, inputs: dict, prediction_mode: str
+) -> float:
     """Train the model."""
 
     model.train()
@@ -120,14 +114,12 @@ def train(model: Model, train_loader: DataLoader, optim, inputs: dict) -> float:
         optim.zero_grad()
         predicted_y = model(data)
 
-        if inputs["prediction_mode"] == "coeff_matrix":
-            losses += sum(coeff2density_loss(data, predicted_y))
-        elif inputs["prediction_mode"] == "relative_energy":
+        if prediction_mode == "coeff_matrix":
+            losses += signed_coeff_matrix_loss(data, predicted_y)
+        elif prediction_mode == "relative_energy":
             losses += relative_energy_loss(data, predicted_y)
         else:
-            raise ValueError(
-                f"Prediction mode {inputs['prediction_mode']} not recognized."
-            )
+            raise ValueError(f"Prediction mode {prediction_mode} not recognized.")
 
         num_graphs += data.num_graphs
         optim.step()
@@ -138,7 +130,9 @@ def train(model: Model, train_loader: DataLoader, optim, inputs: dict) -> float:
 
 
 @torch.no_grad()
-def validate(model: Model, val_loader: DataLoader, inputs: dict) -> float:
+def validate(
+    model: Model, val_loader: DataLoader, inputs: dict, prediction_mode: str
+) -> float:
     """Validate the model."""
     model.eval()
 
@@ -148,14 +142,12 @@ def validate(model: Model, val_loader: DataLoader, inputs: dict) -> float:
     for data in val_loader:
         predicted_y = model(data)
 
-        if inputs["prediction_mode"] == "coeff_matrix":
-            losses += sum(coeff2density_loss(data, predicted_y, do_backward=False))
-        elif inputs["prediction_mode"] == "relative_energy":
+        if prediction_mode == "coeff_matrix":
+            losses += signed_coeff_matrix_loss(data, predicted_y, do_backward=False)
+        elif prediction_mode == "relative_energy":
             losses += relative_energy_loss(data, predicted_y, do_backward=False)
         else:
-            raise ValueError(
-                f"Prediction mode {inputs['prediction_mode']} not recognized."
-            )
+            raise ValueError(f"Prediction mode {prediction_mode} not recognized.")
 
         num_graphs += data.num_graphs
 
