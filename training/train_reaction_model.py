@@ -51,6 +51,12 @@ def get_command_line_arguments() -> argparse.Namespace:
         help="Path to the model config file.",
     )
     parser.add_argument(
+        "--prediction_mode",
+        type=str,
+        default="coeff_matrix",
+        help="Mode of prediction. Can be either 'coeff_matrix' or 'relative_energy'.",
+    )
+    parser.add_argument(
         "--wandb_username",
         type=str,
         default="sudarshanvj",
@@ -76,15 +82,11 @@ if __name__ == "__main__":
     logger.info(f"Device: {DEVICE}")
 
     inputs = read_inputs_yaml(os.path.join(args.model_config))
-    construct_irreps(inputs)
+    construct_irreps(inputs, prediction_mode=args.prediction_mode)
     transform = T.ToDevice(DEVICE)
 
     wandb.init(project=model_name, entity=args.wandb_username)
-    wandb.config = {
-        "learning_rate": inputs["learning_rate"],
-        "epochs": inputs["epochs"],
-        "batch_size": inputs["batch_size"],
-    }
+    wandb.config.update(args)
 
     if args.debug:
         train_json_filename = inputs["debug_train_json"]
@@ -126,7 +128,7 @@ if __name__ == "__main__":
         validate_dataset, batch_size=len(validate_dataset), shuffle=False
     )
 
-    model = Model(**inputs["model_options"])
+    model = Model(**inputs[f"model_options_{args.prediction_mode}"])
     model = model.to(DEVICE)
 
     wandb.watch(model)
@@ -135,9 +137,18 @@ if __name__ == "__main__":
 
     for epoch in range(1, inputs["epochs"] + 1):
         train_loss = train(
-            train_loader=train_loader, model=model, optim=optim, inputs=inputs
+            train_loader=train_loader,
+            model=model,
+            optim=optim,
+            inputs=inputs,
+            prediction_mode=args.prediction_mode,
         )
-        validate_loss = validate(val_loader=validate_loader, model=model, inputs=inputs)
+        validate_loss = validate(
+            val_loader=validate_loader,
+            model=model,
+            inputs=inputs,
+            prediction_mode=args.prediction_mode,
+        )
 
         wandb.log({"train_loss": train_loss})
         wandb.log({"val_loss": validate_loss})

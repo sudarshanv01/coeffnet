@@ -23,11 +23,9 @@ dataset_options:
   calculated_using_cartesian_basis: true
   is_minimal_basis: true
 
-# use_minimal_basis_node_features: true
 use_minimal_basis_node_features: false
 
-prediction_mode: "relative_energy"
-model_options:
+model_options_relative_energy:
   irreps_in: "@construct"
   irreps_hidden: "64x0e+288x1o"
   irreps_out: "@construct"
@@ -45,20 +43,19 @@ model_options:
   mask_extra_basis: true
   normalize_sumsq: true
 
-#prediction_mode: "coeff_matrix"
-#model_options:
-# irreps_in: "@construct"
-# irreps_hidden: "64x0e+288x1o"
-# irreps_out: "@construct"
-# irreps_node_attr: "1x0e"
-# irreps_edge_attr: "@construct"
-# radial_layers: 2
-# radial_neurons: 64
-# max_radius: 5
-# num_basis: 12
-# num_neighbors: 4
-# typical_number_of_nodes: 12
-# reduce_output: false
-# make_absolute: false 
-# mask_extra_basis: true
-# normalize_sumsq: true
+model_options_coeff_matrix:
+  irreps_in: "@construct"
+  irreps_hidden: "64x0e+288x1o"
+  irreps_out: "@construct"
+  irreps_node_attr: "1x0e"
+  irreps_edge_attr: "@construct"
+  radial_layers: 2
+  radial_neurons: 64
+  max_radius: 5
+  num_basis: 12
+  num_neighbors: 4
+  typical_number_of_nodes: 12
+  reduce_output: false
+  make_absolute: false 
+  mask_extra_basis: true
+  normalize_sumsq: true
