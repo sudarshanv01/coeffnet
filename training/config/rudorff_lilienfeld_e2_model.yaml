@@ -15,7 +15,7 @@ dataset_options:
   max_s_functions: 5
   max_p_functions: 4
   max_d_functions: 0
-  idx_eigenvalue: 1
+  idx_eigenvalue: 0
   reactant_tag: "perturbed_molecule_-0_5_molecule"
   product_tag: "perturbed_molecule_0_5_molecule"
   transition_state_tag: "transition_state_molecule"
