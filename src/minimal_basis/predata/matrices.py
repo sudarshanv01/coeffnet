@@ -192,6 +192,19 @@ class ReducedBasisMatrices(BaseMatrices):
             self.set_reduced_overlap_matrix()
             self.set_reduced_fock_matrix()
             self.set_reduced_coeff_matrix_and_eigenvalues()
+        elif len(self.indices_to_keep) == self.coeff_matrix.shape[0]:
+            # If the number of basis functions to keep is the same as the
+            # number of basis functions in the original basis set, then
+            # the matrices are the same as the original matrices, only the
+            # ordering may be different
+            self.get_overlap_matrix()
+            self.overlap_matrix = self.overlap_matrix[self.indices_to_keep, :][
+                :, self.indices_to_keep
+            ]
+            self.fock_matrix = self.fock_matrix[self.indices_to_keep, :][
+                :, self.indices_to_keep
+            ]
+            self.coeff_matrix = self.coeff_matrix[self.indices_to_keep, :]
 
     def set_reduced_overlap_matrix(
         self,

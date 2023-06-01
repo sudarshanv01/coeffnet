@@ -1,9 +1,9 @@
 import logging
-import yaml
-import copy
 import argparse
 
 from bson.objectid import ObjectId
+
+import numpy as np
 
 from pymatgen.core import Molecule
 
@@ -14,7 +14,7 @@ from fireworks import LaunchPad, Workflow
 
 from instance_mongodb import instance_mongodb_sei
 
-lp = LaunchPad.from_file("/global/u1/s/svijay/fw_config/my_launchpad_mlts.yaml")
+lp = LaunchPad.from_file("/Users/sudarshanvijay/fw_config/my_launchpad_mlts.yaml")
 
 
 def get_cli():
@@ -57,9 +57,24 @@ if __name__ == "__main__":
         tags = {
             "euler_angles": document["euler_angles"],
             "idx": document["idx"],
+            "inverted_coordinates": True,
         }
 
         molecule = Molecule.from_dict(document["molecule"])
+
+        # Invert the coordinates of the molecule.
+        coordinates = np.array(molecule.cart_coords)
+        # Create permutted coordinates
+        _coordinates = coordinates.copy()
+        _coordinates[:, [0, 1, 2]] = _coordinates[:, [2, 0, 1]]
+
+        # Create a new molecule with the inverted coordinates.
+        molecule = Molecule(
+            species=molecule.species,
+            coords=_coordinates,
+            charge=molecule.charge,
+            spin_multiplicity=molecule.spin_multiplicity,
+        )
 
         count_structures += 1
 
