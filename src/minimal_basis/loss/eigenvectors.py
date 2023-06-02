@@ -14,11 +14,11 @@ class Unsigned_MSELoss(nn.Module):
         super(Unsigned_MSELoss, self).__init__()
 
     @staticmethod
-    def determine_best_sign(_input, _target, batch, batch_size):
+    def determine_best_sign(_input, _target, _batch, batch_size):
         """Determine the best sign combination for the input."""
         sign_combinations = itertools.product([1, -1], repeat=batch_size)
         sign_combinations = np.array(list(sign_combinations))
-        signed = sign_combinations[:, batch]
+        signed = sign_combinations[:, _batch]
 
         signed = signed.reshape(-1, signed.shape[-1], 1)
         signed_input = _input * signed
@@ -41,7 +41,8 @@ class Unsigned_MSELoss(nn.Module):
         """
         _input = input.detach().cpu().numpy()
         _target = target.detach().cpu().numpy()
-        signs = self.determine_best_sign(_input, _target, batch, batch_size)
+        _batch = batch.detach().cpu().numpy()
+        signs = self.determine_best_sign(_input, _target, _batch, batch_size)
         signs = torch.tensor(signs, dtype=torch.float32, device=input.device)
         true_signed_input = input * signs
         loss = F.mse_loss(true_signed_input, target, reduction=reduction)
