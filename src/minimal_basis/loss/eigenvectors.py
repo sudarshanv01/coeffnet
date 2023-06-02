@@ -39,12 +39,40 @@ class Unsigned_MSELoss(nn.Module):
             batch (int): The index of the graph in the batch.
             batch_size (int): The size of the batch.
         """
+        DEVICE = input.device
+        total_memory = torch.cuda.get_device_properties(DEVICE).total_memory
+        memory_allocated = torch.cuda.memory_allocated(DEVICE)
+        fraction_memory_allocated = memory_allocated / total_memory
+        print(f"Memory allocated: {fraction_memory_allocated:.2f}")
+
         _input = input.detach().cpu().numpy()
         _target = target.detach().cpu().numpy()
         _batch = batch.detach().cpu().numpy()
         signs = self.determine_best_sign(_input, _target, _batch, batch_size)
+
+        DEVICE = input.device
+        total_memory = torch.cuda.get_device_properties(DEVICE).total_memory
+        memory_allocated = torch.cuda.memory_allocated(DEVICE)
+        fraction_memory_allocated = memory_allocated / total_memory
+        print(f"Memory allocated: {fraction_memory_allocated:.2f}")
+
         signs = torch.tensor(signs, dtype=torch.float32, device=input.device)
+
+        DEVICE = input.device
+        total_memory = torch.cuda.get_device_properties(DEVICE).total_memory
+        memory_allocated = torch.cuda.memory_allocated(DEVICE)
+        fraction_memory_allocated = memory_allocated / total_memory
+        print(f"Memory allocated: {fraction_memory_allocated:.2f}")
+
         true_signed_input = input * signs
         loss = F.mse_loss(true_signed_input, target, reduction=reduction)
+
+        DEVICE = input.device
+        total_memory = torch.cuda.get_device_properties(DEVICE).total_memory
+        memory_allocated = torch.cuda.memory_allocated(DEVICE)
+        fraction_memory_allocated = memory_allocated / total_memory
+        print(f"Memory allocated: {fraction_memory_allocated:.2f}")
+
+        print("----")
 
         return loss

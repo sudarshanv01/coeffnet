@@ -136,10 +136,6 @@ if __name__ == "__main__":
     optim = torch.optim.Adam(model.parameters(), lr=inputs["learning_rate"])
 
     for epoch in range(1, inputs["epochs"] + 1):
-        total_memory = torch.cuda.get_device_properties(DEVICE).total_memory
-        memory_allocated = torch.cuda.memory_allocated(DEVICE)
-        fraction_memory_allocated = memory_allocated / total_memory
-        print(f"Memory allocated: {fraction_memory_allocated:.2f}")
 
         train_loss = train(
             train_loader=train_loader,
