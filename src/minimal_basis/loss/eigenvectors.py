@@ -16,14 +16,15 @@ class Unsigned_MSELoss(nn.Module):
 
         sign_combinations = itertools.product([1, -1], repeat=batch_size)
 
-        losses = []
-        for signs in sign_combinations:
+        for idx, signs in enumerate(sign_combinations):
             signed = torch.zeros_like(batch)
             signed = signed.reshape(-1, 1)
             for i, sign in enumerate(signs):
                 signed[batch == i] = sign
             signed_input = input * signed
-            loss = nn.MSELoss(reduction=reduction)(signed_input, target)
-            losses.append(loss)
-        min_loss = min(losses)
-        return min_loss
+            _loss = nn.MSELoss(reduction=reduction)(signed_input, target)
+            if idx == 0:
+                loss = _loss
+            else:
+                loss = torch.min(loss, _loss)
+        return loss
