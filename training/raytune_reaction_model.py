@@ -114,10 +114,15 @@ def train_model(config: Dict[str, float]):
         logger.info(f"Epoch {epoch}")
 
         train_loss = train(
-            train_loader=train_loader, model=model, optim=optim, inputs=_inputs
+            train_loader=train_loader,
+            model=model,
+            optim=optim,
+            prediction_mode=args.prediction_mode,
         )
         validate_loss = validate(
-            val_loader=validate_loader, model=model, inputs=_inputs
+            val_loader=validate_loader,
+            model=model,
+            prediction_mode=args.prediction_mode,
         )
         session.report(
             {"validate_loss": validate_loss, "train_loss": train_loss},
@@ -145,10 +150,6 @@ def main(
     config = {
         "batch_size": tune.grid_search([16, 32, 64]),
         "learning_rate": tune.grid_search([1e-4, 1e-3, 1e-2, 1e-1]),
-        "radial_layers": tune.grid_search([2, 4]),
-        "max_radius": tune.grid_search([2, 4, 6]),
-        "num_basis": tune.grid_search([4, 8, 12]),
-        "radial_neurons": tune.grid_search([32, 64, 128]),
         "hidden_s_functions": tune.grid_search([64, 128, 256]),
         "hidden_p_functions": tune.grid_search([64, 128, 256]),
         "hidden_d_functions": tune.grid_search([64, 128, 256]),
