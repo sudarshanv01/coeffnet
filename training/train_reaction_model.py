@@ -125,7 +125,7 @@ if __name__ == "__main__":
         train_dataset, batch_size=inputs["batch_size"], shuffle=True
     )
     validate_loader = DataLoader(
-        validate_dataset, batch_size=len(validate_dataset), shuffle=False
+        validate_dataset, batch_size=inputs["batch_size"], shuffle=False
     )
 
     model = Model(**inputs[f"model_options_{args.prediction_mode}"])
@@ -136,17 +136,16 @@ if __name__ == "__main__":
     optim = torch.optim.Adam(model.parameters(), lr=inputs["learning_rate"])
 
     for epoch in range(1, inputs["epochs"] + 1):
+
         train_loss = train(
             train_loader=train_loader,
             model=model,
             optim=optim,
-            inputs=inputs,
             prediction_mode=args.prediction_mode,
         )
         validate_loss = validate(
             val_loader=validate_loader,
             model=model,
-            inputs=inputs,
             prediction_mode=args.prediction_mode,
         )
 

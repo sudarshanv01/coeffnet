@@ -5,7 +5,7 @@ from torch.nn import functional as F
 
 from minimal_basis.dataset.reaction import ReactionDataset as Dataset
 from minimal_basis.model.reaction import ReactionModel as Model
-from minimal_basis.loss.eigenvectors import Unsigned_MSELoss
+from minimal_basis.loss.eigenvectors import UnsignedMSELoss
 
 
 def construct_model_name(model_config: str, debug: bool = False) -> str:
@@ -80,7 +80,7 @@ def signed_coeff_matrix_loss(data, predicted_y, do_backward=True):
     batch = data.batch
     batch_size = data.num_graphs
 
-    loss = Unsigned_MSELoss()(predicted_y, real_y, batch, batch_size, reduction="sum")
+    loss = UnsignedMSELoss()(predicted_y, real_y, batch, batch_size)
     if do_backward:
         loss.backward()
 
@@ -100,9 +100,7 @@ def relative_energy_loss(data, predicted_y, do_backward=True):
     return loss.item()
 
 
-def train(
-    model: Model, train_loader: DataLoader, optim, inputs: dict, prediction_mode: str
-) -> float:
+def train(model: Model, train_loader: DataLoader, optim, prediction_mode: str) -> float:
     """Train the model."""
 
     model.train()
@@ -110,7 +108,7 @@ def train(
     losses = 0.0
     num_graphs = 0
 
-    for data in train_loader:
+    for idx, data in enumerate(train_loader):
         optim.zero_grad()
         predicted_y = model(data)
 
@@ -130,16 +128,14 @@ def train(
 
 
 @torch.no_grad()
-def validate(
-    model: Model, val_loader: DataLoader, inputs: dict, prediction_mode: str
-) -> float:
+def validate(model: Model, val_loader: DataLoader, prediction_mode: str) -> float:
     """Validate the model."""
     model.eval()
 
     losses = 0.0
     num_graphs = 0
 
-    for data in val_loader:
+    for idx, data in enumerate(val_loader):
         predicted_y = model(data)
 
         if prediction_mode == "coeff_matrix":

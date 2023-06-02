@@ -79,16 +79,11 @@ def train_model(config: Dict[str, float]):
     train_loader = DataLoader(
         train_dataset, batch_size=config["batch_size"], shuffle=True
     )
-    validate_loader = DataLoader(validate_dataset, len(validate_dataset), shuffle=True)
+    validate_loader = DataLoader(validate_dataset, config["batch_size"], shuffle=True)
 
     _inputs = inputs.copy()
-    construct_irreps(_inputs)
+    construct_irreps(_inputs, prediction_mode=args.prediction_mode)
     model_options = _inputs[f"model_options_{args.prediction_mode}"]
-    model_options["irreps_edge_attr"] = f"{config['num_basis']}x0e"
-    model_options["radial_layers"] = config["radial_layers"]
-    model_options["max_radius"] = config["max_radius"]
-    model_options["num_basis"] = config["num_basis"]
-    model_options["radial_neurons"] = config["radial_neurons"]
     model_options[
         "irreps_hidden"
     ] = f"{config['hidden_s_functions']}x0e+{config['hidden_p_functions']}x1o+{config['hidden_d_functions']}x2e"
@@ -114,10 +109,15 @@ def train_model(config: Dict[str, float]):
         logger.info(f"Epoch {epoch}")
 
         train_loss = train(
-            train_loader=train_loader, model=model, optim=optim, inputs=_inputs
+            train_loader=train_loader,
+            model=model,
+            optim=optim,
+            prediction_mode=args.prediction_mode,
         )
         validate_loss = validate(
-            val_loader=validate_loader, model=model, inputs=_inputs
+            val_loader=validate_loader,
+            model=model,
+            prediction_mode=args.prediction_mode,
         )
         session.report(
             {"validate_loss": validate_loss, "train_loss": train_loss},
@@ -136,9 +136,8 @@ def train_model(config: Dict[str, float]):
 
 
 def main(
-    num_samples: int = 1,
-    max_num_epochs: int = 100,
     gpus_per_trial: int = 1,
+    cpus_per_trial: int = 32,
     grace_period: int = 5,
     reduction_factor: int = 2,
 ):
@@ -147,10 +146,6 @@ def main(
     config = {
         "batch_size": tune.grid_search([16, 32, 64]),
         "learning_rate": tune.grid_search([1e-4, 1e-3, 1e-2, 1e-1]),
-        "radial_layers": tune.grid_search([2, 4]),
-        "max_radius": tune.grid_search([2, 4, 6]),
-        "num_basis": tune.grid_search([4, 8, 12]),
-        "radial_neurons": tune.grid_search([32, 64, 128]),
         "hidden_s_functions": tune.grid_search([64, 128, 256]),
         "hidden_p_functions": tune.grid_search([64, 128, 256]),
         "hidden_d_functions": tune.grid_search([64, 128, 256]),
@@ -172,7 +167,7 @@ def main(
     tuner = tune.Tuner(
         tune.with_resources(
             tune.with_parameters(train_model),
-            resources={"cpu": 2, "gpu": gpus_per_trial},
+            resources={"cpu": cpus_per_trial, "gpu": gpus_per_trial},
         ),
         tune_config=tune.TuneConfig(
             scheduler=scheduler,
@@ -215,12 +210,6 @@ def get_command_line_arguments():
         type=str,
         default="output",
         help="Name of the output directory.",
-    )
-    parser.add_argument(
-        "--num_samples",
-        type=int,
-        default=1,
-        help="Number of samples to run.",
     )
     parser.add_argument(
         "--max_num_epochs",
@@ -280,8 +269,4 @@ if __name__ == "__main__":
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
 
-    main(
-        num_samples=args.num_samples,
-        max_num_epochs=args.max_num_epochs,
-        gpus_per_trial=1,
-    )
+    main()
