@@ -9,22 +9,25 @@ class Unsigned_MSELoss(nn.Module):
     def __init__(self):
         super(Unsigned_MSELoss, self).__init__()
 
-    def forward(self, input, target, batch, batch_size, reduction="sum"):
+    def forward(self, input, target, batch, batch_size):
         """Since eigenvectors are accurate only upto a sign change, we need to
         make sure that the loss is calculated correctly. This function takes
-        care of that for multiple graphs in batch."""
+        care of that for multiple graphs in batch.
+
+        Args:
+            input (torch.Tensor): The predicted eigenvectors.
+            target (torch.Tensor): The ground truth eigenvectors.
+            batch (int): The index of the graph in the batch.
+            batch_size (int): The size of the batch.
+        """
 
         sign_combinations = itertools.product([1, -1], repeat=batch_size)
+        sign_combinations = list(sign_combinations)
+        signs = torch.tensor(sign_combinations, dtype=input.dtype, device=input.device)
+        signed = signs[:, batch]
+        signed = signed.reshape(-1, signed.shape[-1], 1)
+        signed_input = input * signed
+        loss = torch.sum((signed_input - target) ** 2, dim=(1, 2))
+        loss = torch.min(loss)
 
-        for idx, signs in enumerate(sign_combinations):
-            signed = torch.zeros_like(batch)
-            signed = signed.reshape(-1, 1)
-            for i, sign in enumerate(signs):
-                signed[batch == i] = sign
-            signed_input = input * signed
-            _loss = nn.MSELoss(reduction=reduction)(signed_input, target)
-            if idx == 0:
-                loss = _loss
-            else:
-                loss = torch.min(loss, _loss)
         return loss
