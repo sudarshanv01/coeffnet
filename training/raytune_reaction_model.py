@@ -79,7 +79,7 @@ def train_model(config: Dict[str, float]):
     train_loader = DataLoader(
         train_dataset, batch_size=config["batch_size"], shuffle=True
     )
-    validate_loader = DataLoader(validate_dataset, len(validate_dataset), shuffle=True)
+    validate_loader = DataLoader(validate_dataset, config["batch_size"], shuffle=True)
 
     _inputs = inputs.copy()
     construct_irreps(_inputs, prediction_mode=args.prediction_mode)
