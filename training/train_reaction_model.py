@@ -125,7 +125,7 @@ if __name__ == "__main__":
         train_dataset, batch_size=inputs["batch_size"], shuffle=True
     )
     validate_loader = DataLoader(
-        validate_dataset, batch_size=len(validate_dataset), shuffle=False
+        validate_dataset, batch_size=inputs["batch_size"], shuffle=False
     )
 
     model = Model(**inputs[f"model_options_{args.prediction_mode}"])
