@@ -124,6 +124,7 @@ def train(model: Model, train_loader: DataLoader, optim, prediction_mode: str) -
         optim.step()
 
     output_metric = losses / num_graphs
+    print(f"Training loss: {output_metric}")
 
     return output_metric
 
@@ -136,11 +137,12 @@ def validate(model: Model, val_loader: DataLoader, prediction_mode: str) -> floa
     losses = 0.0
     num_graphs = 0
 
-    for data in val_loader:
+    for idx, data in enumerate(val_loader):
         predicted_y = model(data)
 
         if prediction_mode == "coeff_matrix":
             losses += signed_coeff_matrix_loss(data, predicted_y, do_backward=False)
+            print(idx, losses)
         elif prediction_mode == "relative_energy":
             losses += relative_energy_loss(data, predicted_y, do_backward=False)
         else:

@@ -143,6 +143,7 @@ if __name__ == "__main__":
             optim=optim,
             prediction_mode=args.prediction_mode,
         )
+        print("finished training for epoch")
         validate_loss = validate(
             val_loader=validate_loader,
             model=model,
