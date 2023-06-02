@@ -100,9 +100,7 @@ def relative_energy_loss(data, predicted_y, do_backward=True):
     return loss.item()
 
 
-def train(
-    model: Model, train_loader: DataLoader, optim, inputs: dict, prediction_mode: str
-) -> float:
+def train(model: Model, train_loader: DataLoader, optim, prediction_mode: str) -> float:
     """Train the model."""
 
     model.train()
@@ -130,9 +128,7 @@ def train(
 
 
 @torch.no_grad()
-def validate(
-    model: Model, val_loader: DataLoader, inputs: dict, prediction_mode: str
-) -> float:
+def validate(model: Model, val_loader: DataLoader, prediction_mode: str) -> float:
     """Validate the model."""
     model.eval()
 

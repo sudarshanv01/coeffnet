@@ -141,13 +141,11 @@ if __name__ == "__main__":
             train_loader=train_loader,
             model=model,
             optim=optim,
-            inputs=inputs,
             prediction_mode=args.prediction_mode,
         )
         validate_loss = validate(
             val_loader=validate_loader,
             model=model,
-            inputs=inputs,
             prediction_mode=args.prediction_mode,
         )
 
