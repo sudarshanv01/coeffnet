@@ -83,7 +83,6 @@ def signed_coeff_matrix_loss(data, predicted_y, do_backward=True):
     loss = Unsigned_MSELoss()(predicted_y, real_y, batch, batch_size)
     if do_backward:
         loss.backward()
-    print(loss.shape)
 
     return loss.item()
 
@@ -109,12 +108,13 @@ def train(model: Model, train_loader: DataLoader, optim, prediction_mode: str) -
     losses = 0.0
     num_graphs = 0
 
-    for data in train_loader:
+    for idx, data in enumerate(train_loader):
         optim.zero_grad()
         predicted_y = model(data)
 
         if prediction_mode == "coeff_matrix":
             losses += signed_coeff_matrix_loss(data, predicted_y)
+            print(idx, losses)
         elif prediction_mode == "relative_energy":
             losses += relative_energy_loss(data, predicted_y)
         else:
