@@ -83,6 +83,7 @@ def signed_coeff_matrix_loss(data, predicted_y, do_backward=True):
     loss = Unsigned_MSELoss()(predicted_y, real_y, batch, batch_size)
     if do_backward:
         loss.backward()
+    print(loss.shape)
 
     return loss.item()
 

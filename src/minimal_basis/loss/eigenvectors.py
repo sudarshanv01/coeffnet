@@ -50,4 +50,7 @@ class Unsigned_MSELoss(nn.Module):
         true_signed_input = input * signs
         loss = F.mse_loss(true_signed_input, target, reduction=reduction)
         del true_signed_input
+        total_memory = torch.cuda.get_device_properties(0).total_memory
+        free_memory = torch.cuda.memory_reserved(0) - torch.cuda.memory_allocated(0)
+        print(f"Free memory: {free_memory/total_memory*100:.2f}%")
         return loss
