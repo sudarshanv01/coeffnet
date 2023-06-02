@@ -84,11 +84,6 @@ def train_model(config: Dict[str, float]):
     _inputs = inputs.copy()
     construct_irreps(_inputs, prediction_mode=args.prediction_mode)
     model_options = _inputs[f"model_options_{args.prediction_mode}"]
-    model_options["irreps_edge_attr"] = f"{config['num_basis']}x0e"
-    model_options["radial_layers"] = config["radial_layers"]
-    model_options["max_radius"] = config["max_radius"]
-    model_options["num_basis"] = config["num_basis"]
-    model_options["radial_neurons"] = config["radial_neurons"]
     model_options[
         "irreps_hidden"
     ] = f"{config['hidden_s_functions']}x0e+{config['hidden_p_functions']}x1o+{config['hidden_d_functions']}x2e"
