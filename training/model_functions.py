@@ -5,7 +5,7 @@ from torch.nn import functional as F
 
 from minimal_basis.dataset.reaction import ReactionDataset as Dataset
 from minimal_basis.model.reaction import ReactionModel as Model
-from minimal_basis.loss.eigenvectors import Unsigned_MSELoss
+from minimal_basis.loss.eigenvectors import UnsignedMSELoss
 
 
 def construct_model_name(model_config: str, debug: bool = False) -> str:
@@ -80,7 +80,7 @@ def signed_coeff_matrix_loss(data, predicted_y, do_backward=True):
     batch = data.batch
     batch_size = data.num_graphs
 
-    loss = Unsigned_MSELoss()(predicted_y, real_y, batch, batch_size)
+    loss = UnsignedMSELoss()(predicted_y, real_y, batch, batch_size)
     if do_backward:
         loss.backward()
 
@@ -114,7 +114,6 @@ def train(model: Model, train_loader: DataLoader, optim, prediction_mode: str) -
 
         if prediction_mode == "coeff_matrix":
             losses += signed_coeff_matrix_loss(data, predicted_y)
-            print(idx, losses)
         elif prediction_mode == "relative_energy":
             losses += relative_energy_loss(data, predicted_y)
         else:
@@ -124,7 +123,6 @@ def train(model: Model, train_loader: DataLoader, optim, prediction_mode: str) -
         optim.step()
 
     output_metric = losses / num_graphs
-    print(f"Training loss: {output_metric}")
 
     return output_metric
 
@@ -142,7 +140,6 @@ def validate(model: Model, val_loader: DataLoader, prediction_mode: str) -> floa
 
         if prediction_mode == "coeff_matrix":
             losses += signed_coeff_matrix_loss(data, predicted_y, do_backward=False)
-            print(idx, losses)
         elif prediction_mode == "relative_energy":
             losses += relative_energy_loss(data, predicted_y, do_backward=False)
         else:
