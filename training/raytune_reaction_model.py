@@ -136,8 +136,6 @@ def train_model(config: Dict[str, float]):
 
 
 def main(
-    num_samples: int = 1,
-    max_num_epochs: int = 100,
     gpus_per_trial: int = 1,
     grace_period: int = 5,
     reduction_factor: int = 2,
@@ -217,12 +215,6 @@ def get_command_line_arguments():
         help="Name of the output directory.",
     )
     parser.add_argument(
-        "--num_samples",
-        type=int,
-        default=1,
-        help="Number of samples to run.",
-    )
-    parser.add_argument(
         "--max_num_epochs",
         type=int,
         default=200,
@@ -280,8 +272,4 @@ if __name__ == "__main__":
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
 
-    main(
-        num_samples=args.num_samples,
-        max_num_epochs=args.max_num_epochs,
-        gpus_per_trial=1,
-    )
+    main(gpus_per_trial=1)
