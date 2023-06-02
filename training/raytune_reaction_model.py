@@ -137,6 +137,7 @@ def train_model(config: Dict[str, float]):
 
 def main(
     gpus_per_trial: int = 1,
+    cpus_per_trial: int = 32,
     grace_period: int = 5,
     reduction_factor: int = 2,
 ):
@@ -166,7 +167,7 @@ def main(
     tuner = tune.Tuner(
         tune.with_resources(
             tune.with_parameters(train_model),
-            resources={"cpu": 2, "gpu": gpus_per_trial},
+            resources={"cpu": cpus_per_trial, "gpu": gpus_per_trial},
         ),
         tune_config=tune.TuneConfig(
             scheduler=scheduler,
@@ -268,4 +269,4 @@ if __name__ == "__main__":
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
 
-    main(gpus_per_trial=1)
+    main()
