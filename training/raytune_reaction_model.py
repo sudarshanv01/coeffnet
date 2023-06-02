@@ -82,7 +82,7 @@ def train_model(config: Dict[str, float]):
     validate_loader = DataLoader(validate_dataset, len(validate_dataset), shuffle=True)
 
     _inputs = inputs.copy()
-    construct_irreps(_inputs)
+    construct_irreps(_inputs, prediction_mode=args.prediction_mode)
     model_options = _inputs[f"model_options_{args.prediction_mode}"]
     model_options["irreps_edge_attr"] = f"{config['num_basis']}x0e"
     model_options["radial_layers"] = config["radial_layers"]
