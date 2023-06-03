@@ -39,6 +39,10 @@ def cart_to_sph_d():
         ]
     )
 
+    norm = norm_cart_d_gauss(1.0)
+
+    cmat = cmat * norm
+
     return cmat
 
 

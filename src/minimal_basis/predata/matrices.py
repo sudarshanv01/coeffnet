@@ -17,6 +17,8 @@ import tqdm
 
 import random
 
+from minimal_basis.predata.cart_to_sph import cart_to_sph_d, norm_cart_d_gauss
+
 logger = logging.getLogger(__name__)
 
 
@@ -268,8 +270,90 @@ class ReducedBasisMatrices(BaseMatrices):
         self.eigenvalues = eigenvalues
 
 
-class TaskdocsToData:
+class SphericalBaseMatrices(ReducedBasisMatrices):
+    def __init__(
+        self,
+        fock_matrix: npt.ArrayLike,
+        eigenvalues: npt.ArrayLike,
+        coeff_matrix: npt.ArrayLike,
+        indices_s_orbitals: List[int],
+        indices_p_orbitals: List[List[int]],
+        indices_d_orbitals: List[List[int]],
+        contains_cartesian_d_functions: bool = False,
+        indices_to_keep: List[int] = None,
+        **kwargs: Any,
+    ):
+        """Get the matrices in spherical basis."""
+        super().__init__(
+            fock_matrix, eigenvalues, coeff_matrix, indices_to_keep=indices_to_keep
+        )
 
+        self.indices_s_orbitals = indices_s_orbitals
+        self.indices_p_orbitals = indices_p_orbitals
+        self.indices_d_orbitals = indices_d_orbitals
+        self.contains_cartesian_d_functions = contains_cartesian_d_functions
+        self.projector_d_orbitals = cart_to_sph_d()
+
+        self._generate_overlap_matrix()
+        self._generate_orthogonalization_matrix()
+        self._generate_orthogonal_fock_matrix()
+        self._generate_orthogonal_coeff_matrix()
+
+        self.spherical_ortho_coeff_matrix = None
+
+    def get_spherical_ortho_coeff_matrix(self):
+        """Get the orthogonal coefficient matrix in spherical basis."""
+        if self.spherical_ortho_coeff_matrix is None:
+            if self.contains_cartesian_d_functions:
+                self._generate_spherical_ortho_coeff_matrix()
+            else:
+                self.spherical_ortho_coeff_matrix = self.ortho_coeff_matrix
+
+        return self.spherical_ortho_coeff_matrix
+
+    def _generate_spherical_ortho_coeff_matrix(self):
+        """Get the orthogonal coefficient matrix in spherical basis."""
+        dim_cartesian = self.coeff_matrix.shape[0]
+        # The only point of difference between the cartesian and spherical
+        # is that the d basis functions are different. The d basis functions
+        # for the cartesian basis have 6 functions, whereas the d basis
+        # functions for the spherical basis have 5 functions.
+        assert dim_cartesian == 1 * len(self.indices_s_orbitals) + 3 * len(
+            self.indices_p_orbitals
+        ) + 6 * len(self.indices_d_orbitals)
+        dim_spherical = (
+            1 * len(self.indices_s_orbitals)
+            + 3 * len(self.indices_p_orbitals)
+            + 5 * len(self.indices_d_orbitals)
+        )
+
+        spherical_ortho_coeff_matrix = np.zeros((dim_cartesian, dim_cartesian))
+        row_idx_to_remove = []
+
+        for idx_s in self.indices_s_orbitals:
+            spherical_ortho_coeff_matrix[idx_s, :] = self.ortho_coeff_matrix[idx_s, :]
+        for idx_p in self.indices_p_orbitals:
+            spherical_ortho_coeff_matrix[idx_p, :] = self.ortho_coeff_matrix[idx_p, :]
+        for idx_d in self.indices_d_orbitals:
+            _cartesian_d_ortho_coeff = self.ortho_coeff_matrix[idx_d, :]
+            _d_spherical_ortho_coeff = (
+                self.projector_d_orbitals @ _cartesian_d_ortho_coeff
+            )
+            _sphericalidx_d = idx_d[:-1]
+            spherical_ortho_coeff_matrix[_sphericalidx_d, :] = _d_spherical_ortho_coeff
+            spherical_ortho_coeff_matrix[idx_d[-1], :] = None
+            row_idx_to_remove.append(idx_d[-1])
+
+        # Remove the extra rows stored in row_idx_to_remove
+        spherical_ortho_coeff_matrix = np.delete(
+            spherical_ortho_coeff_matrix, row_idx_to_remove, axis=0
+        )
+        self.spherical_ortho_coeff_matrix = spherical_ortho_coeff_matrix
+
+        assert spherical_ortho_coeff_matrix.shape == (dim_spherical, dim_cartesian)
+
+
+class TaskdocsToData:
     l_to_n_basis = {"s": 0, "p": 1, "d": 2, "f": 3, "g": 4, "h": 5}
     n_to_l_basis = {0: "s", 1: "p", 2: "d", 3: "f", 4: "g", 5: "h"}
 
@@ -352,7 +436,6 @@ class TaskdocsToData:
         self._parse_basis_data()
 
         for atom in molecule:
-
             atomic_number = self._get_atomic_number(atom.species_string)
             basis_functions = self.basis_info[atomic_number]
 
@@ -408,7 +491,6 @@ class TaskdocsToData:
 
         data = defaultdict(list)
         for document in cursor:
-
             alpha_eigenvalues = document["calcs_reversed"][0]["alpha_eigenvalues"]
             beta_eigenvalues = (
                 document["calcs_reversed"][0]["beta_eigenvalues"]
