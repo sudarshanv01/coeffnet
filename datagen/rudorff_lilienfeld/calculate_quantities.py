@@ -1,7 +1,8 @@
 import logging
 import yaml
-import copy
 import argparse
+
+import numpy as np
 
 from bson.objectid import ObjectId
 
@@ -55,12 +56,24 @@ if __name__ == "__main__":
         for state in keys:
             molecule_dict = document[state]
             molecule = Molecule.from_dict(molecule_dict)
+
+            coordinates = np.array(molecule.cart_coords)
+            _coordinates = coordinates.copy()
+            _coordinates[:, [0, 1, 2]] = _coordinates[:, [2, 0, 1]]
+            molecule = Molecule(
+                species=molecule.species,
+                coords=_coordinates,
+                charge=molecule.charge,
+                spin_multiplicity=molecule.spin_multiplicity,
+            )
+
             tags = {
                 "state": state,
                 "quantities": ["nbo", "coeff_matrix"],
                 "rxn_number": document["rxn_number"],
                 "reaction_name": document["reaction_name"],
                 "constraints": "only carbon allowed to move",
+                "inverted_coordinates": True,
             }
 
             if collection.count_documents({"tags": tags}) > 0:

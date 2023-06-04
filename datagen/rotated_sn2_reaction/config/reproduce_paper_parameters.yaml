@@ -3,3 +3,4 @@ overwrite_inputs:
   rem:
     basis: '6-31G*'
     unrestricted: true
+    purecart: 1111
