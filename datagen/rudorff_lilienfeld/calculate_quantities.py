@@ -74,6 +74,7 @@ if __name__ == "__main__":
                 "reaction_name": document["reaction_name"],
                 "constraints": "only carbon allowed to move",
                 "inverted_coordinates": True,
+                "basis_are_spherical": True,
             }
 
             if collection.count_documents({"tags": tags}) > 0:

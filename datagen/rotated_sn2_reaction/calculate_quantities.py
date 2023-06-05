@@ -59,7 +59,6 @@ if __name__ == "__main__":
                 "quantities": ["nbo", "coeff_matrix"],
                 "idx": idx,
                 "inverted_coordinates": True,
-                "basis_are_spherical": True,
             }
 
             # Check if the calculation has already been performed.
