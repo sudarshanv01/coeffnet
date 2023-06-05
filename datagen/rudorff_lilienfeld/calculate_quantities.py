@@ -48,7 +48,9 @@ if __name__ == "__main__":
     params.update(nbo_params)
 
     count_structures = 0
-    for document in data_collection.find(find_tags, no_cursor_timeout=True):
+    documents = data_collection.find(find_tags, no_cursor_timeout=True)
+    documents = list(documents)
+    for document in documents:
 
         keys = list(document.keys())
         keys = [key for key in keys if key.endswith("_molecule")]
