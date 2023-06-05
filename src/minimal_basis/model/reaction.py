@@ -153,6 +153,7 @@ class ReactionModel(torch.nn.Module):
             {
                 "pos": data.pos,
                 "x": x,
+                "z": data.species,
                 "batch": data.batch,
             }
         )
@@ -173,6 +174,7 @@ class ReactionModel(torch.nn.Module):
             {
                 "pos": data.pos_final_state,
                 "x": x_final_state,
+                "z": data.species,
                 "batch": data.batch,
             }
         )
@@ -199,6 +201,7 @@ class ReactionModel(torch.nn.Module):
                 {
                     "pos": data.pos_interpolated_transition_state,
                     "x": x_interpolated_transition_state,
+                    "z": data.species,
                     "batch": data.batch,
                 }
             )
