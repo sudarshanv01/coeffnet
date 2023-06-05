@@ -1,8 +1,6 @@
 import os
 import logging
 
-import numpy as np
-
 import argparse
 
 import wandb
@@ -15,15 +13,12 @@ from minimal_basis.dataset.reaction import ReactionDataset as Dataset
 from minimal_basis.model.reaction import ReactionModel as Model
 
 from utils import (
-    get_test_data_path,
     get_validation_data_path,
     get_train_data_path,
     read_inputs_yaml,
 )
 
 from model_functions import construct_model_name, construct_irreps, train, validate
-
-import torch.nn.functional as F
 
 
 def get_command_line_arguments() -> argparse.Namespace:
@@ -61,6 +56,12 @@ def get_command_line_arguments() -> argparse.Namespace:
         type=str,
         default="sudarshanvj",
     )
+    parser.add_argument(
+        "--basis_set_type",
+        type=str,
+        default="full",
+        help="Type of basis set. Can be either 'full' or 'minimal'.",
+    )
     args = parser.parse_args()
 
     return args
@@ -70,7 +71,9 @@ if __name__ == "__main__":
 
     args = get_command_line_arguments()
 
-    model_name = construct_model_name(args.model_config, debug=args.debug)
+    model_name = construct_model_name(
+        args.model_config, basis_set_type=args.basis_set_type, debug=args.debug
+    )
 
     logging.basicConfig(level=logging.INFO)
     logging.getLogger("minimal_basis").setLevel(logging.INFO)
@@ -82,30 +85,38 @@ if __name__ == "__main__":
     logger.info(f"Device: {DEVICE}")
 
     inputs = read_inputs_yaml(os.path.join(args.model_config))
-    construct_irreps(inputs, prediction_mode=args.prediction_mode)
+    json_filenames = inputs["json_filenames"][f"{args.basis_set_type}_basis"]
+    basis_options = inputs["basis_options"]
+    dataset_options = inputs["dataset_options"][f"{args.basis_set_type}_basis"]
+    learning_options = inputs["learning_options"]
+    model_options = inputs["model_options"][args.prediction_mode][
+        f"{args.basis_set_type}_basis"
+    ]
+
+    construct_irreps(
+        model_options=model_options,
+        dataset_options=dataset_options,
+        prediction_mode=args.prediction_mode,
+    )
     transform = T.ToDevice(DEVICE)
 
     wandb.init(project=model_name, entity=args.wandb_username)
     wandb.config.update(args)
+    wandb.config.update({"dataset_options": dataset_options})
+    wandb.config.update({"model_options": model_options})
 
     if args.debug:
-        train_json_filename = inputs["debug_train_json"]
-        validate_json_filename = inputs["debug_validate_json"]
+        train_json_filename = json_filenames["debug_train_json"]
+        validate_json_filename = json_filenames["debug_validate_json"]
     else:
-        train_json_filename = inputs["train_json"]
-        validate_json_filename = inputs["validate_json"]
-
-    kwargs_dataset = inputs["dataset_options"]
-    kwargs_dataset["use_minimal_basis_node_features"] = inputs[
-        "use_minimal_basis_node_features"
-    ]
+        train_json_filename = json_filenames["train_json"]
+        validate_json_filename = json_filenames["validate_json"]
 
     train_dataset = Dataset(
         root=get_train_data_path(model_name),
         filename=train_json_filename,
-        basis_filename=inputs["basis_file"],
         transform=transform,
-        **kwargs_dataset,
+        **dataset_options,
     )
     if args.reprocess_dataset:
         train_dataset.process()
@@ -113,29 +124,27 @@ if __name__ == "__main__":
     validate_dataset = Dataset(
         root=get_validation_data_path(model_name),
         filename=validate_json_filename,
-        basis_filename=inputs["basis_file"],
         transform=transform,
-        **kwargs_dataset,
+        **dataset_options,
     )
-
     if args.reprocess_dataset:
         validate_dataset.process()
 
     train_loader = DataLoader(
-        train_dataset, batch_size=inputs["batch_size"], shuffle=True
+        train_dataset, batch_size=learning_options["batch_size"], shuffle=True
     )
     validate_loader = DataLoader(
-        validate_dataset, batch_size=inputs["batch_size"], shuffle=False
+        validate_dataset, batch_size=learning_options["batch_size"], shuffle=False
     )
 
-    model = Model(**inputs[f"model_options_{args.prediction_mode}"])
+    model = Model(**model_options)
     model = model.to(DEVICE)
 
     wandb.watch(model)
 
-    optim = torch.optim.Adam(model.parameters(), lr=inputs["learning_rate"])
+    optim = torch.optim.Adam(model.parameters(), lr=learning_options["learning_rate"])
 
-    for epoch in range(1, inputs["epochs"] + 1):
+    for epoch in range(1, learning_options["epochs"] + 1):
 
         train_loss = train(
             train_loader=train_loader,

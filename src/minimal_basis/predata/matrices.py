@@ -438,12 +438,12 @@ class TaskdocsToData:
 
         atom_basis_counter = 0
         indices_to_keep = []  # Ordered list of indices
-        orbitals = []  # List of all orbital names
+        orbital_info = []  # List of all orbital names
         irreps = ""  # String of all irreps
 
         self._parse_basis_data()
 
-        for atom in molecule:
+        for idx, atom in enumerate(molecule):
             atomic_number = self._get_atomic_number(atom.species_string)
             basis_functions = self.basis_info[atomic_number]
 
@@ -451,7 +451,7 @@ class TaskdocsToData:
                 if basis_function == "s":
                     indices_to_keep.append(atom_basis_counter)
                     atom_basis_counter += 1
-                    orbitals.append([f"{atom.species_string}", "s", ""])
+                    orbital_info.append([f"{atom.species_string}", f"{idx}", "s", ""])
                     irreps += "+1x0e"
                 elif basis_function == "p":
                     indices_to_keep.extend(
@@ -462,11 +462,11 @@ class TaskdocsToData:
                         ]
                     )
                     atom_basis_counter += 3
-                    orbitals.extend(
+                    orbital_info.extend(
                         [
-                            [f"{atom.species_string}", "p", "y"],
-                            [f"{atom.species_string}", "p", "z"],
-                            [f"{atom.species_string}", "p", "x"],
+                            [f"{atom.species_string}", f"{idx}", "p", "y"],
+                            [f"{atom.species_string}", f"{idx}", "p", "z"],
+                            [f"{atom.species_string}", f"{idx}", "p", "x"],
                         ]
                     )
                     irreps += "+1x1o"
@@ -482,13 +482,13 @@ class TaskdocsToData:
                                     atom_basis_counter + 4,
                                 ]
                             )
-                            orbitals.extend(
+                            orbital_info.extend(
                                 [
-                                    [f"{atom.species_string}", "d", "xy"],
-                                    [f"{atom.species_string}", "d", "yz"],
-                                    [f"{atom.species_string}", "d", "z2"],
-                                    [f"{atom.species_string}", "d", "xz"],
-                                    [f"{atom.species_string}", "d", "x2-y2"],
+                                    [f"{atom.species_string}", f"{idx}", "d", "xy"],
+                                    [f"{atom.species_string}", f"{idx}", "d", "yz"],
+                                    [f"{atom.species_string}", f"{idx}", "d", "z2"],
+                                    [f"{atom.species_string}", f"{idx}", "d", "xz"],
+                                    [f"{atom.species_string}", f"{idx}", "d", "x2-y2"],
                                 ]
                             )
                             irreps += "+1x2e"
@@ -505,14 +505,14 @@ class TaskdocsToData:
                                     atom_basis_counter + 5,
                                 ]
                             )
-                            orbitals.extend(
+                            orbital_info.extend(
                                 [
-                                    [f"{atom.species_string}", "d", "xx"],
-                                    [f"{atom.species_string}", "d", "xy"],
-                                    [f"{atom.species_string}", "d", "yy"],
-                                    [f"{atom.species_string}", "d", "xz"],
-                                    [f"{atom.species_string}", "d", "yz"],
-                                    [f"{atom.species_string}", "d", "zz"],
+                                    [f"{atom.species_string}", f"{idx}", "d", "xx"],
+                                    [f"{atom.species_string}", f"{idx}", "d", "xy"],
+                                    [f"{atom.species_string}", f"{idx}", "d", "yy"],
+                                    [f"{atom.species_string}", f"{idx}", "d", "xz"],
+                                    [f"{atom.species_string}", f"{idx}", "d", "yz"],
+                                    [f"{atom.species_string}", f"{idx}", "d", "zz"],
                                 ]
                             )
                             irreps += "+1x0e+1x2e"
@@ -520,7 +520,7 @@ class TaskdocsToData:
 
         return {
             "indices_to_keep": indices_to_keep,
-            "orbitals": orbitals,
+            "orbital_info": orbital_info,
             "irreps": irreps[1:],
         }
 
@@ -589,7 +589,7 @@ class TaskdocsToData:
                 molecule,
             )
             indices_to_keep = indices_info["indices_to_keep"]
-            orbitals = indices_info["orbitals"]
+            orbital_info = indices_info["orbital_info"]
             irreps = indices_info["irreps"]
 
             try:
@@ -653,7 +653,7 @@ class TaskdocsToData:
             data["identifiers"].append(identifier)
             data["final_energy"].append(document["output"]["final_energy"])
             data["indices_to_keep"].append(indices_to_keep)
-            data["orbitals"].append(orbitals)
+            data["orbital_info"].append(orbital_info)
             data["irreps"].append(irreps)
 
             if hasattr(self, "store_extra_tags"):
@@ -662,14 +662,19 @@ class TaskdocsToData:
 
         data = {key: np.array(value) for key, value in data.items()}
 
+        if not data:
+            return
+
+        if len(data["state"]) < 3:
+            return
+
         if (
             np.isnan(data["coeff_matrices"]).any()
             or np.isnan(data["orthogonalization_matrices"]).any()
         ):
             return
 
-        if len(data["state"]) == 3:
-            self.data.append(data)
+        self.data.append(data)
 
     def _parse_data(self, debug: bool = False) -> None:
         identifiers = self._get_all_identifiers()

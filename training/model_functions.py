@@ -8,66 +8,42 @@ from minimal_basis.model.reaction import ReactionModel as Model
 from minimal_basis.loss.eigenvectors import UnsignedMSELoss
 
 
-def construct_model_name(model_config: str, debug: bool = False) -> str:
+def construct_model_name(
+    model_config: str, basis_set_type: str, debug: bool = False
+) -> str:
     """Construct the model name based on the config filename and
     the debug flag."""
 
     model_name = model_config.split("/")[-1].split(".")[0]
+    model_name += f"_{basis_set_type}"
     if debug:
         model_name += "_debug"
 
     return model_name
 
 
-def construct_irreps(inputs: dict, prediction_mode: str) -> None:
+def construct_irreps(
+    model_options: dict, dataset_options: dict, prediction_mode: str
+) -> None:
     """Construct the inputs if there is an @construct in the inputs.
 
     Args:
-        inputs (dict): The inputs dictionary.
+        model_options (dict): The model options.
+        dataset_options (dict): The dataset options.
+        prediction_mode (str): The prediction mode.
 
     """
 
-    model_options = inputs[f"model_options_{prediction_mode}"]
+    if model_options["irreps_in"] == "@construct":
+        model_options["irreps_in"] = f"{dataset_options['max_s_functions']}x0e"
+        model_options["irreps_in"] += f"+{dataset_options['max_p_functions']}x1o"
+        model_options["irreps_in"] += f"+{dataset_options['max_d_functions']}x2e"
 
-    if model_options["make_absolute"]:
-        parity = "e"
-    else:
-        parity = "o"
-
-    if (
-        model_options["irreps_in"] == "@construct"
-        and inputs["use_minimal_basis_node_features"]
-    ):
-        model_options["irreps_in"] = f"1x0e+1x1{parity}"
-    elif (
-        model_options["irreps_in"] == "@construct"
-        and not inputs["use_minimal_basis_node_features"]
-    ):
-        model_options[
-            "irreps_in"
-        ] = f"{inputs['dataset_options']['max_s_functions']}x0e"
-        model_options[
-            "irreps_in"
-        ] += f"+{inputs['dataset_options']['max_p_functions']}x1{parity}"
-        for i in range(inputs["dataset_options"]["max_d_functions"]):
-            model_options["irreps_in"] += f"+1x2e"
-    if (
-        model_options["irreps_out"] == "@construct"
-        and inputs["use_minimal_basis_node_features"]
-    ):
-        model_options["irreps_out"] = f"1x0e+1x1{parity}"
-    elif (
-        model_options["irreps_out"] == "@construct"
-        and not inputs["use_minimal_basis_node_features"]
-    ):
-        model_options[
-            "irreps_out"
-        ] = f"{inputs['dataset_options']['max_s_functions']}x0e"
-        model_options[
-            "irreps_out"
-        ] += f"+{inputs['dataset_options']['max_p_functions']}x1{parity}"
-        for i in range(inputs["dataset_options"]["max_d_functions"]):
-            model_options["irreps_out"] += f"+1x2e"
+    if model_options["irreps_out"] == "@construct":
+        if prediction_mode == "relative_energy":
+            model_options["irreps_out"] = "0e"
+        elif prediction_mode == "coeff_matrix":
+            model_options["irreps_out"] = model_options["irreps_in"]
 
     if model_options["irreps_edge_attr"] == "@construct":
         model_options["irreps_edge_attr"] = f"{model_options['num_basis']}x0e"

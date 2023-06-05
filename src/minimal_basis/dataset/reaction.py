@@ -1,6 +1,7 @@
-import json
 from pathlib import Path
-from typing import Dict, Union, List, Tuple
+
+from typing import Union
+
 import logging
 
 import copy
@@ -8,9 +9,6 @@ import copy
 from collections import defaultdict
 
 import numpy as np
-import numpy.typing as npt
-
-from scipy.linalg import eigh
 
 from ase import data as ase_data
 
@@ -24,8 +22,6 @@ from torch_geometric.data import InMemoryDataset
 
 from monty.serialization import loadfn
 
-from e3nn import o3
-
 from minimal_basis.data.reaction import ReactionDataPoint as DataPoint
 from minimal_basis.data.reaction import ModifiedCoefficientMatrixSphericalBasis
 from minimal_basis.predata.interpolator import GenerateParametersInterpolator
@@ -37,7 +33,6 @@ class ReactionDataset(InMemoryDataset):
     def __init__(
         self,
         filename: Union[str, Path] = None,
-        basis_filename: Union[str, Path] = None,
         root: str = None,
         transform: str = None,
         spin_channel: str = "alpha",
@@ -46,13 +41,10 @@ class ReactionDataset(InMemoryDataset):
         max_s_functions: int = None,
         max_p_functions: int = None,
         max_d_functions: int = None,
-        use_minimal_basis_node_features: bool = False,
         idx_eigenvalue: int = 0,
         reactant_tag: str = "reactant",
         product_tag: str = "product",
         transition_state_tag: str = "transition_state",
-        is_minimal_basis: bool = False,
-        calculated_using_cartesian_basis: bool = False,
         mu: float = 0.5,
         sigma: float = 0.25,
         alpha: float = 1.0,
@@ -61,8 +53,6 @@ class ReactionDataset(InMemoryDataset):
         
         Args:
             filename (Union[str, Path], optional): Path to the json file with the data. Defaults to None.
-            basis_filename (Union[str, Path], optional): Path to the json file with the basis information.\
-                  The format of the file must be the "JSON" option from basissetexchange.com. Defaults to None.
             root (str, optional): Root directory. Defaults to None.
             transform (str, optional): Transform to apply. Defaults to None.
             spin_channel (str, optional): Spin channel to use; either alpha | beta. Defaults to "alpha".
@@ -74,18 +64,12 @@ class ReactionDataset(InMemoryDataset):
                 features. Defaults to None.
             max_d_functions (int, optional): Maximum number of d functions to be used in constructing node\
                 features. Defaults to None.
-            use_minimal_basis_node_features (bool, optional): Whether to use minimal basis node features.\
-                If true, then only _max_ coefficient matrices for the s and p functions are used to construct\
-                a minimal basis representation consisting of only 1 s and 1 p function. Defaults to False.
             idx_eigenvalue (int, optional): Index of the eigenvalue to be used for the reaction. If set at 0
                 then the smallest occupied eigenvalue is used (i.e. smallest negative number). Any positive or
                 negative number will be referenced to this zero value.
             reactant_tag (str, optional): Tag to be used for the reactant. Defaults to "reactant".
             product_tag (str, optional): Tag to be used for the product. Defaults to "product".
             transition_state_tag (str, optional): Tag to be used for the transition state. Defaults to "transition_state".
-            is_minimal_basis (bool, optional): Whether the data is in minimal basis representation. Defaults to False.
-            calculated_using_cartesian_basis (bool, optional): Whether the data was calculated using a cartesian basis.\
-                Defaults to False.
             mu (float, optional): Mu parameter for the interpolation. Defaults to 0.5.
             sigma (float, optional): Sigma parameter for the interpolation. Defaults to 0.25.
             alpha (float, optional): Alpha parameter for the interpolation. Defaults to 1.0.
@@ -94,17 +78,13 @@ class ReactionDataset(InMemoryDataset):
         self.filename = filename
         self.root = root
         self.spin_channel = spin_channel
-        self.basis_filename = basis_filename
         self.max_s_functions = max_s_functions
         self.max_p_functions = max_p_functions
         self.max_d_functions = max_d_functions
-        self.use_minimal_basis_node_features = use_minimal_basis_node_features
         self.idx_eigenvalue = idx_eigenvalue
         self.reactant_tag = reactant_tag
         self.product_tag = product_tag
         self.transition_state_tag = transition_state_tag
-        self.is_minimal_basis = is_minimal_basis
-        self.calculated_using_cartesian_basis = calculated_using_cartesian_basis
         self.mu = mu
         self.sigma = sigma
         self.alpha = alpha
@@ -138,11 +118,6 @@ class ReactionDataset(InMemoryDataset):
         self.input_data = loadfn(self.filename)
         logger.info("Successfully loaded json file with data.")
 
-        with open(self.basis_filename) as f:
-            self.basis_info_raw = json.load(f)
-        logger.info("Successfully loaded json file with basis information.")
-        logger.info("Parsing basis information.")
-
     def process(self):
 
         datapoint_list = []
@@ -174,6 +149,7 @@ class ReactionDataset(InMemoryDataset):
             structures = input_data["structures"]
 
             identifier = input_data["identifiers"][0]
+            orbital_info = input_data["orbital_info"][0]
 
             if isinstance(structures[0], dict):
                 structures = [Molecule.from_dict(structure) for structure in structures]
@@ -225,17 +201,13 @@ class ReactionDataset(InMemoryDataset):
 
                 coeff_matrix = ModifiedCoefficientMatrixSphericalBasis(
                     molecule_graph=molecule_graph,
-                    basis_info_raw=self.basis_info_raw,
+                    orbital_info=orbital_info,
                     coefficient_matrix=coeff_matrix_spin,
                     store_idx_only=selected_eigenval_index,
-                    set_to_absolute=False,
                     max_s_functions=self.max_s_functions,
                     max_p_functions=self.max_p_functions,
                     max_d_functions=self.max_d_functions,
-                    use_minimal_basis_node_features=self.use_minimal_basis_node_features,
                     indices_to_keep=indices_to_keep,
-                    is_minimal_basis=self.is_minimal_basis,
-                    calculated_using_cartesian_basis=self.calculated_using_cartesian_basis,
                 )
 
                 node_features = coeff_matrix.get_node_features()
@@ -252,7 +224,6 @@ class ReactionDataset(InMemoryDataset):
 
             reactant_idx = np.where(states == self.reactant_tag)[0][0]
             product_idx = np.where(states == self.product_tag)[0][0]
-            transition_state_idx = np.where(states == self.transition_state_tag)[0][0]
 
             reactant_structure = structures[reactant_idx]
             product_structure = structures[product_idx]
@@ -275,7 +246,7 @@ class ReactionDataset(InMemoryDataset):
                 spin_multiplicity=reactant_structure.spin_multiplicity,
             )
 
-            p, p_prime = instance_generate.get_p_and_pprime(
+            p, _ = instance_generate.get_p_and_pprime(
                 mu=self.mu, sigma=self.sigma, alpha=self.alpha
             )
 

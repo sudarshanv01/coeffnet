@@ -40,6 +40,12 @@ def get_command_line_arguments():
         type=str,
         help="Name of the config file to use.",
     )
+    parser.add_argument(
+        "--basis_set_type",
+        type=str,
+        help="Type of basis set to use.",
+        default="full",
+    )
 
     args = parser.parse_args()
 
@@ -64,6 +70,7 @@ if __name__ == "__main__":
     config["basis_info_raw"] = loadfn(
         os.path.join(__input_folder__, basis_set_name + ".json")
     )
+    config["basis_set_type"] = args.basis_set_type
 
     tastdocs_to_data = TaskdocsToData(collection=collection, **config)
 

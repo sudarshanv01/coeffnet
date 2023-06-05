@@ -2,14 +2,17 @@ import pytest
 
 import numpy as np
 
-from conftest import mock_database, dataset_config, basis_raw
+from conftest import mock_database, dataset_config_factory, basis_raw
 
 from minimal_basis.predata.matrices import TaskdocsToData
 
 
-def test_TaskdocToData_minimal_basis_input(mock_database, dataset_config, basis_raw):
+def test_TaskdocToData_minimal_basis_input(
+    mock_database, dataset_config_factory, basis_raw
+):
     """Test the input of the TaskdocToData class."""
     db = mock_database
+    dataset_config = dataset_config_factory(basis_type="minimal")
 
     taskdoc_to_data = TaskdocsToData(
         collection=db.collection,
@@ -53,16 +56,17 @@ def test_TaskdocToData_minimal_basis_input(mock_database, dataset_config, basis_
                 assert _data["eigenvalues"][idx].shape[1] == coeff_matrix.shape[2]
 
 
-def test_TaskdocToData_full_basis_input(mock_database, dataset_config, basis_raw):
+def test_TaskdocToData_full_basis_input(
+    mock_database, dataset_config_factory, basis_raw
+):
     """Test the input of the TaskdocToData class."""
     db = mock_database
-    _dataset_config = dataset_config.copy()
-    _dataset_config["basis"] = "full"
+    dataset_config = dataset_config_factory(basis_type="full")
 
     taskdoc_to_data = TaskdocsToData(
         collection=db.collection,
         basis_info_raw=basis_raw,
-        **_dataset_config,
+        **dataset_config,
     )
     data = taskdoc_to_data.get_data()
 
