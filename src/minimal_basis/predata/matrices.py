@@ -451,7 +451,7 @@ class TaskdocsToData:
                 if basis_function == "s":
                     indices_to_keep.append(atom_basis_counter)
                     atom_basis_counter += 1
-                    orbitals.append(f"{atom.species_string} s")
+                    orbitals.append([f"{atom.species_string}", "s", ""])
                     irreps += "+1x0e"
                 elif basis_function == "p":
                     indices_to_keep.extend(
@@ -464,9 +464,9 @@ class TaskdocsToData:
                     atom_basis_counter += 3
                     orbitals.extend(
                         [
-                            f"{atom.species_string} py",
-                            f"{atom.species_string} pz",
-                            f"{atom.species_string} px",
+                            [f"{atom.species_string}", "p", "y"],
+                            [f"{atom.species_string}", "p", "z"],
+                            [f"{atom.species_string}", "p", "x"],
                         ]
                     )
                     irreps += "+1x1o"
@@ -484,11 +484,11 @@ class TaskdocsToData:
                             )
                             orbitals.extend(
                                 [
-                                    f"{atom.species_string} dxy",
-                                    f"{atom.species_string} dyz",
-                                    f"{atom.species_string} dz2",
-                                    f"{atom.species_string} dxz",
-                                    f"{atom.species_string} dx2-y2",
+                                    [f"{atom.species_string}", "d", "xy"],
+                                    [f"{atom.species_string}", "d", "yz"],
+                                    [f"{atom.species_string}", "d", "z2"],
+                                    [f"{atom.species_string}", "d", "xz"],
+                                    [f"{atom.species_string}", "d", "x2-y2"],
                                 ]
                             )
                             irreps += "+1x2e"
@@ -507,12 +507,12 @@ class TaskdocsToData:
                             )
                             orbitals.extend(
                                 [
-                                    f"{atom.species_string} dxx",
-                                    f"{atom.species_string} dxy",
-                                    f"{atom.species_string} dyy",
-                                    f"{atom.species_string} dxz",
-                                    f"{atom.species_string} dyz",
-                                    f"{atom.species_string} dzz",
+                                    [f"{atom.species_string}", "d", "xx"],
+                                    [f"{atom.species_string}", "d", "xy"],
+                                    [f"{atom.species_string}", "d", "yy"],
+                                    [f"{atom.species_string}", "d", "xz"],
+                                    [f"{atom.species_string}", "d", "yz"],
+                                    [f"{atom.species_string}", "d", "zz"],
                                 ]
                             )
                             irreps += "+1x0e+1x2e"
