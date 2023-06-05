@@ -11,12 +11,12 @@ def cart_to_sph_d():
 
        Expected order is
 
-       Y_20                                  V_200
-       Y_21_+                                V_020
-    (  Y_21_-  )  = ( 5 x 6 coeff matrix ) ( V_002 )
-       Y_22_+                                V_110
-       Y_22_-                                V_011
-                                             V_101
+       d_20   0                                d_xx 0
+       d_21_+ 1                                d_yy 1
+    (  d_21_- 2  )  = ( 5 x 6 coeff matrix ) ( d_zz 2 )
+       d_22_+ 3                                d_xy 3
+       d_22_- 4                                d_yz 4
+                                               d_xz 5
        where Y_lm is the **normalized** spherical harmonic with angular
        momentum l and "magnetic" quantum number m
            Y_lm_+ = (Y_lm + Y_l-m) / sqrt(2)
@@ -38,6 +38,16 @@ def cart_to_sph_d():
             [0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
         ]
     )
+
+    norm = norm_cart_d_gauss(1.0)
+    cmat = cmat * norm
+
+    # Switch the order of the columns to match the following order:
+    # d_zz, d_xz, d_xx, d_yz, d_xy, d_yy
+    cmat = cmat[:, [2, 5, 0, 4, 3, 1]]
+    # Switch the order of the rows to match the following order:
+    # d_22-, d_21-, d_20, d_21+, d_22+
+    cmat = cmat[[4, 2, 0, 1, 3], :]
 
     return cmat
 

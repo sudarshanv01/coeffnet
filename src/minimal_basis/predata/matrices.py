@@ -17,6 +17,8 @@ import tqdm
 
 import random
 
+from minimal_basis.predata.cart_to_sph import cart_to_sph_d, norm_cart_d_gauss
+
 logger = logging.getLogger(__name__)
 
 
@@ -268,8 +270,90 @@ class ReducedBasisMatrices(BaseMatrices):
         self.eigenvalues = eigenvalues
 
 
-class TaskdocsToData:
+class SphericalBaseMatrices(ReducedBasisMatrices):
+    def __init__(
+        self,
+        fock_matrix: npt.ArrayLike,
+        eigenvalues: npt.ArrayLike,
+        coeff_matrix: npt.ArrayLike,
+        indices_s_orbitals: List[int],
+        indices_p_orbitals: List[List[int]],
+        indices_d_orbitals: List[List[int]],
+        contains_cartesian_d_functions: bool = False,
+        indices_to_keep: List[int] = None,
+        **kwargs: Any,
+    ):
+        """Get the matrices in spherical basis."""
+        super().__init__(
+            fock_matrix, eigenvalues, coeff_matrix, indices_to_keep=indices_to_keep
+        )
 
+        self.indices_s_orbitals = indices_s_orbitals
+        self.indices_p_orbitals = indices_p_orbitals
+        self.indices_d_orbitals = indices_d_orbitals
+        self.contains_cartesian_d_functions = contains_cartesian_d_functions
+        self.projector_d_orbitals = cart_to_sph_d()
+
+        self._generate_overlap_matrix()
+        self._generate_orthogonalization_matrix()
+        self._generate_orthogonal_fock_matrix()
+        self._generate_orthogonal_coeff_matrix()
+
+        self.spherical_ortho_coeff_matrix = None
+
+    def get_spherical_ortho_coeff_matrix(self):
+        """Get the orthogonal coefficient matrix in spherical basis."""
+        if self.spherical_ortho_coeff_matrix is None:
+            if self.contains_cartesian_d_functions:
+                self._generate_spherical_ortho_coeff_matrix()
+            else:
+                self.spherical_ortho_coeff_matrix = self.ortho_coeff_matrix
+
+        return self.spherical_ortho_coeff_matrix
+
+    def _generate_spherical_ortho_coeff_matrix(self):
+        """Get the orthogonal coefficient matrix in spherical basis."""
+        dim_cartesian = self.coeff_matrix.shape[0]
+        # The only point of difference between the cartesian and spherical
+        # is that the d basis functions are different. The d basis functions
+        # for the cartesian basis have 6 functions, whereas the d basis
+        # functions for the spherical basis have 5 functions.
+        assert dim_cartesian == 1 * len(self.indices_s_orbitals) + 3 * len(
+            self.indices_p_orbitals
+        ) + 6 * len(self.indices_d_orbitals)
+        dim_spherical = (
+            1 * len(self.indices_s_orbitals)
+            + 3 * len(self.indices_p_orbitals)
+            + 5 * len(self.indices_d_orbitals)
+        )
+
+        spherical_ortho_coeff_matrix = np.zeros((dim_cartesian, dim_cartesian))
+        row_idx_to_remove = []
+
+        for idx_s in self.indices_s_orbitals:
+            spherical_ortho_coeff_matrix[idx_s, :] = self.ortho_coeff_matrix[idx_s, :]
+        for idx_p in self.indices_p_orbitals:
+            spherical_ortho_coeff_matrix[idx_p, :] = self.ortho_coeff_matrix[idx_p, :]
+        for idx_d in self.indices_d_orbitals:
+            _cartesian_d_ortho_coeff = self.ortho_coeff_matrix[idx_d, :]
+            _d_spherical_ortho_coeff = (
+                self.projector_d_orbitals @ _cartesian_d_ortho_coeff
+            )
+            _sphericalidx_d = idx_d[:-1]
+            spherical_ortho_coeff_matrix[_sphericalidx_d, :] = _d_spherical_ortho_coeff
+            spherical_ortho_coeff_matrix[idx_d[-1], :] = None
+            row_idx_to_remove.append(idx_d[-1])
+
+        # Remove the extra rows stored in row_idx_to_remove
+        spherical_ortho_coeff_matrix = np.delete(
+            spherical_ortho_coeff_matrix, row_idx_to_remove, axis=0
+        )
+        self.spherical_ortho_coeff_matrix = spherical_ortho_coeff_matrix
+
+        assert spherical_ortho_coeff_matrix.shape == (dim_spherical, dim_cartesian)
+
+
+class TaskdocsToData:
     l_to_n_basis = {"s": 0, "p": 1, "d": 2, "f": 3, "g": 4, "h": 5}
     n_to_l_basis = {0: "s", 1: "p", 2: "d", 3: "f", 4: "g", 5: "h"}
 
@@ -297,6 +381,12 @@ class TaskdocsToData:
         self.product_tag = product_tag
         self.transition_state_tag = transition_state_tag
         self.d_functions_are_spherical = d_functions_are_spherical
+
+        if "store_extra_tags" in kwargs:
+            if isinstance(kwargs["store_extra_tags"], list):
+                self.store_extra_tags = kwargs["store_extra_tags"]
+            elif isinstance(kwargs["store_extra_tags"], str):
+                self.store_extra_tags = [kwargs["store_extra_tags"]]
 
         self.basis_info = None
         self.basis_info_raw = basis_info_raw
@@ -343,16 +433,17 @@ class TaskdocsToData:
         """Get the atomic number of an element based on the symbol."""
         return ase_data.atomic_numbers[symbol]
 
-    def get_indices_to_keep(self, molecule: Molecule):
+    def get_indices_info(self, molecule: Molecule):
         """Decide on the indices to keep for the minimal basis set."""
 
         atom_basis_counter = 0
-        indices_to_keep = []
+        indices_to_keep = []  # Ordered list of indices
+        orbitals = []  # List of all orbital names
+        irreps = ""  # String of all irreps
 
         self._parse_basis_data()
 
         for atom in molecule:
-
             atomic_number = self._get_atomic_number(atom.species_string)
             basis_functions = self.basis_info[atomic_number]
 
@@ -360,21 +451,78 @@ class TaskdocsToData:
                 if basis_function == "s":
                     indices_to_keep.append(atom_basis_counter)
                     atom_basis_counter += 1
+                    orbitals.append(f"{atom.species_string} s")
+                    irreps += "+1x0e"
                 elif basis_function == "p":
-                    indices_to_keep.append(atom_basis_counter)
-                    atom_basis_counter += 1
-                    indices_to_keep.append(atom_basis_counter)
-                    atom_basis_counter += 1
-                    indices_to_keep.append(atom_basis_counter)
-                    atom_basis_counter += 1
+                    indices_to_keep.extend(
+                        [
+                            atom_basis_counter + 1,
+                            atom_basis_counter + 2,
+                            atom_basis_counter,
+                        ]
+                    )
+                    atom_basis_counter += 3
+                    orbitals.extend(
+                        [
+                            f"{atom.species_string} py",
+                            f"{atom.species_string} pz",
+                            f"{atom.species_string} px",
+                        ]
+                    )
+                    irreps += "+1x1o"
                 elif basis_function == "d":
                     if self.d_functions_are_spherical:
+                        if self.basis_set_type == "full":
+                            indices_to_keep.extend(
+                                [
+                                    atom_basis_counter,
+                                    atom_basis_counter + 1,
+                                    atom_basis_counter + 2,
+                                    atom_basis_counter + 3,
+                                    atom_basis_counter + 4,
+                                ]
+                            )
+                            orbitals.extend(
+                                [
+                                    f"{atom.species_string} dxy",
+                                    f"{atom.species_string} dyz",
+                                    f"{atom.species_string} dz2",
+                                    f"{atom.species_string} dxz",
+                                    f"{atom.species_string} dx2-y2",
+                                ]
+                            )
+                            irreps += "+1x2e"
                         atom_basis_counter += 5
                     else:
+                        if self.basis_set_type == "full":
+                            indices_to_keep.extend(
+                                [
+                                    atom_basis_counter,
+                                    atom_basis_counter + 1,
+                                    atom_basis_counter + 2,
+                                    atom_basis_counter + 3,
+                                    atom_basis_counter + 4,
+                                    atom_basis_counter + 5,
+                                ]
+                            )
+                            orbitals.extend(
+                                [
+                                    f"{atom.species_string} dxx",
+                                    f"{atom.species_string} dxy",
+                                    f"{atom.species_string} dyy",
+                                    f"{atom.species_string} dxz",
+                                    f"{atom.species_string} dyz",
+                                    f"{atom.species_string} dzz",
+                                ]
+                            )
+                            irreps += "+1x0e+1x2e"
                         atom_basis_counter += 6
-                    pass
 
-        return indices_to_keep
+        return {
+            "indices_to_keep": indices_to_keep,
+            "orbitals": orbitals,
+            "irreps": irreps[1:],
+        }
 
     def _get_reaction_data(self, identifier: Union[str, float]) -> None:
         """Parse the output dataset and get the reaction data."""
@@ -389,26 +537,29 @@ class TaskdocsToData:
                 ]
             },
         }
+        project = {
+            "output.initial_molecule": 1,
+            "output.final_energy": 1,
+            "calcs_reversed.alpha_eigenvalues": 1,
+            "calcs_reversed.beta_eigenvalues": 1,
+            "calcs_reversed.alpha_coeff_matrix": 1,
+            "calcs_reversed.beta_coeff_matrix": 1,
+            "calcs_reversed.alpha_fock_matrix": 1,
+            "calcs_reversed.beta_fock_matrix": 1,
+            f"tags.{self.state_identifier}": 1,
+        }
+        if hasattr(self, "store_extra_tags"):
+            for tag in self.store_extra_tags:
+                project[f"tags.{tag}"] = 1
 
         find_filter.update(self.filter_collection)
         cursor = self.collection.find(
             find_filter,
-            {
-                "output.initial_molecule": 1,
-                "output.final_energy": 1,
-                "calcs_reversed.alpha_eigenvalues": 1,
-                "calcs_reversed.beta_eigenvalues": 1,
-                "calcs_reversed.alpha_coeff_matrix": 1,
-                "calcs_reversed.beta_coeff_matrix": 1,
-                "calcs_reversed.alpha_fock_matrix": 1,
-                "calcs_reversed.beta_fock_matrix": 1,
-                f"tags.{self.state_identifier}": 1,
-            },
+            project,
         ).sort(f"tags.{self.state_identifier}", 1)
 
         data = defaultdict(list)
         for document in cursor:
-
             alpha_eigenvalues = document["calcs_reversed"][0]["alpha_eigenvalues"]
             beta_eigenvalues = (
                 document["calcs_reversed"][0]["beta_eigenvalues"]
@@ -434,12 +585,12 @@ class TaskdocsToData:
 
             molecule = document["output"]["initial_molecule"]
             molecule = Molecule.from_dict(molecule)
-            if self.basis_set_type == "minimal":
-                indices_to_keep = self.get_indices_to_keep(
-                    molecule,
-                )
-            else:
-                indices_to_keep = list(range(len(alpha_eigenvalues)))
+            indices_info = self.get_indices_info(
+                molecule,
+            )
+            indices_to_keep = indices_info["indices_to_keep"]
+            orbitals = indices_info["orbitals"]
+            irreps = indices_info["irreps"]
 
             try:
                 base_quantities_qchem = ReducedBasisMatrices(
@@ -502,6 +653,12 @@ class TaskdocsToData:
             data["identifiers"].append(identifier)
             data["final_energy"].append(document["output"]["final_energy"])
             data["indices_to_keep"].append(indices_to_keep)
+            data["orbitals"].append(orbitals)
+            data["irreps"].append(irreps)
+
+            if hasattr(self, "store_extra_tags"):
+                for key in self.store_extra_tags:
+                    data[key].append(document["tags"][key])
 
         data = {key: np.array(value) for key, value in data.items()}
 

@@ -3,11 +3,11 @@ import yaml
 import copy
 import argparse
 
-from bson.objectid import ObjectId
+import numpy as np
 
 from pymatgen.core import Molecule
 
-from atomate.qchem.fireworks.core import SinglePointFW, ForceFW
+from atomate.qchem.fireworks.core import SinglePointFW
 from atomate.common.powerups import add_tags
 
 from fireworks import LaunchPad, Workflow
@@ -16,7 +16,7 @@ from instance_mongodb import instance_mongodb_sei
 
 from fireworks.user_objects.dupefinders.dupefinder_exact import DupeFinderExact
 
-lp = LaunchPad.from_file("/Users/sudarshanvijay/fw_config/my_launchpad_mlts.yaml")
+lp = LaunchPad.from_file("/home/vijays/fw_config/my_launchpad_mlts.yaml")
 
 
 def get_cli():
@@ -58,6 +58,8 @@ if __name__ == "__main__":
                 "state": state,
                 "quantities": ["nbo", "coeff_matrix"],
                 "idx": idx,
+                "inverted_coordinates": True,
+                "basis_are_spherical": True,
             }
 
             # Check if the calculation has already been performed.
@@ -74,6 +76,18 @@ if __name__ == "__main__":
             tags.update({"euler_angles": document["euler_angles"]})
             molecule = document[state + "_molecule"]
             molecule = Molecule.from_dict(molecule)
+
+            coordinates = np.array(molecule.cart_coords)
+            _coordinates = coordinates.copy()
+            _coordinates[:, [0, 1, 2]] = _coordinates[:, [2, 0, 1]]
+
+            # Create a new molecule with the inverted coordinates.
+            molecule = Molecule(
+                species=molecule.species,
+                coords=_coordinates,
+                charge=molecule.charge,
+                spin_multiplicity=molecule.spin_multiplicity,
+            )
 
             count_structures += 1
 

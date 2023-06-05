@@ -14,7 +14,7 @@ from fireworks import LaunchPad, Workflow
 
 from instance_mongodb import instance_mongodb_sei
 
-lp = LaunchPad.from_file("/Users/sudarshanvijay/fw_config/my_launchpad_mlts.yaml")
+lp = LaunchPad.from_file("/home/vijays/fw_config/my_launchpad_mlts.yaml")
 
 
 def get_cli():
@@ -43,6 +43,7 @@ if __name__ == "__main__":
         "overwrite_inputs": {
             "rem": {
                 "basis": args.basis,
+                "purecart": "1111",
             }
         },
     }
@@ -58,6 +59,7 @@ if __name__ == "__main__":
             "euler_angles": document["euler_angles"],
             "idx": document["idx"],
             "inverted_coordinates": True,
+            "basis_are_spherical": True,
         }
 
         molecule = Molecule.from_dict(document["molecule"])
