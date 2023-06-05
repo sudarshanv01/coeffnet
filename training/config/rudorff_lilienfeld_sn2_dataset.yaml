@@ -2,6 +2,8 @@
 filter_collection: 
   "input.job_type": "sp"
   "tags.reaction_name": "sn2"
+  "tags.inverted_coordinates":
+    "$exists": false
 identifier: "rxn_number"
 state_identifier: "state"
 reactant_tag: "perturbed_molecule_-0_5_molecule"
