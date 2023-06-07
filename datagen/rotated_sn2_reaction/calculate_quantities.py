@@ -16,12 +16,13 @@ from instance_mongodb import instance_mongodb_sei
 
 from fireworks.user_objects.dupefinders.dupefinder_exact import DupeFinderExact
 
-lp = LaunchPad.from_file("/home/vijays/fw_config/my_launchpad_mlts.yaml")
+lp = LaunchPad.from_file("/Users/sudarshanvijay/fw_config/my_launchpad_mlts.yaml")
 
 
 def get_cli():
     args = argparse.ArgumentParser()
     args.add_argument("--dryrun", action="store_true", default=False)
+    args.add_argument("--basis", type=str, default="sto-3g")
     return args.parse_args()
 
 
@@ -40,11 +41,9 @@ if __name__ == "__main__":
     initial_structure_collection = db.rotated_sn2_reaction_initial_structures
     find_tags = {}
 
-    with open("config/reproduce_paper_parameters.yaml", "r") as f:
+    with open("config/spherical_only_basis.yaml", "r") as f:
         params = yaml.safe_load(f)
-
-    nbo_params = {"nbo_params": {"version": 7}}
-    params.update(nbo_params)
+    params["overwrite_inputs"]["rem"]["basis"] = args.basis
 
     count_structures = 0
 
@@ -59,14 +58,15 @@ if __name__ == "__main__":
                 "quantities": ["nbo", "coeff_matrix"],
                 "idx": idx,
                 "inverted_coordinates": True,
+                "basis_are_spherical": True,
             }
 
             # Check if the calculation has already been performed.
             tags_check = copy.deepcopy(tags)
             tags_check = {f"tags.{k}": v for k, v in tags_check.items()}
-            if collection.count_documents(tags_check) > 0:
-                logger.info(f"Skipping {tags}")
-                continue
+            # if collection.count_documents(tags_check) > 0:
+            #     logger.info(f"Skipping {tags}")
+            #     continue
 
             document = initial_structure_collection.find_one(
                 {"idx": idx},

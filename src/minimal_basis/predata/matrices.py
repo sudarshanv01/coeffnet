@@ -179,12 +179,6 @@ class ReducedBasisMatrices(BaseMatrices):
         super().__init__(fock_matrix, eigenvalues, coeff_matrix)
         self.indices_to_keep = indices_to_keep
 
-        if not isinstance(self.indices_to_keep, list):
-            raise TypeError("indices_to_keep must be a list of integers")
-
-        if not all(isinstance(i, int) for i in self.indices_to_keep):
-            raise TypeError("indices_to_keep must be a list of integers")
-
         if len(self.indices_to_keep) > self.coeff_matrix.shape[0]:
             raise ValueError(
                 "indices_to_keep cannot be greater than the number of basis functions"
@@ -279,7 +273,7 @@ class SphericalBaseMatrices(ReducedBasisMatrices):
         indices_s_orbitals: List[int],
         indices_p_orbitals: List[List[int]],
         indices_d_orbitals: List[List[int]],
-        contains_cartesian_d_functions: bool = False,
+        generate_spherical_rep: bool = True,
         indices_to_keep: List[int] = None,
         **kwargs: Any,
     ):
@@ -291,20 +285,16 @@ class SphericalBaseMatrices(ReducedBasisMatrices):
         self.indices_s_orbitals = indices_s_orbitals
         self.indices_p_orbitals = indices_p_orbitals
         self.indices_d_orbitals = indices_d_orbitals
-        self.contains_cartesian_d_functions = contains_cartesian_d_functions
+        self.generate_spherical_rep = generate_spherical_rep
         self.projector_d_orbitals = cart_to_sph_d()
-
-        self._generate_overlap_matrix()
-        self._generate_orthogonalization_matrix()
-        self._generate_orthogonal_fock_matrix()
-        self._generate_orthogonal_coeff_matrix()
 
         self.spherical_ortho_coeff_matrix = None
 
     def get_spherical_ortho_coeff_matrix(self):
         """Get the orthogonal coefficient matrix in spherical basis."""
         if self.spherical_ortho_coeff_matrix is None:
-            if self.contains_cartesian_d_functions:
+            self.get_ortho_coeff_matrix()
+            if self.generate_spherical_rep:
                 self._generate_spherical_ortho_coeff_matrix()
             else:
                 self.spherical_ortho_coeff_matrix = self.ortho_coeff_matrix
@@ -313,7 +303,7 @@ class SphericalBaseMatrices(ReducedBasisMatrices):
 
     def _generate_spherical_ortho_coeff_matrix(self):
         """Get the orthogonal coefficient matrix in spherical basis."""
-        dim_cartesian = self.coeff_matrix.shape[0]
+        dim_cartesian = self.ortho_coeff_matrix.shape[0]
         # The only point of difference between the cartesian and spherical
         # is that the d basis functions are different. The d basis functions
         # for the cartesian basis have 6 functions, whereas the d basis
@@ -368,7 +358,12 @@ class TaskdocsToData:
         transition_state_tag: str = "transition_state",
         basis_set_type: str = "full",
         basis_info_raw: Dict[str, Any] = None,
-        d_functions_are_spherical: bool = True,
+        s_orbital_specs: Dict[str, Any] = None,
+        p_orbital_specs: Dict[str, Any] = None,
+        d_orbital_specs: Dict[str, Any] = None,
+        f_orbital_specs: Dict[str, Any] = None,
+        g_orbital_specs: Dict[str, Any] = None,
+        switch_to_spherical: bool = False,
         **kwargs: Any,
     ):
         """Convert TaskDocuments to a List[Dict] with reaction information."""
@@ -380,7 +375,25 @@ class TaskdocsToData:
         self.reactant_tag = reactant_tag
         self.product_tag = product_tag
         self.transition_state_tag = transition_state_tag
-        self.d_functions_are_spherical = d_functions_are_spherical
+        self.s_orbital_specs = s_orbital_specs
+        self.p_orbital_specs = p_orbital_specs
+        self.d_orbital_specs = d_orbital_specs
+        self.f_orbital_specs = f_orbital_specs
+        self.g_orbital_specs = g_orbital_specs
+        self.switch_to_spherical = switch_to_spherical
+
+        if self.switch_to_spherical:
+            raise NotImplementedError(
+                "Switching to spherical basis is not yet implemented."
+            )
+        if not self.p_orbital_specs["basis_are_spherical"]:
+            raise NotImplementedError(
+                "Only spherical p orbitals are supported at the moment."
+            )
+        if not self.d_orbital_specs["basis_are_spherical"]:
+            raise NotImplementedError(
+                "Only spherical d orbitals are supported at the moment."
+            )
 
         if "store_extra_tags" in kwargs:
             if isinstance(kwargs["store_extra_tags"], list):
@@ -423,7 +436,10 @@ class TaskdocsToData:
             for basis_index, basis_functions in enumerate(
                 self.basis_info_raw["elements"][atom_number]["electron_shells"]
             ):
-                angular_momentum_all.extend(basis_functions["angular_momentum"])
+                no_of_repeats = len(basis_functions["coefficients"])
+                angular_momentum_all.extend(
+                    no_of_repeats * basis_functions["angular_momentum"]
+                )
             angular_momentum_all = [
                 self.n_to_l_basis[element] for element in angular_momentum_all
             ]
@@ -437,42 +453,76 @@ class TaskdocsToData:
         """Decide on the indices to keep for the minimal basis set."""
 
         atom_basis_counter = 0
+
         indices_to_keep = []  # Ordered list of indices
         orbital_info = []  # List of all orbital names
         irreps = ""  # String of all irreps
 
+        indices_s_orbitals = []  # List of indices of s orbitals
+        indices_p_orbitals = []  # List of indices of p orbitals
+        indices_d_orbitals = []  # List of indices of d orbitals
+        indices_f_orbitals = []  # List of indices of f orbitals
+        indices_g_orbitals = []  # List of indices of g orbitals
+
         self._parse_basis_data()
 
         for idx, atom in enumerate(molecule):
+
             atomic_number = self._get_atomic_number(atom.species_string)
             basis_functions = self.basis_info[atomic_number]
 
             for basis_function in basis_functions:
                 if basis_function == "s":
                     indices_to_keep.append(atom_basis_counter)
+                    indices_s_orbitals.append([atom_basis_counter])
                     atom_basis_counter += 1
                     orbital_info.append([f"{atom.species_string}", f"{idx}", "s", ""])
                     irreps += "+1x0e"
+
                 elif basis_function == "p":
-                    indices_to_keep.extend(
+                    if self.p_orbital_specs["inverted_coordinates"]:
+                        indices_to_keep.extend(
+                            [
+                                atom_basis_counter + 1,
+                                atom_basis_counter + 2,
+                                atom_basis_counter,
+                            ]
+                        )
+                        orbital_info.extend(
+                            [
+                                [f"{atom.species_string}", f"{idx}", "p", "y"],
+                                [f"{atom.species_string}", f"{idx}", "p", "z"],
+                                [f"{atom.species_string}", f"{idx}", "p", "x"],
+                            ]
+                        )
+                    elif not self.p_orbital_specs["inverted_coordinates"]:
+                        indices_to_keep.extend(
+                            [
+                                atom_basis_counter,
+                                atom_basis_counter + 1,
+                                atom_basis_counter + 2,
+                            ]
+                        )
+                        orbital_info.extend(
+                            [
+                                [f"{atom.species_string}", f"{idx}", "p", "x"],
+                                [f"{atom.species_string}", f"{idx}", "p", "y"],
+                                [f"{atom.species_string}", f"{idx}", "p", "z"],
+                            ]
+                        )
+                    indices_p_orbitals.append(
                         [
+                            atom_basis_counter,
                             atom_basis_counter + 1,
                             atom_basis_counter + 2,
-                            atom_basis_counter,
                         ]
                     )
                     atom_basis_counter += 3
-                    orbital_info.extend(
-                        [
-                            [f"{atom.species_string}", f"{idx}", "p", "y"],
-                            [f"{atom.species_string}", f"{idx}", "p", "z"],
-                            [f"{atom.species_string}", f"{idx}", "p", "x"],
-                        ]
-                    )
                     irreps += "+1x1o"
+
                 elif basis_function == "d":
-                    if self.d_functions_are_spherical:
-                        if self.basis_set_type == "full":
+                    if self.basis_set_type == "full":
+                        if self.d_orbital_specs["basis_are_spherical"]:
                             indices_to_keep.extend(
                                 [
                                     atom_basis_counter,
@@ -482,19 +532,58 @@ class TaskdocsToData:
                                     atom_basis_counter + 4,
                                 ]
                             )
-                            orbital_info.extend(
+                            if self.d_orbital_specs["inverted_coordinates"]:
+                                orbital_info.extend(
+                                    [
+                                        [f"{atom.species_string}", f"{idx}", "d", "xz"],
+                                        [f"{atom.species_string}", f"{idx}", "d", "xy"],
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "d",
+                                            "3y2-r2",
+                                        ],
+                                        [f"{atom.species_string}", f"{idx}", "d", "zy"],
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "d",
+                                            "z2-x2",
+                                        ],
+                                    ]
+                                )
+                            elif not self.d_orbital_specs["inverted_coordinates"]:
+                                orbital_info.extend(
+                                    [
+                                        [f"{atom.species_string}", f"{idx}", "d", "xy"],
+                                        [f"{atom.species_string}", f"{idx}", "d", "yz"],
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "d",
+                                            "3z2-r2",
+                                        ],
+                                        [f"{atom.species_string}", f"{idx}", "d", "xz"],
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "d",
+                                            "x2-y2",
+                                        ],
+                                    ]
+                                )
+                            irreps += "+1x2e"
+                            indices_d_orbitals.append(
                                 [
-                                    [f"{atom.species_string}", f"{idx}", "d", "xy"],
-                                    [f"{atom.species_string}", f"{idx}", "d", "yz"],
-                                    [f"{atom.species_string}", f"{idx}", "d", "z2"],
-                                    [f"{atom.species_string}", f"{idx}", "d", "xz"],
-                                    [f"{atom.species_string}", f"{idx}", "d", "x2-y2"],
+                                    atom_basis_counter,
+                                    atom_basis_counter + 1,
+                                    atom_basis_counter + 2,
+                                    atom_basis_counter + 3,
+                                    atom_basis_counter + 4,
                                 ]
                             )
-                            irreps += "+1x2e"
-                        atom_basis_counter += 5
-                    else:
-                        if self.basis_set_type == "full":
+                            atom_basis_counter += 5
+                        else:
                             indices_to_keep.extend(
                                 [
                                     atom_basis_counter,
@@ -505,23 +594,303 @@ class TaskdocsToData:
                                     atom_basis_counter + 5,
                                 ]
                             )
-                            orbital_info.extend(
+                            if self.d_orbital_specs["inverted_coordinates"]:
+                                orbital_info.extend(
+                                    [
+                                        [f"{atom.species_string}", f"{idx}", "d", "zz"],
+                                        [f"{atom.species_string}", f"{idx}", "d", "xz"],
+                                        [f"{atom.species_string}", f"{idx}", "d", "xx"],
+                                        [f"{atom.species_string}", f"{idx}", "d", "yz"],
+                                        [f"{atom.species_string}", f"{idx}", "d", "xy"],
+                                        [f"{atom.species_string}", f"{idx}", "d", "yy"],
+                                    ]
+                                )
+                            elif not self.d_orbital_specs["inverted_coordinates"]:
+                                orbital_info.extend(
+                                    [
+                                        [f"{atom.species_string}", f"{idx}", "d", "xx"],
+                                        [f"{atom.species_string}", f"{idx}", "d", "xy"],
+                                        [f"{atom.species_string}", f"{idx}", "d", "yy"],
+                                        [f"{atom.species_string}", f"{idx}", "d", "xz"],
+                                        [f"{atom.species_string}", f"{idx}", "d", "yz"],
+                                        [f"{atom.species_string}", f"{idx}", "d", "zz"],
+                                    ]
+                                )
+                            irreps += "+1x2e"
+                            indices_d_orbitals.append(
                                 [
-                                    [f"{atom.species_string}", f"{idx}", "d", "xx"],
-                                    [f"{atom.species_string}", f"{idx}", "d", "xy"],
-                                    [f"{atom.species_string}", f"{idx}", "d", "yy"],
-                                    [f"{atom.species_string}", f"{idx}", "d", "xz"],
-                                    [f"{atom.species_string}", f"{idx}", "d", "yz"],
-                                    [f"{atom.species_string}", f"{idx}", "d", "zz"],
+                                    atom_basis_counter,
+                                    atom_basis_counter + 1,
+                                    atom_basis_counter + 2,
+                                    atom_basis_counter + 3,
+                                    atom_basis_counter + 4,
+                                    atom_basis_counter + 5,
                                 ]
                             )
-                            irreps += "+1x0e+1x2e"
-                        atom_basis_counter += 6
+                            atom_basis_counter += 6
 
+                    elif self.basis_set_type == "minimal":
+                        # No d-functions in minimal basis set
+                        if self.d_orbital_specs["basis_are_spherical"]:
+                            atom_basis_counter += 5
+                        else:
+                            atom_basis_counter += 6
+                    else:
+                        raise ValueError(
+                            "Basis set type not recognized. Please choose between 'minimal' and 'full'."
+                        )
+
+                elif basis_function == "f":
+                    if self.basis_set_type == "full":
+                        if self.f_orbital_specs["basis_are_spherical"]:
+                            indices_to_keep.extend(
+                                [
+                                    atom_basis_counter,
+                                    atom_basis_counter + 1,
+                                    atom_basis_counter + 2,
+                                    atom_basis_counter + 3,
+                                    atom_basis_counter + 4,
+                                    atom_basis_counter + 5,
+                                    atom_basis_counter + 6,
+                                ]
+                            )
+                            if self.f_orbital_specs["inverted_coordinates"]:
+                                orbital_info.extend(
+                                    [
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "f",
+                                            "3z2-r2",
+                                        ],
+                                        [f"{atom.species_string}", f"{idx}", "f", "yz"],
+                                        [f"{atom.species_string}", f"{idx}", "f", "xz"],
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "f",
+                                            "z2-x2",
+                                        ],
+                                        [f"{atom.species_string}", f"{idx}", "f", "xy"],
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "f",
+                                            "x2-y2",
+                                        ],
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "f",
+                                            "3x2-y2",
+                                        ],
+                                    ]
+                                )
+                            elif not self.f_orbital_specs["inverted_coordinates"]:
+                                orbital_info.extend(
+                                    [
+                                        [f"{atom.species_string}", f"{idx}", "f", "yz"],
+                                        [f"{atom.species_string}", f"{idx}", "f", "xz"],
+                                        [f"{atom.species_string}", f"{idx}", "f", "xy"],
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "f",
+                                            "z2-x2",
+                                        ],
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "f",
+                                            "3z2-r2",
+                                        ],
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "f",
+                                            "x2-y2",
+                                        ],
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "f",
+                                            "3x2-y2",
+                                        ],
+                                    ]
+                                )
+                            irreps += "+1x3o"
+                            indices_f_orbitals.append(
+                                [
+                                    atom_basis_counter,
+                                    atom_basis_counter + 1,
+                                    atom_basis_counter + 2,
+                                    atom_basis_counter + 3,
+                                    atom_basis_counter + 4,
+                                    atom_basis_counter + 5,
+                                    atom_basis_counter + 6,
+                                ]
+                            )
+                            atom_basis_counter += 7
+                        else:
+                            raise NotImplementedError(
+                                "Currently only spherical f-functions are supported."
+                            )
+                    elif self.basis_set_type == "minimal":
+                        if self.f_orbital_specs["basis_are_spherical"]:
+                            atom_basis_counter += 7
+                        else:
+                            raise NotImplementedError(
+                                "Currently only spherical f-functions are supported."
+                            )
+                    else:
+                        raise ValueError(
+                            "Basis set type not recognized. Please choose between 'minimal' and 'full'."
+                        )
+                elif basis_function == "g":
+                    if self.basis_set_type == "full":
+                        if self.g_orbital_specs["basis_are_spherical"]:
+                            indices_to_keep.extend(
+                                [
+                                    atom_basis_counter,
+                                    atom_basis_counter + 1,
+                                    atom_basis_counter + 2,
+                                    atom_basis_counter + 3,
+                                    atom_basis_counter + 4,
+                                    atom_basis_counter + 5,
+                                    atom_basis_counter + 6,
+                                    atom_basis_counter + 7,
+                                    atom_basis_counter + 8,
+                                ]
+                            )
+
+                            if self.g_orbital_specs["inverted_coordinates"]:
+                                orbital_info.extend(
+                                    [
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "g",
+                                            "3z2-r2",
+                                        ],
+                                        [f"{atom.species_string}", f"{idx}", "g", "yz"],
+                                        [f"{atom.species_string}", f"{idx}", "g", "xz"],
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "g",
+                                            "z2-x2",
+                                        ],
+                                        [f"{atom.species_string}", f"{idx}", "g", "xy"],
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "g",
+                                            "x2-y2",
+                                        ],
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "g",
+                                            "3x2-y2",
+                                        ],
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "g",
+                                            "yz2",
+                                        ],
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "g",
+                                            "xz2",
+                                        ],
+                                    ]
+                                )
+                            elif not self.g_orbital_specs["inverted_coordinates"]:
+                                orbital_info.extend(
+                                    [
+                                        [f"{atom.species_string}", f"{idx}", "g", "yz"],
+                                        [f"{atom.species_string}", f"{idx}", "g", "xz"],
+                                        [f"{atom.species_string}", f"{idx}", "g", "xy"],
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "g",
+                                            "z2-x2",
+                                        ],
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "g",
+                                            "3z2-r2",
+                                        ],
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "g",
+                                            "x2-y2",
+                                        ],
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "g",
+                                            "3x2-y2",
+                                        ],
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "g",
+                                            "yz2",
+                                        ],
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "g",
+                                            "xz2",
+                                        ],
+                                    ]
+                                )
+                            irreps += "+1x4e"
+                            indices_g_orbitals.append(
+                                [
+                                    atom_basis_counter,
+                                    atom_basis_counter + 1,
+                                    atom_basis_counter + 2,
+                                    atom_basis_counter + 3,
+                                    atom_basis_counter + 4,
+                                    atom_basis_counter + 5,
+                                    atom_basis_counter + 6,
+                                    atom_basis_counter + 7,
+                                    atom_basis_counter + 8,
+                                ]
+                            )
+                            atom_basis_counter += 9
+                        else:
+                            raise NotImplementedError(
+                                "Currently only spherical g-functions are supported."
+                            )
+                    elif self.basis_set_type == "minimal":
+                        if self.g_orbital_specs["basis_are_spherical"]:
+                            atom_basis_counter += 9
+                        else:
+                            raise NotImplementedError(
+                                "Currently only spherical g-functions are supported."
+                            )
+                else:
+                    raise ValueError(
+                        "Basis function not recognized. Please choose between 's', 'p', 'd', 'f' and 'g'."
+                    )
+
+        indices_to_keep = np.array(indices_to_keep)
         return {
             "indices_to_keep": indices_to_keep,
             "orbital_info": orbital_info,
             "irreps": irreps[1:],
+            "indices_s_orbitals": indices_s_orbitals,
+            "indices_p_orbitals": indices_p_orbitals,
+            "indices_d_orbitals": indices_d_orbitals,
+            "indices_f_orbitals": indices_f_orbitals,
         }
 
     def _get_reaction_data(self, identifier: Union[str, float]) -> None:
@@ -561,25 +930,34 @@ class TaskdocsToData:
         data = defaultdict(list)
         for document in cursor:
             alpha_eigenvalues = document["calcs_reversed"][0]["alpha_eigenvalues"]
+            alpha_eigenvalues = np.array(alpha_eigenvalues)
             beta_eigenvalues = (
                 document["calcs_reversed"][0]["beta_eigenvalues"]
                 if "beta_eigenvalues" in document["calcs_reversed"][0]
                 else None
             )
+            if beta_eigenvalues is not None:
+                beta_eigenvalues = np.array(beta_eigenvalues)
 
             alpha_coeff_matrix = document["calcs_reversed"][0]["alpha_coeff_matrix"]
+            alpha_coeff_matrix = np.array(alpha_coeff_matrix)
             beta_coeff_matrix = (
                 document["calcs_reversed"][0]["beta_coeff_matrix"]
                 if "beta_coeff_matrix" in document["calcs_reversed"][0]
                 else None
             )
+            if beta_coeff_matrix is not None:
+                beta_coeff_matrix = np.array(beta_coeff_matrix)
 
             alpha_fock_matrix = document["calcs_reversed"][0]["alpha_fock_matrix"]
+            alpha_fock_matrix = np.array(alpha_fock_matrix)
             beta_fock_matrix = (
                 document["calcs_reversed"][0]["beta_fock_matrix"]
                 if "beta_fock_matrix" in document["calcs_reversed"][0]
                 else None
             )
+            if beta_fock_matrix is not None:
+                beta_fock_matrix = np.array(beta_fock_matrix)
 
             state = document[f"tags"][f"{self.state_identifier}"]
 
@@ -589,6 +967,15 @@ class TaskdocsToData:
                 molecule,
             )
             indices_to_keep = indices_info["indices_to_keep"]
+            if self.basis_set_type == "full":
+                # print(indices_to_keep.shape)
+                # print(alpha_coeff_matrix.shape)
+                # print(indices_to_keep)
+                assert len(indices_to_keep) == alpha_coeff_matrix.shape[0]
+            if self.basis_set_type == "minimal":
+                assert len(indices_to_keep) == len(
+                    indices_info["indices_s_orbitals"]
+                ) + 3 * len(indices_info["indices_p_orbitals"])
             orbital_info = indices_info["orbital_info"]
             irreps = indices_info["irreps"]
 

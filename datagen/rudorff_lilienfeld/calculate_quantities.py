@@ -23,6 +23,7 @@ lp = LaunchPad.from_file("/global/u1/s/svijay/fw_config/my_launchpad_mlts.yaml")
 def get_cli():
     args = argparse.ArgumentParser()
     args.add_argument("--dryrun", action="store_true", default=False)
+    args.add_argument("--basis", type=str, default="sto-3g")
     return args.parse_args()
 
 
@@ -42,14 +43,22 @@ if __name__ == "__main__":
     initial_structure_collection = db.rudorff_lilienfeld_initial_structures
     find_tags = {}
 
-    with open("config/reproduce_paper_parameters.yaml", "r") as f:
+    with open("config/spherical_only_parameters.yaml", "r") as f:
         params = yaml.safe_load(f)
-    nbo_params = {"nbo_params": {"version": 7}}
-    params.update(nbo_params)
+    params["overwrite_inputs"]["rem"]["basis"] = args.basis
 
     count_structures = 0
-    documents = data_collection.find(find_tags, no_cursor_timeout=True)
+    documents = data_collection.find(
+        find_tags,
+        {
+            "perturbed_molecule_0_5_molecule": 1,
+            "perturbed_molecule_-0_5_molecule": 1,
+            "rxn_number": 1,
+            "reaction_name": 1,
+        },
+    )
     documents = list(documents)
+
     for document in documents:
 
         keys = list(document.keys())
@@ -71,19 +80,13 @@ if __name__ == "__main__":
 
             tags = {
                 "state": state,
-                "quantities": ["nbo", "coeff_matrix"],
+                "quantities": ["coeff_matrix"],
                 "rxn_number": document["rxn_number"],
                 "reaction_name": document["reaction_name"],
                 "constraints": "only carbon allowed to move",
                 "inverted_coordinates": True,
                 "basis_are_spherical": True,
             }
-
-            if collection.count_documents({"tags": tags}) > 0:
-                logger.info(f"Skipping {tags}")
-                continue
-            else:
-                logger.info(f"Processing {tags}")
 
             count_structures += 1
 
@@ -92,6 +95,7 @@ if __name__ == "__main__":
                 qchem_input_params=params,
                 extra_scf_print=True,
                 db_file=">>db_file<<",
+                spec={"_dupefinder": DupeFinderExact()},
             )
 
             wf = Workflow([firew])

@@ -14,7 +14,7 @@ from fireworks import LaunchPad, Workflow
 
 from instance_mongodb import instance_mongodb_sei
 
-lp = LaunchPad.from_file("/home/vijays/fw_config/my_launchpad_mlts.yaml")
+lp = LaunchPad.from_file("/Users/sudarshanvijay/fw_config/my_launchpad_mlts.yaml")
 
 
 def get_cli():
