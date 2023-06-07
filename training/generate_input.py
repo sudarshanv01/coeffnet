@@ -141,7 +141,7 @@ if __name__ == "__main__":
             train_data,
             output_foldername / "train.json",
         )
-        dumpfn(test_data, "test.json")
+        dumpfn(test_data, output_foldername / "test.json")
         dumpfn(
             validate_data,
             output_foldername / "validate.json",
