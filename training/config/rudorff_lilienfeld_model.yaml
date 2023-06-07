@@ -1,23 +1,4 @@
 ---
-json_filenames:
-  minimal_basis:
-    test_json: "input/rudorff_lilienfeld_e2_dataset_minimal_basis_test.json"
-    train_json: "input/rudorff_lilienfeld_e2_dataset_minimal_basis_train.json"
-    validate_json: "input/rudorff_lilienfeld_e2_dataset_minimal_basis_validate.json"
-    debug_test_json: "input/rudorff_lilienfeld_e2_dataset_minimal_basis_test_debug.json"
-    debug_train_json: "input/rudorff_lilienfeld_e2_dataset_minimal_basis_train_debug.json"
-    debug_validate_json: "input/rudorff_lilienfeld_e2_dataset_minimal_basis_validate_debug.json"
-  full_basis:
-    test_json: "input/rudorff_lilienfeld_e2_dataset_full_basis_test.json"
-    train_json: "input/rudorff_lilienfeld_e2_dataset_full_basis_train.json"
-    validate_json: "input/rudorff_lilienfeld_e2_dataset_full_basis_validate.json"
-    debug_test_json: "input/rudorff_lilienfeld_e2_dataset_full_basis_test_debug.json"
-    debug_train_json: "input/rudorff_lilienfeld_e2_dataset_full_basis_train_debug.json"
-    debug_validate_json: "input/rudorff_lilienfeld_e2_dataset_full_basis_validate_debug.json"
-
-basis_options:
-  filename: "input/6-31gstar.json"
-
 dataset_options:
   minimal_basis:
     max_s_functions: 5

@@ -9,13 +9,15 @@ from minimal_basis.loss.eigenvectors import UnsignedMSELoss
 
 
 def construct_model_name(
-    model_config: str, basis_set_type: str, debug: bool = False
+    dataset_name: str, basis_set_type: str, debug: bool = False, basis_set: str = None
 ) -> str:
     """Construct the model name based on the config filename and
     the debug flag."""
 
-    model_name = model_config.split("/")[-1].split(".")[0]
+    model_name = dataset_name
     model_name += f"_{basis_set_type}"
+    model_name += f"_{basis_set}"
+    model_name += "_model"
     if debug:
         model_name += "_debug"
 

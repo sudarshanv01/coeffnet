@@ -437,9 +437,13 @@ class TaskdocsToData:
                 self.basis_info_raw["elements"][atom_number]["electron_shells"]
             ):
                 no_of_repeats = len(basis_functions["coefficients"])
-                angular_momentum_all.extend(
-                    no_of_repeats * basis_functions["angular_momentum"]
-                )
+                no_of_basis_functions = len(basis_functions["angular_momentum"])
+                if no_of_basis_functions == no_of_repeats:
+                    angular_momentum_all.extend(basis_functions["angular_momentum"])
+                else:
+                    angular_momentum_all.extend(
+                        no_of_repeats * basis_functions["angular_momentum"]
+                    )
             angular_momentum_all = [
                 self.n_to_l_basis[element] for element in angular_momentum_all
             ]
@@ -661,60 +665,60 @@ class TaskdocsToData:
                                             f"{atom.species_string}",
                                             f"{idx}",
                                             "f",
-                                            "3z2-r2",
+                                            "-3",
                                         ],
-                                        [f"{atom.species_string}", f"{idx}", "f", "yz"],
-                                        [f"{atom.species_string}", f"{idx}", "f", "xz"],
+                                        [f"{atom.species_string}", f"{idx}", "f", "-2"],
+                                        [f"{atom.species_string}", f"{idx}", "f", "-1"],
                                         [
                                             f"{atom.species_string}",
                                             f"{idx}",
                                             "f",
-                                            "z2-x2",
+                                            "0",
                                         ],
-                                        [f"{atom.species_string}", f"{idx}", "f", "xy"],
+                                        [f"{atom.species_string}", f"{idx}", "f", "1"],
                                         [
                                             f"{atom.species_string}",
                                             f"{idx}",
                                             "f",
-                                            "x2-y2",
+                                            "2",
                                         ],
                                         [
                                             f"{atom.species_string}",
                                             f"{idx}",
                                             "f",
-                                            "3x2-y2",
+                                            "3",
                                         ],
                                     ]
                                 )
                             elif not self.f_orbital_specs["inverted_coordinates"]:
                                 orbital_info.extend(
                                     [
-                                        [f"{atom.species_string}", f"{idx}", "f", "yz"],
-                                        [f"{atom.species_string}", f"{idx}", "f", "xz"],
-                                        [f"{atom.species_string}", f"{idx}", "f", "xy"],
+                                        [f"{atom.species_string}", f"{idx}", "f", "-3"],
+                                        [f"{atom.species_string}", f"{idx}", "f", "-2"],
+                                        [f"{atom.species_string}", f"{idx}", "f", "-1"],
                                         [
                                             f"{atom.species_string}",
                                             f"{idx}",
                                             "f",
-                                            "z2-x2",
+                                            "0",
                                         ],
                                         [
                                             f"{atom.species_string}",
                                             f"{idx}",
                                             "f",
-                                            "3z2-r2",
+                                            "1",
                                         ],
                                         [
                                             f"{atom.species_string}",
                                             f"{idx}",
                                             "f",
-                                            "x2-y2",
+                                            "2",
                                         ],
                                         [
                                             f"{atom.species_string}",
                                             f"{idx}",
                                             "f",
-                                            "3x2-y2",
+                                            "3",
                                         ],
                                     ]
                                 )
@@ -770,84 +774,84 @@ class TaskdocsToData:
                                             f"{atom.species_string}",
                                             f"{idx}",
                                             "g",
-                                            "3z2-r2",
+                                            "-4",
                                         ],
-                                        [f"{atom.species_string}", f"{idx}", "g", "yz"],
-                                        [f"{atom.species_string}", f"{idx}", "g", "xz"],
+                                        [f"{atom.species_string}", f"{idx}", "g", "-3"],
+                                        [f"{atom.species_string}", f"{idx}", "g", "-2"],
                                         [
                                             f"{atom.species_string}",
                                             f"{idx}",
                                             "g",
-                                            "z2-x2",
+                                            "-1",
                                         ],
-                                        [f"{atom.species_string}", f"{idx}", "g", "xy"],
+                                        [f"{atom.species_string}", f"{idx}", "g", "0"],
                                         [
                                             f"{atom.species_string}",
                                             f"{idx}",
                                             "g",
-                                            "x2-y2",
-                                        ],
-                                        [
-                                            f"{atom.species_string}",
-                                            f"{idx}",
-                                            "g",
-                                            "3x2-y2",
+                                            "1",
                                         ],
                                         [
                                             f"{atom.species_string}",
                                             f"{idx}",
                                             "g",
-                                            "yz2",
+                                            "2",
                                         ],
                                         [
                                             f"{atom.species_string}",
                                             f"{idx}",
                                             "g",
-                                            "xz2",
+                                            "3",
+                                        ],
+                                        [
+                                            f"{atom.species_string}",
+                                            f"{idx}",
+                                            "g",
+                                            "4",
                                         ],
                                     ]
                                 )
                             elif not self.g_orbital_specs["inverted_coordinates"]:
                                 orbital_info.extend(
                                     [
-                                        [f"{atom.species_string}", f"{idx}", "g", "yz"],
-                                        [f"{atom.species_string}", f"{idx}", "g", "xz"],
-                                        [f"{atom.species_string}", f"{idx}", "g", "xy"],
+                                        [f"{atom.species_string}", f"{idx}", "g", "-4"],
+                                        [f"{atom.species_string}", f"{idx}", "g", "-3"],
+                                        [f"{atom.species_string}", f"{idx}", "g", "-2"],
                                         [
                                             f"{atom.species_string}",
                                             f"{idx}",
                                             "g",
-                                            "z2-x2",
+                                            "-1",
                                         ],
                                         [
                                             f"{atom.species_string}",
                                             f"{idx}",
                                             "g",
-                                            "3z2-r2",
+                                            "0",
                                         ],
                                         [
                                             f"{atom.species_string}",
                                             f"{idx}",
                                             "g",
-                                            "x2-y2",
+                                            "1",
                                         ],
                                         [
                                             f"{atom.species_string}",
                                             f"{idx}",
                                             "g",
-                                            "3x2-y2",
+                                            "2",
                                         ],
                                         [
                                             f"{atom.species_string}",
                                             f"{idx}",
                                             "g",
-                                            "yz2",
+                                            "3",
                                         ],
                                         [
                                             f"{atom.species_string}",
                                             f"{idx}",
                                             "g",
-                                            "xz2",
+                                            "4",
                                         ],
                                     ]
                                 )

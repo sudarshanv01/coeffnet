@@ -8,4 +8,16 @@ product_tag: "product"
 transition_state_tag: "transition_state"
 basis_set_name: "6-31g*"
 basis_set_type: "minimal"
-d_functions_are_spherical: true 
+p_orbital_specs:
+  inverted_coordinates: true
+  basis_are_spherical: true
+d_orbital_specs:
+  inverted_coordinates: true
+  basis_are_spherical: true
+f_orbital_specs:
+  inverted_coordinates: true
+  basis_are_spherical: true
+g_orbital_specs:
+  inverted_coordinates: true
+  basis_are_spherical: true
+switch_to_spherical: false

@@ -1,6 +1,8 @@
 import os
 import logging
 
+from pathlib import Path
+
 import argparse
 
 import wandb
@@ -20,6 +22,8 @@ from utils import (
 
 from model_functions import construct_model_name, construct_irreps, train, validate
 
+__input_folder__ = "input"
+
 
 def get_command_line_arguments() -> argparse.Namespace:
     """Get the command line arguments."""
@@ -30,9 +34,10 @@ def get_command_line_arguments() -> argparse.Namespace:
         help="If set, the calculation is a DEBUG calculation.",
     )
     parser.add_argument(
-        "--use_best_config",
-        action="store_true",
-        help="If set, the best configuration is used based on ray tune run.",
+        "--input_folder",
+        type=str,
+        help="Name of the folder to store the input files.",
+        default=__input_folder__,
     )
     parser.add_argument(
         "--reprocess_dataset",
@@ -40,9 +45,15 @@ def get_command_line_arguments() -> argparse.Namespace:
         help="If set, the dataset is reprocessed.",
     )
     parser.add_argument(
+        "--dataset_name",
+        type=str,
+        help="Name of the dataset to use.",
+        default="reaction",
+    )
+    parser.add_argument(
         "--model_config",
         type=str,
-        default="config/interp_sn2_model.yaml",
+        default="config/rudorff_lilienfeld_sn2_dataset.yaml",
         help="Path to the model config file.",
     )
     parser.add_argument(
@@ -62,6 +73,12 @@ def get_command_line_arguments() -> argparse.Namespace:
         default="full",
         help="Type of basis set. Can be either 'full' or 'minimal'.",
     )
+    parser.add_argument(
+        "--basis_set",
+        type=str,
+        default="6-31g*",
+        help="Name of the basis set to use.",
+    )
     args = parser.parse_args()
 
     return args
@@ -70,9 +87,19 @@ def get_command_line_arguments() -> argparse.Namespace:
 if __name__ == "__main__":
 
     args = get_command_line_arguments()
+    basis_set_name = args.basis_set.replace("*", "star")
+    basis_set_name = basis_set_name.replace("+", "plus")
+    basis_set_name = basis_set_name.replace("(", "")
+    basis_set_name = basis_set_name.replace(")", "")
+    basis_set_name = basis_set_name.replace(",", "")
+    basis_set_name = basis_set_name.replace(" ", "_")
+    basis_set_name = basis_set_name.lower()
 
     model_name = construct_model_name(
-        args.model_config, basis_set_type=args.basis_set_type, debug=args.debug
+        dataset_name=args.dataset_name,
+        basis_set_type=args.basis_set_type,
+        debug=args.debug,
+        basis_set=basis_set_name,
     )
 
     logging.basicConfig(level=logging.INFO)
@@ -85,8 +112,12 @@ if __name__ == "__main__":
     logger.info(f"Device: {DEVICE}")
 
     inputs = read_inputs_yaml(os.path.join(args.model_config))
-    json_filenames = inputs["json_filenames"][f"{args.basis_set_type}_basis"]
-    basis_options = inputs["basis_options"]
+    input_foldername = (
+        Path(args.input_folder)
+        / args.dataset_name
+        / args.basis_set_type
+        / basis_set_name
+    )
     dataset_options = inputs["dataset_options"][f"{args.basis_set_type}_basis"]
     learning_options = inputs["learning_options"]
     model_options = inputs["model_options"][args.prediction_mode][
@@ -106,11 +137,11 @@ if __name__ == "__main__":
     wandb.config.update({"model_options": model_options})
 
     if args.debug:
-        train_json_filename = json_filenames["debug_train_json"]
-        validate_json_filename = json_filenames["debug_validate_json"]
+        train_json_filename = input_foldername / "train_debug.json"
+        validate_json_filename = input_foldername / "validate_debug.json"
     else:
-        train_json_filename = json_filenames["train_json"]
-        validate_json_filename = json_filenames["validate_json"]
+        train_json_filename = input_foldername / "train.json"
+        validate_json_filename = input_foldername / "validate.json"
 
     train_dataset = Dataset(
         root=get_train_data_path(model_name),

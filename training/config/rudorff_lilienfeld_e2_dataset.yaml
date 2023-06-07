@@ -3,11 +3,22 @@ filter_collection:
   "input.job_type": "sp"
   "tags.reaction_name": "e2"
   "tags.inverted_coordinates": true
-  "tags.basis_are_spherical": true
+  "orig.rem.purecart": "1111"
 identifier: "rxn_number"
 state_identifier: "state"
 reactant_tag: "perturbed_molecule_-0_5_molecule"
 product_tag: "perturbed_molecule_0_5_molecule"
 transition_state_tag: "transition_state_molecule"
-basis_set_name: "6-31g*"
-d_functions_are_spherical: true 
+p_orbital_specs:
+  inverted_coordinates: true
+  basis_are_spherical: true
+d_orbital_specs:
+  inverted_coordinates: true
+  basis_are_spherical: true
+f_orbital_specs:
+  inverted_coordinates: true
+  basis_are_spherical: true
+g_orbital_specs:
+  inverted_coordinates: true
+  basis_are_spherical: true
+switch_to_spherical: false
