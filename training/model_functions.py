@@ -8,15 +8,11 @@ from minimal_basis.model.reaction import ReactionModel as Model
 from minimal_basis.loss.eigenvectors import UnsignedMSELoss
 
 
-def construct_model_name(
-    dataset_name: str, basis_set_type: str, debug: bool = False, basis_set: str = None
-) -> str:
+def construct_model_name(dataset_name: str, debug: bool = False) -> str:
     """Construct the model name based on the config filename and
     the debug flag."""
 
     model_name = dataset_name
-    model_name += f"_{basis_set_type}"
-    model_name += f"_{basis_set}"
     model_name += "_model"
     if debug:
         model_name += "_debug"
@@ -25,7 +21,7 @@ def construct_model_name(
 
 
 def construct_irreps(
-    model_options: dict, dataset_options: dict, prediction_mode: str
+    model_options: dict,
 ) -> None:
     """Construct the inputs if there is an @construct in the inputs.
 
@@ -35,17 +31,6 @@ def construct_irreps(
         prediction_mode (str): The prediction mode.
 
     """
-
-    if model_options["irreps_in"] == "@construct":
-        model_options["irreps_in"] = f"{dataset_options['max_s_functions']}x0e"
-        model_options["irreps_in"] += f"+{dataset_options['max_p_functions']}x1o"
-        model_options["irreps_in"] += f"+{dataset_options['max_d_functions']}x2e"
-
-    if model_options["irreps_out"] == "@construct":
-        if prediction_mode == "relative_energy":
-            model_options["irreps_out"] = "0e"
-        elif prediction_mode == "coeff_matrix":
-            model_options["irreps_out"] = model_options["irreps_in"]
 
     if model_options["irreps_edge_attr"] == "@construct":
         model_options["irreps_edge_attr"] = f"{model_options['num_basis']}x0e"

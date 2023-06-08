@@ -1,33 +1,19 @@
 ---
 dataset_options:
   minimal_basis:
-    max_s_functions: 5
-    max_p_functions: 4
-    max_d_functions: 0
     idx_eigenvalue: 0
     reactant_tag: "perturbed_molecule_-0_5_molecule"
     product_tag: "perturbed_molecule_0_5_molecule"
     transition_state_tag: "transition_state_molecule"
   full_basis:
-    max_s_functions: 5
-    max_p_functions: 4
-    max_d_functions: 3
     idx_eigenvalue: 0
     reactant_tag: "perturbed_molecule_-0_5_molecule"
     product_tag: "perturbed_molecule_0_5_molecule"
     transition_state_tag: "transition_state_molecule"
 
-learning_options:
-  batch_size: 16
-  learning_rate: 0.01
-  epochs: 250
-
 model_options:
   relative_energy:
     minimal_basis:
-      irreps_in: "@construct"
-      irreps_hidden: "64x0e+288x1o"
-      irreps_out: "@construct"
       irreps_node_attr: "1x0e"
       irreps_edge_attr: "@construct"
       radial_layers: 2
@@ -42,9 +28,6 @@ model_options:
       mask_extra_basis: true
       normalize_sumsq: true
     full_basis:
-      irreps_in: "@construct"
-      irreps_hidden: "64x0e+288x1o+64x2e"
-      irreps_out: "@construct"
       irreps_node_attr: "1x0e"
       irreps_edge_attr: "@construct"
       radial_layers: 2
@@ -60,9 +43,6 @@ model_options:
       normalize_sumsq: true
   coeff_matrix:
     minimal_basis:
-      irreps_in: "@construct"
-      irreps_hidden: "64x0e+288x1o"
-      irreps_out: "@construct"
       irreps_node_attr: "1x0e"
       irreps_edge_attr: "@construct"
       radial_layers: 2
@@ -76,9 +56,7 @@ model_options:
       mask_extra_basis: true
       normalize_sumsq: true
     full_basis:
-      irreps_in: "@construct"
       irreps_hidden: "64x0e+288x1o+64x2e"
-      irreps_out: "@construct"
       irreps_node_attr: "1x0e"
       irreps_edge_attr: "@construct"
       radial_layers: 2

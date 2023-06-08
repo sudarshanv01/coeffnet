@@ -10,6 +10,8 @@ from collections import defaultdict
 
 import numpy as np
 
+import pandas as pd
+
 from ase import data as ase_data
 
 from pymatgen.core.structure import Molecule
@@ -38,9 +40,6 @@ class ReactionDataset(InMemoryDataset):
         spin_channel: str = "alpha",
         pre_transform: bool = None,
         pre_filter: bool = None,
-        max_s_functions: int = None,
-        max_p_functions: int = None,
-        max_d_functions: int = None,
         idx_eigenvalue: int = 0,
         reactant_tag: str = "reactant",
         product_tag: str = "product",
@@ -50,7 +49,7 @@ class ReactionDataset(InMemoryDataset):
         alpha: float = 1.0,
     ):
         """Dataset for the reaction.
-        
+
         Args:
             filename (Union[str, Path], optional): Path to the json file with the data. Defaults to None.
             root (str, optional): Root directory. Defaults to None.
@@ -58,12 +57,6 @@ class ReactionDataset(InMemoryDataset):
             spin_channel (str, optional): Spin channel to use; either alpha | beta. Defaults to "alpha".
             pre_transform (bool, optional): Pre-transform to apply. Defaults to None.
             pre_filter (bool, optional): Pre-filter to apply. Defaults to None.
-            max_s_functions (int, optional): Maximum number of s functions to be used in constructing node\
-                features. Defaults to None.
-            max_p_functions (int, optional): Maximum number of p functions to be used in constructing node\
-                features. Defaults to None.
-            max_d_functions (int, optional): Maximum number of d functions to be used in constructing node\
-                features. Defaults to None.
             idx_eigenvalue (int, optional): Index of the eigenvalue to be used for the reaction. If set at 0
                 then the smallest occupied eigenvalue is used (i.e. smallest negative number). Any positive or
                 negative number will be referenced to this zero value.
@@ -78,9 +71,6 @@ class ReactionDataset(InMemoryDataset):
         self.filename = filename
         self.root = root
         self.spin_channel = spin_channel
-        self.max_s_functions = max_s_functions
-        self.max_p_functions = max_p_functions
-        self.max_d_functions = max_d_functions
         self.idx_eigenvalue = idx_eigenvalue
         self.reactant_tag = reactant_tag
         self.product_tag = product_tag
@@ -113,10 +103,70 @@ class ReactionDataset(InMemoryDataset):
     def processed_file_names(self):
         return "reaction_data.pt"
 
-    def download(self):
+    def determine_basis_functions(self):
+        """Based on `input_data` determine how many s, p, d, f and g functions
+        need to be used."""
+        max_s_functions = 0
+        max_p_functions = 0
+        max_d_functions = 0
+        max_f_functions = 0
+        max_g_functions = 0
+        for reaction_idx, input_data in enumerate(self.input_data):
+            orbital_info = input_data["orbital_info"][0]
+            orbital_info = pd.DataFrame(orbital_info)
+            orbital_info.columns = ["species", "idx", "l", "m"]
+            orbital_info = orbital_info.groupby("idx")
+            for idx, group in orbital_info:
+                max_s_functions = max(
+                    max_s_functions, group[group["l"] == "s"].shape[0]
+                )
+                max_p_functions = max(
+                    max_p_functions, group[group["l"] == "p"].shape[0]
+                )
+                max_d_functions = max(
+                    max_d_functions, group[group["l"] == "d"].shape[0]
+                )
+                max_f_functions = max(
+                    max_f_functions, group[group["l"] == "f"].shape[0]
+                )
+                max_g_functions = max(
+                    max_g_functions, group[group["l"] == "g"].shape[0]
+                )
 
+        self.max_s_functions = max_s_functions / 1
+        self.max_p_functions = max_p_functions / 3
+        self.max_d_functions = max_d_functions / 5
+        self.max_f_functions = max_f_functions / 7
+        self.max_g_functions = max_g_functions / 9
+        self.max_s_functions = int(np.ceil(self.max_s_functions))
+        self.max_p_functions = int(np.ceil(self.max_p_functions))
+        self.max_d_functions = int(np.ceil(self.max_d_functions))
+        self.max_f_functions = int(np.ceil(self.max_f_functions))
+        self.max_g_functions = int(np.ceil(self.max_g_functions))
+
+        self.irreps_in = f"{self.max_s_functions}x0e"
+        if self.max_p_functions > 0:
+            self.irreps_in += f" +{self.max_p_functions}x1o"
+        if self.max_d_functions > 0:
+            self.irreps_in += f" +{self.max_d_functions}x2e"
+        if self.max_f_functions > 0:
+            self.irreps_in += f" +{self.max_f_functions}x3o"
+        if self.max_g_functions > 0:
+            self.irreps_in += f" +{self.max_g_functions}x4e"
+        self.irreps_out = self.irreps_in
+
+    def download(self):
         self.input_data = loadfn(self.filename)
         logger.info("Successfully loaded json file with data.")
+        self.determine_basis_functions()
+        logger.info(
+            f"Determined basis functions,\
+                     s: {self.max_s_functions},\
+                     p: {self.max_p_functions},\
+                     d: {self.max_d_functions},\
+                     f: {self.max_f_functions},\
+                     g: {self.max_g_functions}"
+        )
 
     def process(self):
 
@@ -207,6 +257,8 @@ class ReactionDataset(InMemoryDataset):
                     max_s_functions=self.max_s_functions,
                     max_p_functions=self.max_p_functions,
                     max_d_functions=self.max_d_functions,
+                    max_f_functions=self.max_f_functions,
+                    max_g_functions=self.max_g_functions,
                     indices_to_keep=indices_to_keep,
                 )
 
@@ -219,8 +271,6 @@ class ReactionDataset(InMemoryDataset):
                 data_to_store["orthogonalization_matrix"][
                     state
                 ] = orthogonalization_matrices_spin.flatten()
-
-                minimal_basis_irrep = coeff_matrix.minimal_basis_irrep
 
             reactant_idx = np.where(states == self.reactant_tag)[0][0]
             product_idx = np.where(states == self.product_tag)[0][0]
@@ -277,7 +327,6 @@ class ReactionDataset(InMemoryDataset):
                 edge_index=data_to_store["edge_index"],
                 x=data_to_store["node_features"],
                 total_energies=data_to_store["total_energies"],
-                minimal_basis_irrep=minimal_basis_irrep,
                 species=data_to_store["species"],
                 p=p,
                 basis_mask=data_to_store["basis_mask"][reactant_idx],
@@ -287,6 +336,8 @@ class ReactionDataset(InMemoryDataset):
                 orthogonalization_matrix=data_to_store["orthogonalization_matrix"],
                 indices_to_keep=data_to_store["indices_to_keep"][reactant_idx],
                 identifier=identifier,
+                irreps_in=self.irreps_in,
+                irreps_out=self.irreps_out,
             )
 
             datapoint_list.append(datapoint)

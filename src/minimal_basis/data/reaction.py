@@ -236,7 +236,6 @@ class CoefficientMatrixSphericalBasis:
 
         self.molecule_graph = molecule_graph
         self.orbital_info = orbital_info
-        self.cart_to_spherical_d = cart_to_sph_d()
 
         if indices_to_keep is None:
             self.indices_to_keep = list(range(len(self.coefficient_matrix)))
@@ -289,13 +288,19 @@ class CoefficientMatrixSphericalBasis:
         basis_idx_s = []
         basis_idx_p = []
         basis_idx_d = []
+        basis_idx_f = []
+        basis_idx_g = []
         for _basis_atom in self.basis_atom:
             basis_idx_s.append(np.where(m[_basis_atom] == "s")[0].tolist())
             basis_idx_p.append(np.where(m[_basis_atom] == "p")[0].tolist())
             basis_idx_d.append(np.where(m[_basis_atom] == "d")[0].tolist())
+            basis_idx_f.append(np.where(m[_basis_atom] == "f")[0].tolist())
+            basis_idx_g.append(np.where(m[_basis_atom] == "g")[0].tolist())
         self.basis_idx_s = basis_idx_s
         self.basis_idx_p = basis_idx_p
         self.basis_idx_d = basis_idx_d
+        self.basis_idx_f = basis_idx_f
+        self.basis_idx_g = basis_idx_g
 
     def separate_coeff_matrix_to_atom_centers(self):
         """Split the coefficients to the atoms they belong to."""
@@ -341,6 +346,8 @@ class ModifiedCoefficientMatrixSphericalBasis(CoefficientMatrixSphericalBasis):
         max_s_functions: Union[str, int] = None,
         max_p_functions: Union[str, int] = None,
         max_d_functions: Union[str, int] = None,
+        max_f_functions: Union[str, int] = None,
+        max_g_functions: Union[str, int] = None,
         indices_to_keep: List[int] = None,
         **kwargs,
     ):
@@ -358,6 +365,11 @@ class ModifiedCoefficientMatrixSphericalBasis(CoefficientMatrixSphericalBasis):
                 Use "all" to use all avail the basis functions [Not recommended].
             max_d_functions (Union[str, int], optional): Maximum number of d functions to use.\
                 Use "all" to use all avail the basis functions [Not recommended].
+            max_f_functions (Union[str, int], optional): Maximum number of f functions to use.\
+                Use "all" to use all avail the basis functions [Not recommended].
+            max_g_functions (Union[str, int], optional): Maximum number of g functions to use.\
+                Use "all" to use all avail the basis functions [Not recommended].
+            indices_to_keep (List[int], optional): List of indices to keep.
         """
         super().__init__(
             molecule_graph=molecule_graph,
@@ -372,6 +384,8 @@ class ModifiedCoefficientMatrixSphericalBasis(CoefficientMatrixSphericalBasis):
         self.max_s_functions = max_s_functions
         self.max_p_functions = max_p_functions
         self.max_d_functions = max_d_functions
+        self.max_f_functions = max_f_functions
+        self.max_g_functions = max_g_functions
 
     def pad_split_coefficient_matrix(self):
         raise NotImplementedError(
@@ -400,6 +414,8 @@ class ModifiedCoefficientMatrixSphericalBasis(CoefficientMatrixSphericalBasis):
             max_s = max([len(atom) for atom in self.basis_idx_s])
             max_p = max([len(atom) for atom in self.basis_idx_p])
             max_d = max([len(atom) for atom in self.basis_idx_d])
+            max_f = max([len(atom) for atom in self.basis_idx_f])
+            max_g = max([len(atom) for atom in self.basis_idx_g])
         elif (
             isinstance(self.max_s_functions, int)
             and isinstance(self.max_p_functions, int)
@@ -408,6 +424,8 @@ class ModifiedCoefficientMatrixSphericalBasis(CoefficientMatrixSphericalBasis):
             max_s = self.max_s_functions
             max_p = self.max_p_functions
             max_d = self.max_d_functions
+            max_f = self.max_f_functions
+            max_g = self.max_g_functions
         else:
             raise ValueError(
                 "The maximum number of s, p and d functions must be either 'all' or an integer."
@@ -416,14 +434,14 @@ class ModifiedCoefficientMatrixSphericalBasis(CoefficientMatrixSphericalBasis):
         self.coefficient_matrix_padded = np.zeros(
             [
                 num_atoms,
-                max_s + 3 * max_p + 5 * max_d,
+                max_s + 3 * max_p + 5 * max_d + 7 * max_f + 9 * max_g,
                 self.coefficient_matrix.shape[1],
             ],
         )
         self.basis_mask = np.zeros(
             [
                 num_atoms,
-                max_s + 3 * max_p + 5 * max_d,
+                max_s + 3 * max_p + 5 * max_d + 7 * max_f + 9 * max_g,
             ],
         )
 
@@ -491,14 +509,74 @@ class ModifiedCoefficientMatrixSphericalBasis(CoefficientMatrixSphericalBasis):
                 raise ValueError(
                     "The number of d functions is greater than the maximum number of d functions."
                 )
-            self.coefficient_matrix_padded[atom_idx, max_s + 3 * max_p :, :] = np.pad(
+            self.coefficient_matrix_padded[
+                atom_idx, max_s + 3 * max_p : max_s + 3 * max_p + 5 * max_d, :
+            ] = np.pad(
                 self.coefficient_matrix[d_basis_idx, :],
                 ((0, pad), (0, 0)),
                 "constant",
                 constant_values=0,
             )
-            self.basis_mask[atom_idx, max_s + 3 * max_p :] = np.pad(
+            self.basis_mask[
+                atom_idx, max_s + 3 * max_p : max_s + 3 * max_p + 5 * max_d
+            ] = np.pad(
                 np.ones(len(d_basis_idx)),
+                (0, pad),
+                "constant",
+                constant_values=0,
+            )
+
+            _f_basis_idx = self.basis_idx_f[atom_idx]
+            _f_basis_idx = np.array(_f_basis_idx)
+            _f_basis_idx = _f_basis_idx.flatten()
+            if _f_basis_idx.size == 0:
+                continue
+            f_basis_idx = self.basis_atom[atom_idx][_f_basis_idx]
+
+            pad = 7 * max_f - len(_f_basis_idx)
+            if pad < 0:
+                raise ValueError(
+                    "The number of f functions is greater than the maximum number of f functions."
+                )
+            self.coefficient_matrix_padded[
+                atom_idx, max_s + 3 * max_p + 5 * max_d :, :
+            ] = np.pad(
+                self.coefficient_matrix[f_basis_idx, :],
+                ((0, pad), (0, 0)),
+                "constant",
+                constant_values=0,
+            )
+            self.basis_mask[atom_idx, max_s + 3 * max_p + 5 * max_d :] = np.pad(
+                np.ones(len(f_basis_idx)),
+                (0, pad),
+                "constant",
+                constant_values=0,
+            )
+
+            _g_basis_idx = self.basis_idx_g[atom_idx]
+            _g_basis_idx = np.array(_g_basis_idx)
+            _g_basis_idx = _g_basis_idx.flatten()
+            if _g_basis_idx.size == 0:
+                continue
+            g_basis_idx = self.basis_atom[atom_idx][_g_basis_idx]
+
+            pad = 9 * max_g - len(_g_basis_idx)
+            if pad < 0:
+                raise ValueError(
+                    "The number of g functions is greater than the maximum number of g functions."
+                )
+            self.coefficient_matrix_padded[
+                atom_idx, max_s + 3 * max_p + 5 * max_d + 7 * max_f :, :
+            ] = np.pad(
+                self.coefficient_matrix[g_basis_idx, :],
+                ((0, pad), (0, 0)),
+                "constant",
+                constant_values=0,
+            )
+            self.basis_mask[
+                atom_idx, max_s + 3 * max_p + 5 * max_d + 7 * max_f :
+            ] = np.pad(
+                np.ones(len(g_basis_idx)),
                 (0, pad),
                 "constant",
                 constant_values=0,
