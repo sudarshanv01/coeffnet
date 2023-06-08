@@ -75,7 +75,6 @@ if __name__ == "__main__":
     wandb.init(project=model_name, entity=args.wandb_username)
     wandb.config.update(args)
     wandb.config.update({"dataset_options": dataset_options})
-    wandb.config.update({"model_options": model_options})
 
     if args.debug:
         train_json_filename = input_foldername / "train_debug.json"
@@ -127,6 +126,7 @@ if __name__ == "__main__":
     if input_g > 0:
         irreps_hidden += f"+{args.hidden_g}x4e"
     model_options["irreps_hidden"] = irreps_hidden[1:]
+    wandb.config.update({"model_options": model_options})
     logger.info(f"Model Options: {model_options}")
     model = Model(**model_options)
     model = model.to(DEVICE)
