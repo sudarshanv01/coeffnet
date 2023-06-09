@@ -17,7 +17,7 @@ from instance_mongodb import instance_mongodb_sei
 
 from fireworks.user_objects.dupefinders.dupefinder_exact import DupeFinderExact
 
-lp = LaunchPad.from_file("/Users/sudarshanvijay/fw_config/my_launchpad_mlts.yaml")
+lp = LaunchPad.from_file("/global/u1/s/svijay/fw_config/my_launchpad_mlts.yaml")
 
 
 def get_cli():
@@ -51,8 +51,8 @@ if __name__ == "__main__":
     documents = data_collection.find(
         find_tags,
         {
-            # "perturbed_molecule_0_5_molecule": 1,
-            # "perturbed_molecule_-0_5_molecule": 1,
+            "perturbed_molecule_0_5_molecule": 1,
+            "perturbed_molecule_-0_5_molecule": 1,
             "transition_state_molecule": 1,
             "rxn_number": 1,
             "reaction_name": 1,
