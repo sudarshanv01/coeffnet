@@ -64,9 +64,9 @@ if __name__ == "__main__":
                 "basis_are_spherical": True,
             }
 
-            if collection.count_documents({"tags": tags}) > 0:
-                logger.info(f"Skipping {tags}")
-                continue
+            # if collection.count_documents({"tags": tags}) > 0:
+            #     logger.info(f"Skipping {tags}")
+            #     continue
 
             document = initial_structure_collection.find_one(
                 {"rxn_number": rxn_number},
