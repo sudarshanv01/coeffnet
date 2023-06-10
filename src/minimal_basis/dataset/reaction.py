@@ -279,6 +279,7 @@ class ReactionDataset(InMemoryDataset):
             product_structure = structures[product_idx]
 
             instance_generate = GenerateParametersInterpolator()
+            deltaG = final_energy[product_idx] - final_energy[reactant_idx]
             interpolated_transition_state_pos = (
                 instance_generate.get_interpolated_transition_state_positions(
                     reactant_structure.cart_coords,
@@ -286,7 +287,7 @@ class ReactionDataset(InMemoryDataset):
                     mu=self.mu,
                     sigma=self.sigma,
                     alpha=self.alpha,
-                    deltaG=final_energy[product_idx] - final_energy[reactant_idx],
+                    deltaG=deltaG,
                 )
             )
             interpolated_transition_state_structure = Molecule(
@@ -297,7 +298,9 @@ class ReactionDataset(InMemoryDataset):
             )
 
             p, _ = instance_generate.get_p_and_pprime(
-                mu=self.mu, sigma=self.sigma, alpha=self.alpha
+                mu=self.mu,
+                sigma=self.sigma,
+                alpha=self.alpha * deltaG,
             )
 
             data_to_store["pos"][
