@@ -26,9 +26,9 @@ def test_input_model_minimal_basis(network_factory):
     """Test input of model options to the model."""
 
     model = network_factory(prediction_mode="relative_energy", basis_type="minimal")
-    assert model.irreps_in == "5x0e+3x1o"
+    assert model.irreps_in == "4x0e+3x1o"
     assert model.irreps_hidden == "64x0e+288x1o"
-    assert model.irreps_out == "5x0e+3x1o"
+    assert model.irreps_out == "4x0e+3x1o"
     assert model.irreps_node_attr == "1x0e"
     assert model.irreps_edge_attr == "12x0e"
     assert model.radial_layers == 2
@@ -44,9 +44,9 @@ def test_input_model_minimal_basis(network_factory):
     assert model.normalize_sumsq == True
 
     model = network_factory(prediction_mode="coeff_matrix", basis_type="minimal")
-    assert model.irreps_in == "5x0e+3x1o"
+    assert model.irreps_in == "4x0e+3x1o"
     assert model.irreps_hidden == "64x0e+288x1o"
-    assert model.irreps_out == "5x0e+3x1o"
+    assert model.irreps_out == "4x0e+3x1o"
     assert model.irreps_node_attr == "1x0e"
     assert model.irreps_edge_attr == "12x0e"
     assert model.radial_layers == 2
@@ -65,9 +65,9 @@ def test_input_model_minimal_basis(network_factory):
 def test_input_model_full_basis(network_factory):
     """Test input of model options to the model."""
     model = network_factory(prediction_mode="relative_energy", basis_type="full")
-    assert model.irreps_in == "5x0e+3x1o+2x2e"
+    assert model.irreps_in == "4x0e+3x1o+1x2e"
     assert model.irreps_hidden == "64x0e+288x1o+128x2e"
-    assert model.irreps_out == "5x0e+3x1o+2x2e"
+    assert model.irreps_out == "4x0e+3x1o+1x2e"
     assert model.irreps_node_attr == "1x0e"
     assert model.irreps_edge_attr == "12x0e"
     assert model.radial_layers == 2
@@ -83,9 +83,9 @@ def test_input_model_full_basis(network_factory):
     assert model.normalize_sumsq == True
 
     model = network_factory(prediction_mode="coeff_matrix", basis_type="full")
-    assert model.irreps_in == "5x0e+3x1o+2x2e"
+    assert model.irreps_in == "4x0e+3x1o+1x2e"
     assert model.irreps_hidden == "64x0e+288x1o+128x2e"
-    assert model.irreps_out == "5x0e+3x1o+2x2e"
+    assert model.irreps_out == "4x0e+3x1o+1x2e"
     assert model.irreps_node_attr == "1x0e"
     assert model.irreps_edge_attr == "12x0e"
     assert model.radial_layers == 2

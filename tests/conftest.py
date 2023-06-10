@@ -21,19 +21,11 @@ def dataset_options_factory(tmp_path):
             / "input"
             / f"reaction_{basis_type}_basis.json",
             "root": tmp_path / "root",
-            "max_s_functions": 5,
-            "max_p_functions": 3,
             "idx_eigenvalue": 0,
             "reactant_tag": "reactant",
             "product_tag": "product",
             "transition_state_tag": "transition_state",
         }
-        if basis_type == "full":
-            options.update({"max_d_functions": 2})
-        elif basis_type == "minimal":
-            options.update({"max_d_functions": 0})
-        else:
-            raise ValueError(f"Unknown basis type {basis_type}")
         options.update(kwargs)
         return options
 
@@ -61,17 +53,17 @@ def model_options_factory():
         if basis_type == "full":
             options.update(
                 {
-                    "irreps_in": "5x0e+3x1o+2x2e",
+                    "irreps_in": "4x0e+3x1o+1x2e",
                     "irreps_hidden": "64x0e+288x1o+128x2e",
-                    "irreps_out": "5x0e+3x1o+2x2e",
+                    "irreps_out": "4x0e+3x1o+1x2e",
                 }
             )
         elif basis_type == "minimal":
             options.update(
                 {
-                    "irreps_in": "5x0e+3x1o",
+                    "irreps_in": "4x0e+3x1o",
                     "irreps_hidden": "64x0e+288x1o",
-                    "irreps_out": "5x0e+3x1o",
+                    "irreps_out": "4x0e+3x1o",
                 }
             )
         else:

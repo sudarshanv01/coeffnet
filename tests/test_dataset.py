@@ -18,7 +18,7 @@ def test_input_dataset(dataset_options_factory):
     """Test input of dataset options to the dataset."""
     dataset_options = dataset_options_factory("minimal")
     dataset = ReactionDataset(**dataset_options)
-    assert dataset.max_s_functions == 5
+    assert dataset.max_s_functions == 4
     assert dataset.max_p_functions == 3
     assert dataset.max_d_functions == 0
     assert dataset.idx_eigenvalue == 0
@@ -28,9 +28,9 @@ def test_input_dataset(dataset_options_factory):
 
     dataset_options = dataset_options_factory("full")
     dataset = ReactionDataset(**dataset_options)
-    assert dataset.max_s_functions == 5
+    assert dataset.max_s_functions == 4
     assert dataset.max_p_functions == 3
-    assert dataset.max_d_functions == 2
+    assert dataset.max_d_functions == 1
     assert dataset.idx_eigenvalue == 0
     assert dataset.reactant_tag == "reactant"
     assert dataset.product_tag == "product"
@@ -55,16 +55,16 @@ def test_output_dataset_minimal_basis(dataset_options_factory):
     loader = DataLoader(dataset, batch_size=1, shuffle=False)
 
     for data in loader:
-        # 12 atoms with 5 s functions and 3 p functions
+        # 12 atoms with 4 s functions and 3 p functions
         num_atoms = 12
-        assert data.x.shape == (num_atoms, 14)
-        assert data.x_final_state.shape == (num_atoms, 14)
-        assert data.x_transition_state.shape == (num_atoms, 14)
+        assert data.x.shape == (num_atoms, 13)
+        assert data.x_final_state.shape == (num_atoms, 13)
+        assert data.x_transition_state.shape == (num_atoms, 13)
         assert data.pos.shape == (num_atoms, 3)
         assert data.pos_final_state.shape == (num_atoms, 3)
         assert data.pos_transition_state.shape == (num_atoms, 3)
         assert data.species.shape == (num_atoms, 1)
-        assert data.basis_mask.shape == (num_atoms, 14)
+        assert data.basis_mask.shape == (num_atoms, 13)
 
 
 def test_output_dataset_full_basis(dataset_options_factory):
@@ -73,16 +73,16 @@ def test_output_dataset_full_basis(dataset_options_factory):
     loader = DataLoader(dataset, batch_size=1, shuffle=False)
 
     for data in loader:
-        # 12 atoms with 5 s functions, 3 p functions, and 2 d functions
+        # 12 atoms with 4 s functions, 3 p functions, and 1 d functions
         num_atoms = 12
-        assert data.x.shape == (num_atoms, 24)
-        assert data.x_final_state.shape == (num_atoms, 24)
-        assert data.x_transition_state.shape == (num_atoms, 24)
+        assert data.x.shape == (num_atoms, 18)
+        assert data.x_final_state.shape == (num_atoms, 18)
+        assert data.x_transition_state.shape == (num_atoms, 18)
         assert data.pos.shape == (num_atoms, 3)
         assert data.pos_final_state.shape == (num_atoms, 3)
         assert data.pos_transition_state.shape == (num_atoms, 3)
         assert data.species.shape == (num_atoms, 1)
-        assert data.basis_mask.shape == (num_atoms, 24)
+        assert data.basis_mask.shape == (num_atoms, 18)
 
 
 def test_equivariance_dataset_minimal_basis(
@@ -93,7 +93,7 @@ def test_equivariance_dataset_minimal_basis(
     dataset = ReactionDataset(**dataset_options)
     loader = DataLoader(dataset, batch_size=1, shuffle=False)
     idx_to_euler_angle = get_mapping_idx_to_euler_angles
-    node_irreps = o3.Irreps("5x0e+3x1o")
+    node_irreps = o3.Irreps("4x0e+3x1o")
     for _idx, data in enumerate(loader):
 
         x = data.x
@@ -152,7 +152,7 @@ def test_equivariance_dataset_full_basis(
     dataset = ReactionDataset(**dataset_options)
     loader = DataLoader(dataset, batch_size=1, shuffle=False)
     idx_to_euler_angle = get_mapping_idx_to_euler_angles
-    node_irreps = o3.Irreps("5x0e+3x1o+2x2e")
+    node_irreps = o3.Irreps("4x0e+3x1o+1x2e")
     for _idx, data in enumerate(loader):
 
         x = data.x
