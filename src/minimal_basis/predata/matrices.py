@@ -996,6 +996,11 @@ class TaskdocsToData:
                     f"with state {state} due to a linear algebra error."
                 )
                 continue
+            except ValueError:
+                logger.warning(
+                    f"Could not compute the overlap matrix for {identifier}; dimensions are incorrect!"
+                )
+                continue
 
             alpha_orthogonalization_matrix = (
                 base_quantities_qchem.get_orthogonalization_matrix()
@@ -1019,6 +1024,12 @@ class TaskdocsToData:
                         f"with state {state} due to a linear algebra error."
                     )
                     continue
+                except ValueError:
+                    logger.warning(
+                        f"Could not compute the overlap matrix for {identifier}; dimensions are incorrect!"
+                    )
+                    continue
+
                 beta_orthogonalization_matrix = (
                     base_quantities_qchem.get_orthogonalization_matrix()
                 )
