@@ -220,7 +220,7 @@ if __name__ == "__main__":
     __output_dir__ = Path("output")
     __output_dir__.mkdir(exist_ok=True)
 
-    basis_set = "sto-3g"
+    basis_set = "def2-svp"
     quantity = "alpha_ortho_coeff_matrix"
     basis_set_type = "full"
 
@@ -270,22 +270,22 @@ if __name__ == "__main__":
     cbar1 = fig.colorbar(cax1, ax=ax[1])
 
     ax[0].set_yticks(np.arange(len(data[basis_set]["basis_functions_orbital"][0])))
-    ax[0].set_yticklabels(data[basis_set]["basis_functions_orbital"][0])
+    ax[0].set_yticklabels(data[basis_set]["basis_functions_orbital"][0], fontsize=4)
     ax[1].set_yticks(np.arange(len(data[basis_set]["basis_functions_orbital"][0])))
-    ax[1].set_yticklabels(data[basis_set]["basis_functions_orbital"][0])
+    ax[1].set_yticklabels(data[basis_set]["basis_functions_orbital"][0], fontsize=4)
 
     eigenvalues = data[basis_set]["alpha_eigenvalues"][0]
     eigenvalues *= ase_units.Hartree
     ax[0].set_xticks(np.arange(len(eigenvalues)))
-    ax[0].set_xticklabels(np.round(eigenvalues, 2), rotation=90)
+    ax[0].set_xticklabels(np.round(eigenvalues, 2), rotation=90, fontsize=4)
     ax[1].set_xticks(np.arange(len(eigenvalues)))
-    ax[1].set_xticklabels(np.round(eigenvalues, 2), rotation=90)
+    ax[1].set_xticklabels(np.round(eigenvalues, 2), rotation=90, fontsize=4)
     ax[0].set_title(r"$\mathbf{C}\left(\alpha_0,\beta_0,\gamma_0\right)$")
     ax[1].set_title(r"$\mathbf{C}\left(\alpha,\beta,\gamma\right)$")
 
     ax[0].set_ylabel("Basis function")
-    ax[0].set_xlabel("Eigenvalue of Molecular Orbital [eV]")
-    ax[1].set_xlabel("Eigenvalue of Molecular Orbital [eV]")
+    ax[0].set_xlabel("Eigenvalue of molecular orbital [eV]")
+    ax[1].set_xlabel("Eigenvalue of molecular orbital [eV]")
 
     selected_eigenval = eigenvalues[eigenvalues < 0]
     selected_eigenval = np.sort(selected_eigenval)
@@ -321,6 +321,10 @@ if __name__ == "__main__":
     ax[2].set_ylabel(
         r"$\left|\mathbf{C}^{\mathrm{HOMO}} (\alpha_0, \beta_0, \gamma_0) \cdot \mathbf{D}^T(\alpha, \beta, \gamma)\right|$"
     )
+
+    # Switch off minor ticks for the first two ax
+    ax[0].tick_params(axis="both", which="both", length=0)
+    ax[1].tick_params(axis="both", which="both", length=0)
 
     fig.tight_layout()
     fig.savefig(__output_dir__ / f"figure1.png")

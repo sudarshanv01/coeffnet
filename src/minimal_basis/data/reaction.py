@@ -539,14 +539,30 @@ class ModifiedCoefficientMatrixSphericalBasis(CoefficientMatrixSphericalBasis):
                     "The number of f functions is greater than the maximum number of f functions."
                 )
             self.coefficient_matrix_padded[
-                atom_idx, max_s + 3 * max_p + 5 * max_d :, :
+                atom_idx,
+                max_s
+                + 3 * max_p
+                + 5 * max_d : max_s
+                + 3 * max_p
+                + 5 * max_d
+                + 7 * max_f,
+                :,
             ] = np.pad(
                 self.coefficient_matrix[f_basis_idx, :],
                 ((0, pad), (0, 0)),
                 "constant",
                 constant_values=0,
             )
-            self.basis_mask[atom_idx, max_s + 3 * max_p + 5 * max_d :] = np.pad(
+            self.basis_mask[
+                atom_idx,
+                max_s
+                + 3 * max_p
+                + 5 * max_d : max_s
+                + 3 * max_p
+                + 5 * max_d
+                + 7 * max_f,
+                :,
+            ] = np.pad(
                 np.ones(len(f_basis_idx)),
                 (0, pad),
                 "constant",
