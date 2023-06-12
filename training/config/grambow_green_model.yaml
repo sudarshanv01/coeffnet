@@ -27,6 +27,7 @@ model_options:
       make_absolute: false 
       mask_extra_basis: true
       normalize_sumsq: true
+      use_atomic_masses: true
     full_basis:
       irreps_node_attr: "1x0e"
       irreps_edge_attr: "@construct"
@@ -41,6 +42,7 @@ model_options:
       make_absolute: false 
       mask_extra_basis: true
       normalize_sumsq: true
+      use_atomic_masses: true
   coeff_matrix:
     minimal_basis:
       irreps_node_attr: "1x0e"
@@ -55,6 +57,7 @@ model_options:
       make_absolute: false 
       mask_extra_basis: true
       normalize_sumsq: true
+      use_atomic_masses: true
     full_basis:
       irreps_hidden: "64x0e+288x1o+64x2e"
       irreps_node_attr: "1x0e"
@@ -69,3 +72,4 @@ model_options:
       make_absolute: false 
       mask_extra_basis: true
       normalize_sumsq: true
+      use_atomic_masses: true

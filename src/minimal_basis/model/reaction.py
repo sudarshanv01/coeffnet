@@ -30,6 +30,7 @@ class ReactionModel(torch.nn.Module):
         mask_extra_basis: Optional[bool] = False,
         normalize_sumsq: Optional[bool] = False,
         reference_reduced_output_to_initial_state: Optional[bool] = False,
+        use_atomic_masses: Optional[bool] = False,
     ) -> None:
         """Torch module for transition state properties prediction.
 
@@ -55,6 +56,7 @@ class ReactionModel(torch.nn.Module):
                 the squared output. Defaults to False.
             reference_reduced_output_to_initial_state (Optional[bool], optional): Whether to reference
                 the reduced output to the initial state. Defaults to False.
+            use_atomic_masses (Optional[bool], optional): Whether to use atomic masses as node attributes.
         """
 
         super().__init__()
@@ -78,6 +80,7 @@ class ReactionModel(torch.nn.Module):
         self.reference_reduced_output_to_initial_state = (
             reference_reduced_output_to_initial_state
         )
+        self.use_atomic_masses = use_atomic_masses
 
         self.network_initial_state = Network(
             irreps_in=irreps_in,
@@ -149,14 +152,15 @@ class ReactionModel(torch.nn.Module):
             x = data.x
             x_final_state = data.x_final_state
 
-        output_network_initial_state = self.network_initial_state(
-            {
-                "pos": data.pos,
-                "x": x,
-                "z": data.species,
-                "batch": data.batch,
-            }
-        )
+        kwargs_initial_state = {
+            "pos": data.pos,
+            "x": x,
+            "batch": data.batch,
+        }
+        if self.use_atomic_masses:
+            kwargs_initial_state["z"] = data.species
+
+        output_network_initial_state = self.network_initial_state(kwargs_initial_state)
 
         if self.make_absolute:
             output_network_initial_state = torch.abs(output_network_initial_state)
@@ -170,14 +174,15 @@ class ReactionModel(torch.nn.Module):
                 output_network_initial_state, data.batch
             )
 
-        output_network_final_state = self.network_final_state(
-            {
-                "pos": data.pos_final_state,
-                "x": x_final_state,
-                "z": data.species,
-                "batch": data.batch,
-            }
-        )
+        kwargs_final_state = {
+            "pos": data.pos_final_state,
+            "x": x_final_state,
+            "batch": data.batch,
+        }
+        if self.use_atomic_masses:
+            kwargs_final_state["z"] = data.species
+
+        output_network_final_state = self.network_final_state(kwargs_final_state)
 
         if self.make_absolute:
             output_network_final_state = torch.abs(output_network_final_state)
@@ -196,14 +201,17 @@ class ReactionModel(torch.nn.Module):
             + p_prime[0] * output_network_final_state
         )
 
+        kwargs_interpolated_transition_state = {
+            "pos": data.pos_interpolated_transition_state,
+            "x": x_interpolated_transition_state,
+            "batch": data.batch,
+        }
+        if self.use_atomic_masses:
+            kwargs_interpolated_transition_state["z"] = data.species
+
         output_network_interpolated_transition_state = (
             self.network_interpolated_transition_state(
-                {
-                    "pos": data.pos_interpolated_transition_state,
-                    "x": x_interpolated_transition_state,
-                    "z": data.species,
-                    "batch": data.batch,
-                }
+                kwargs_interpolated_transition_state
             )
         )
 
