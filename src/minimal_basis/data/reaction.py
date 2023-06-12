@@ -561,7 +561,6 @@ class ModifiedCoefficientMatrixSphericalBasis(CoefficientMatrixSphericalBasis):
                 + 3 * max_p
                 + 5 * max_d
                 + 7 * max_f,
-                :,
             ] = np.pad(
                 np.ones(len(f_basis_idx)),
                 (0, pad),

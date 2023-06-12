@@ -1,5 +1,7 @@
 from typing import List, Tuple, Dict, Union, Optional
 
+import argparse
+
 from pathlib import Path
 
 from pprint import pprint
@@ -133,6 +135,23 @@ def get_coeff_matrix_performance():
     return df
 
 
+def get_cli_args():
+    """Parse command line arguments."""
+
+    parser = argparse.ArgumentParser(
+        description="Plot the results of the Rudorff-Lilienfeld dataset"
+    )
+
+    parser.add_argument(
+        "--basis_set",
+        type=str,
+        default="def2-svp",
+        help="The basis set to use for the dataset",
+    )
+
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
 
     __input_folder__ = Path("input")
@@ -140,8 +159,10 @@ if __name__ == "__main__":
     __output_folder__ = Path("output")
     __output_folder__.mkdir(exist_ok=True)
 
+    args = get_cli_args()
+
     dataset_name = "rudorff_lilienfeld_sn2_dataset"
-    basis_set = "def2-svp"
+    basis_set = args.basis_set
     basis_set_name = get_sanitized_basis_set_name(basis_set)
     debug_dataset = True
     debug_model = False
@@ -268,4 +289,4 @@ if __name__ == "__main__":
     ax[0, 1].set_ylabel("")
     ax[1, 1].set_ylabel("")
 
-    fig.savefig(__output_folder__ / "figure5.png")
+    fig.savefig(__output_folder__ / f"figure5_{basis_set_name}.png")

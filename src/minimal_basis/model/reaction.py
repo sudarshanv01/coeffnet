@@ -157,8 +157,9 @@ class ReactionModel(torch.nn.Module):
             "x": x,
             "batch": data.batch,
         }
-        if self.use_atomic_masses:
-            kwargs_initial_state["z"] = data.species
+        if hasattr(self, "use_atomic_masses"):
+            if self.use_atomic_masses:
+                kwargs_initial_state["z"] = data.species
 
         output_network_initial_state = self.network_initial_state(kwargs_initial_state)
 
@@ -179,8 +180,9 @@ class ReactionModel(torch.nn.Module):
             "x": x_final_state,
             "batch": data.batch,
         }
-        if self.use_atomic_masses:
-            kwargs_final_state["z"] = data.species
+        if hasattr(self, "use_atomic_masses"):
+            if self.use_atomic_masses:
+                kwargs_final_state["z"] = data.species
 
         output_network_final_state = self.network_final_state(kwargs_final_state)
 
@@ -206,8 +208,9 @@ class ReactionModel(torch.nn.Module):
             "x": x_interpolated_transition_state,
             "batch": data.batch,
         }
-        if self.use_atomic_masses:
-            kwargs_interpolated_transition_state["z"] = data.species
+        if hasattr(self, "use_atomic_masses"):
+            if self.use_atomic_masses:
+                kwargs_interpolated_transition_state["z"] = data.species
 
         output_network_interpolated_transition_state = (
             self.network_interpolated_transition_state(
