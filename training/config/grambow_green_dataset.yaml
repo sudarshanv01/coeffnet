@@ -1,11 +1,24 @@
 ---
 filter_collection: 
-  task_label: "single point"
+  "input.job_type": "sp"
+  "tags.inverted_coordinates": true
+  "orig.rem.purecart": "1111"
+  "tags.number_of_bond_changes": -1
 identifier: "rxn_number"
 state_identifier: "state"
 reactant_tag: "reactant"
 product_tag: "product"
 transition_state_tag: "transition_state"
-basis_set_name: "def2-msvp"
-basis_set_type: "minimal"
-d_functions_are_spherical: true 
+p_orbital_specs:
+  inverted_coordinates: true
+  basis_are_spherical: true
+d_orbital_specs:
+  inverted_coordinates: true
+  basis_are_spherical: true
+f_orbital_specs:
+  inverted_coordinates: true
+  basis_are_spherical: true
+g_orbital_specs:
+  inverted_coordinates: true
+  basis_are_spherical: true
+switch_to_spherical: false

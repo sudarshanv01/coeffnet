@@ -24,7 +24,9 @@ from figure_utils import (
 )
 
 import matplotlib.pyplot as plt
+from plot_params import get_plot_params
 
+get_plot_params()
 plt.rcParams["figure.dpi"] = 300
 
 from model_functions import construct_model_name
@@ -71,7 +73,7 @@ if __name__ == "__main__":
     model_config = __config_folder__ / "rudorff_lilienfeld_model.yaml"
     inputs = read_inputs_yaml(model_config)
 
-    fig, ax = plt.subplots(1, 2, figsize=(6, 3), constrained_layout=True)
+    fig, ax = plt.subplots(1, 2, figsize=(5.1, 2.4), constrained_layout=True)
 
     example_deltaG = [-3, 0, 3]  # eV
 

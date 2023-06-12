@@ -92,6 +92,8 @@ def get_model_data(
     runs = wandb_api.runs(f"sudarshanvj/{model_name}")
     df = pd.DataFrame()
     for run in runs:
+        if run.state != "finished":
+            continue
         if (
             run.config.get("basis_set_type") == basis_set_type
             and run.config.get("basis_set") == basis_set

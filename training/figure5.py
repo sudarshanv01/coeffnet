@@ -21,6 +21,9 @@ from utils import (
 
 import matplotlib.pyplot as plt
 import seaborn as sns
+from plot_params import get_plot_params
+
+get_plot_params()
 
 plt.rcParams["figure.dpi"] = 300
 
@@ -54,16 +57,26 @@ def get_best_model(
         & (df["basis_set_type"] == basis_set_type)
         & (df["prediction_mode"] == prediction_mode)
     ]
-    best_model_row = df_options.sort_values(by="val_loss").iloc[0]
-    best_run = [
-        run for run in all_runs if run.name == best_model_row["wandb_model_name"]
-    ][0]
-    best_artifacts = best_run.logged_artifacts()
-    best_model = [artifact for artifact in best_artifacts if artifact.type == "model"][
-        0
-    ]
-    best_model.download()
-    best_model = torch.load(best_model.file(), map_location=torch.device("cpu"))
+    while True:
+        best_model_row = df_options.sort_values(by="val_loss").iloc[0]
+        best_run = [
+            run for run in all_runs if run.name == best_model_row["wandb_model_name"]
+        ][0]
+        print(f"Best model: {best_run.name}")
+        best_artifacts = best_run.logged_artifacts()
+        best_model = [
+            artifact for artifact in best_artifacts if artifact.type == "model"
+        ][0]
+        best_model.download()
+        try:
+            best_model = torch.load(best_model.file(), map_location=torch.device("cpu"))
+        except RuntimeError:
+            print("Failed to load model, skipping")
+            df_options = df_options[
+                df_options["val_loss"] != best_model_row["val_loss"]
+            ]
+            continue
+        break
     best_model.eval()
     return best_model
 
@@ -136,7 +149,7 @@ if __name__ == "__main__":
     inputs = read_inputs_yaml(model_config)
     basis_set_types = ["full", "minimal"]
 
-    fig, ax = plt.subplots(2, 2, figsize=(5.75, 4), constrained_layout=True)
+    fig, ax = plt.subplots(2, 2, figsize=(4, 2.5), constrained_layout=True)
 
     model_name = construct_model_name(
         dataset_name=dataset_name,
@@ -243,10 +256,6 @@ if __name__ == "__main__":
     )
     # Remove the legend from the other plots
     ax[0, 0].get_legend().remove()
-    # Make the aspect ratio equal
-    for idx_row in range(2):
-        for idx_col in range(2):
-            ax[idx_row, idx_col].set_aspect("equal", "box")
     ax[0, 0].set_ylabel(r"Predicted $E_{\mathrm{TS}} - E_{\mathrm{IS}}$ (eV)")
     ax[0, 0].set_xlabel(r"DFT $E_{\mathrm{TS}} - E_{\mathrm{IS}}$ (eV)")
     ax[1, 0].set_ylabel(r"Predicted $\mathbf{C}_{\mathrm{TS}}$")
