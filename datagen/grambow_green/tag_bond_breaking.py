@@ -1,8 +1,12 @@
 from pathlib import Path
 
+import argparse
+
 from pymatgen.core.structure import Molecule
 from pymatgen.analysis.graphs import MoleculeGraph
 from pymatgen.analysis.local_env import OpenBabelNN
+
+from tqdm import tqdm
 
 from instance_mongodb import instance_mongodb_sei
 
@@ -20,7 +24,10 @@ def get_unique_identifiers(collection, query: dict = None):
 
 
 def get_all_single_point_calculation(
-    collection, rxn_number, state="reactant", basis_set: str = "def2-svp"
+    collection,
+    rxn_number: str,
+    state="reactant",
+    basis_set: str = "def2-svp",
 ):
     """Get all single point calculations for a given reaction number."""
     return collection.find(
@@ -29,53 +36,75 @@ def get_all_single_point_calculation(
             "task_label": "single point",
             "tags.state": state,
             "orig.rem.basis": basis_set,
+            "tags.number_of_bond_changes": {"$exists": False},
         },
         {
             "output.initial_molecule": 1,
+            "tags.state": 1,
         },
     )
+
+
+def get_command_line_arguments():
+
+    parser = argparse.ArgumentParser(
+        description="Tag calculations in the `grambow_green_calculation` collection "
+        "with the number of bonds breaking in the reaction."
+    )
+
+    parser.add_argument(
+        "--dryrun",
+        action="store_true",
+        help="Dry run the script.",
+    )
+
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
     """Tag calculations in the `grambow_green_calculation` collection
     with the number of bonds breaking in the reaction."""
 
+    args = get_command_line_arguments()
+
     db = instance_mongodb_sei(project="mlts")
     collection = db["grambow_green_calculation"]
 
     rxn_numbers = get_unique_identifiers(
-        collection, query={"orig.rem.basis": "def2-svp"}
+        collection,
+        query={
+            "orig.rem.basis": "def2-svp",
+            "tags.number_of_bond_changes": {"$exists": False},
+        },
     )
-    print(f"Number of unique rxn_numbers = {len(rxn_numbers)}")
 
-    for rxn_number in rxn_numbers:
+    for rxn_number in tqdm(rxn_numbers):
 
-        reactant_document = get_all_single_point_calculation(
-            collection, rxn_number, state="reactant", basis_set="def2-svp"
-        )
-        product_document = get_all_single_point_calculation(
-            collection, rxn_number, state="product", basis_set="def2-svp"
-        )
-        transition_state_document = get_all_single_point_calculation(
-            collection, rxn_number, state="transition_state", basis_set="def2-svp"
+        state_documents = get_all_single_point_calculation(
+            collection,
+            rxn_number,
+            basis_set="def2-svp",
+            state={"$in": ["reactant", "product", "transition_state"]},
         )
 
-        reactant_document = list(reactant_document)
-        product_document = list(product_document)
+        state_documents = list(state_documents)
 
-        if len(reactant_document) == 0:
-            print(f"rxn_number = {rxn_number}, reactant_document = {reactant_document}")
+        reactant_document = list(
+            filter(lambda x: x["tags"]["state"] == "reactant", state_documents)
+        )
+        product_document = list(
+            filter(lambda x: x["tags"]["state"] == "product", state_documents)
+        )
+        transition_state_document = list(
+            filter(lambda x: x["tags"]["state"] == "transition_state", state_documents)
+        )
+
+        if len(reactant_document) == 0 or len(product_document) == 0:
+            print(f"Skipping rxn_number = {rxn_number}")
             continue
-        if len(product_document) == 0:
-            print(f"rxn_number = {rxn_number}, product_document = {product_document}")
+        if len(reactant_document) > 1 or len(product_document) > 1:
+            print(f"Skipping rxn_number = {rxn_number}")
             continue
-
-        assert (
-            len(reactant_document) == 1
-        ), f"len(reactant_document) = {len(reactant_document)}"
-        assert (
-            len(product_document) == 1
-        ), f"len(product_document) = {len(product_document)}"
 
         reactant_document = reactant_document[0]
         product_document = product_document[0]
@@ -95,26 +124,17 @@ if __name__ == "__main__":
         number_broken_bonds = identify_number_broken_bonds(
             product_molecule_graph, reactant_molecule_graph
         )
-        print(
-            f"rxn_number = {rxn_number}, number of broken bonds = {number_broken_bonds}"
-        )
 
-        __output_folder__ = Path("output") / "structures" / f"rxn_number_{rxn_number}"
-        __output_folder__.mkdir(parents=True, exist_ok=True)
-        reactant_xyz_string = __output_folder__ / f"reactant_{number_broken_bonds}.xyz"
-        product_xyz_string = __output_folder__ / f"product_{number_broken_bonds}.xyz"
-        reactant_molecule.to(reactant_xyz_string.as_posix())
-        product_molecule.to(product_xyz_string.as_posix())
-
-        collection.update_one(
-            {"_id": reactant_document["_id"]},
-            {"$set": {"tags.number_of_bond_changes": number_broken_bonds}},
-        )
-        collection.update_one(
-            {"_id": product_document["_id"]},
-            {"$set": {"tags.number_of_bond_changes": number_broken_bonds}},
-        )
-        collection.update_one(
-            {"_id": transition_state_document[0]["_id"]},
-            {"$set": {"tags.number_of_bond_changes": number_broken_bonds}},
-        )
+        if not args.dryrun:
+            collection.update_one(
+                {"_id": reactant_document["_id"]},
+                {"$set": {"tags.number_of_bond_changes": number_broken_bonds}},
+            )
+            collection.update_one(
+                {"_id": product_document["_id"]},
+                {"$set": {"tags.number_of_bond_changes": number_broken_bonds}},
+            )
+            collection.update_one(
+                {"_id": transition_state_document[0]["_id"]},
+                {"$set": {"tags.number_of_bond_changes": number_broken_bonds}},
+            )
