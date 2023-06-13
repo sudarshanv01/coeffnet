@@ -4,7 +4,6 @@ from torch_geometric.loader import DataLoader
 from torch.nn import functional as F
 
 from minimal_basis.dataset.reaction import ReactionDataset as Dataset
-from minimal_basis.model.reaction import ReactionModel as Model
 from minimal_basis.loss.eigenvectors import UnsignedMSELoss
 
 
@@ -63,7 +62,7 @@ def relative_energy_loss(data, predicted_y, do_backward=True):
     return loss.item()
 
 
-def train(model: Model, train_loader: DataLoader, optim, prediction_mode: str) -> float:
+def train(model, train_loader: DataLoader, optim, prediction_mode: str) -> float:
     """Train the model."""
 
     model.train()
@@ -91,7 +90,7 @@ def train(model: Model, train_loader: DataLoader, optim, prediction_mode: str) -
 
 
 @torch.no_grad()
-def validate(model: Model, val_loader: DataLoader, prediction_mode: str) -> float:
+def validate(model, val_loader: DataLoader, prediction_mode: str) -> float:
     """Validate the model."""
     model.eval()
 

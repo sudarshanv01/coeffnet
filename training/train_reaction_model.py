@@ -1,5 +1,6 @@
 import os
 import logging
+import importlib
 
 from datetime import datetime
 
@@ -14,7 +15,6 @@ import torch_geometric.transforms as T
 from e3nn import o3
 
 from minimal_basis.dataset.reaction import ReactionDataset as Dataset
-from minimal_basis.model.reaction import MessagePassingReactionModel as Model
 
 from utils import (
     get_validation_data_path,
@@ -70,6 +70,10 @@ if __name__ == "__main__":
     model_options = inputs["model_options"][args.prediction_mode][
         f"{args.basis_set_type}_basis"
     ]
+    nn_name = inputs["nn_name"]
+    module_model = __import__("minimal_basis.model.reaction", fromlist=[nn_name])
+    Model = getattr(module_model, nn_name)
+    logger.info(f"Model used: {Model}")
 
     transform = T.ToDevice(DEVICE)
 

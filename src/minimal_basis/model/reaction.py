@@ -21,138 +21,110 @@ def normalize_to_sum_squares_one(x: torch.Tensor, batch: torch.Tensor) -> torch.
     return x
 
 
-class ReactionModel(torch.nn.Module):
-
-    max_species_embedding = 100
-
+class GateReactionModel(torch.nn.Module):
     def __init__(
         self,
         irreps_in: Union[str, o3.Irreps],
-        irreps_hidden: Union[str, o3.Irreps],
-        irreps_out: Union[str, o3.Irreps],
         irreps_node_attr: Union[str, o3.Irreps],
-        irreps_edge_attr: Union[str, o3.Irreps],
-        radial_layers: int,
+        irreps_out: Union[str, o3.Irreps],
         max_radius: float,
-        num_basis: int,
-        radial_neurons: int,
         num_neighbors: int,
         typical_number_of_nodes: int,
+        mul: int,
+        layers: int,
+        lmax: int,
+        number_of_basis: Optional[int] = 10,
+        radial_layers: Optional[int] = 3,
+        radial_neurons: Optional[int] = 128,
         reduce_output: Optional[bool] = False,
         mask_extra_basis: Optional[bool] = False,
         normalize_sumsq: Optional[bool] = False,
         reference_reduced_output_to_initial_state: Optional[bool] = False,
-        use_atomic_masses: Optional[bool] = False,
     ) -> None:
-        """Torch module for transition state properties prediction.
-
-        Args:
-            irreps_in (Union[str, o3.Irreps]): Irreps of the input.
-            irreps_hidden (Union[str, o3.Irreps]): Irreps of the hidden layers.
-            irreps_out (Union[str, o3.Irreps]): Irreps of the output.
-            irreps_node_attr (Union[str, o3.Irreps]): Irreps of the node attributes.
-            irreps_edge_attr (Union[str, o3.Irreps]): Irreps of the edge attributes.
-            radial_layers (int): Number of radial layers.
-            max_radius (float): Maximum radius cutoff
-            num_basis (int): Number of basis functions for the network.
-            radial_neurons (int): Number of neurons in the radial layers.
-            num_neighbors (int): Number of neighbors to consider.
-            typical_number_of_nodes (int): Typical number of nodes in the dataset.
-            reduce_output (Optional[bool], optional): Whether to reduce the output. Useful for
-                scalar predictions. Defaults to False.
-            mask_extra_basis (Optional[bool], optional): Whether to mask the extra basis functions in
-                the last layer. Defaults to False.
-            normalize_sumsq (Optional[bool], optional): Whether to normalize the output by the sum of
-                the squared output. Defaults to False.
-            reference_reduced_output_to_initial_state (Optional[bool], optional): Whether to reference
-                the reduced output to the initial state. Defaults to False.
-            use_atomic_masses (Optional[bool], optional): Whether to use atomic masses as node attributes.
-        """
-
+        """Torch module for transition state properties prediction."""
         super().__init__()
 
-        self.num_nodes = typical_number_of_nodes
-        self.num_basis = num_basis
-        self.reduce_output = reduce_output
         self.irreps_in = irreps_in
-        self.irreps_hidden = irreps_hidden
-        self.irreps_out = irreps_out
         self.irreps_node_attr = irreps_node_attr
-        self.irreps_edge_attr = irreps_edge_attr
-        self.radial_layers = radial_layers
-        self.radial_neurons = radial_neurons
+        self.irreps_out = irreps_out
         self.max_radius = max_radius
         self.num_neighbors = num_neighbors
-        self.typical_number_of_nodes = typical_number_of_nodes
+        self.num_nodes = typical_number_of_nodes
+        self.mul = mul
+        self.layers = layers
+        self.lmax = lmax
+        self.number_of_basis = number_of_basis
+        self.radial_layers = radial_layers
+        self.radial_neurons = radial_neurons
+
+        self.reduce_output = reduce_output
         self.mask_extra_basis = mask_extra_basis
         self.normalize_sumsq = normalize_sumsq
         self.reference_reduced_output_to_initial_state = (
             reference_reduced_output_to_initial_state
         )
-        self.use_atomic_masses = use_atomic_masses
+
+        self.irreps_hidden = o3.Irreps(
+            [(mul, (l, p)) for l in range(self.lmax + 1) for p in [-1, 1]]
+        )
 
         self.network_initial_state = Network(
             irreps_in=irreps_in,
-            irreps_hidden=irreps_hidden,
+            irreps_hidden=self.irreps_hidden,
             irreps_out=irreps_in,
             irreps_node_attr=irreps_node_attr,
-            irreps_edge_attr=irreps_edge_attr,
-            layers=radial_layers,
+            irreps_edge_attr=f"{self.number_of_basis}x0e",
+            layers=self.layers,
             max_radius=max_radius,
-            number_of_basis=num_basis,
-            radial_layers=radial_layers,
-            radial_neurons=radial_neurons,
-            num_neighbors=num_neighbors,
-            num_nodes=typical_number_of_nodes,
+            number_of_basis=self.number_of_basis,
+            radial_layers=self.radial_layers,
+            radial_neurons=self.radial_neurons,
+            num_neighbors=self.num_neighbors,
+            num_nodes=self.num_nodes,
             reduce_output=False,
         )
 
         self.network_final_state = Network(
             irreps_in=irreps_in,
-            irreps_hidden=irreps_hidden,
+            irreps_hidden=self.irreps_hidden,
             irreps_out=irreps_in,
             irreps_node_attr=irreps_node_attr,
-            irreps_edge_attr=irreps_edge_attr,
-            layers=radial_layers,
+            irreps_edge_attr=f"{self.number_of_basis}x0e",
+            layers=self.layers,
             max_radius=max_radius,
-            number_of_basis=num_basis,
-            radial_layers=radial_layers,
-            radial_neurons=radial_neurons,
-            num_neighbors=num_neighbors,
-            num_nodes=typical_number_of_nodes,
+            number_of_basis=self.number_of_basis,
+            radial_layers=self.radial_layers,
+            radial_neurons=self.radial_neurons,
+            num_neighbors=self.num_neighbors,
+            num_nodes=self.num_nodes,
             reduce_output=False,
         )
 
         self.network_interpolated_transition_state = Network(
             irreps_in=irreps_in,
-            irreps_hidden=irreps_hidden,
-            irreps_out=irreps_out,
+            irreps_hidden=self.irreps_hidden,
+            irreps_out=irreps_in,
             irreps_node_attr=irreps_node_attr,
-            irreps_edge_attr=irreps_edge_attr,
-            layers=radial_layers,
+            irreps_edge_attr=f"{self.number_of_basis}x0e",
+            layers=self.layers,
             max_radius=max_radius,
-            number_of_basis=num_basis,
-            radial_layers=radial_layers,
-            radial_neurons=radial_neurons,
-            num_nodes=typical_number_of_nodes,
-            num_neighbors=num_neighbors,
+            number_of_basis=self.number_of_basis,
+            radial_layers=self.radial_layers,
+            radial_neurons=self.radial_neurons,
+            num_neighbors=self.num_neighbors,
+            num_nodes=self.num_nodes,
             reduce_output=False,
         )
 
     def forward(self, data):
         """Forward pass of the reaction model."""
 
-        x = data.x
-        x_final_state = data.x_final_state
-
         kwargs_initial_state = {
             "pos": data.pos,
-            "x": x,
+            "x": data.x,
             "batch": data.batch,
+            "z": data.node_attr,
         }
-        if hasattr(self, "use_atomic_masses"):
-            if self.use_atomic_masses:
-                kwargs_initial_state["z"] = data.species
 
         output_network_initial_state = self.network_initial_state(kwargs_initial_state)
 
@@ -167,12 +139,10 @@ class ReactionModel(torch.nn.Module):
 
         kwargs_final_state = {
             "pos": data.pos_final_state,
-            "x": x_final_state,
+            "x": data.x,
             "batch": data.batch,
+            "z": data.node_attr_final_state,
         }
-        if hasattr(self, "use_atomic_masses"):
-            if self.use_atomic_masses:
-                kwargs_final_state["z"] = data.species
 
         output_network_final_state = self.network_final_state(kwargs_final_state)
 
@@ -185,18 +155,16 @@ class ReactionModel(torch.nn.Module):
 
         p = data.p[0]
         p_prime = 1 - p
-        x_interpolated_transition_state = (
+        node_attr = (
             p_prime * output_network_initial_state + p * output_network_final_state
         )
 
         kwargs_interpolated_transition_state = {
             "pos": data.pos_interpolated_transition_state,
-            "x": x_interpolated_transition_state,
+            "x": data.x,
             "batch": data.batch,
+            "z": node_attr,
         }
-        if hasattr(self, "use_atomic_masses"):
-            if self.use_atomic_masses:
-                kwargs_interpolated_transition_state["z"] = data.species
 
         output_network_interpolated_transition_state = (
             self.network_interpolated_transition_state(
@@ -243,7 +211,7 @@ class NetworkForAGraphWithNodeAttributes(torch.nn.Module):
         layers: int = 3,
         lmax: int = 2,
         pool_nodes: bool = True,
-        num_of_basis: int = 10,
+        number_of_basis: int = 10,
     ) -> None:
         """Modified from e3nn/nn/models/2106/gate_points_network.py to include _only_ node attributes.
 
@@ -265,7 +233,7 @@ class NetworkForAGraphWithNodeAttributes(torch.nn.Module):
 
         self.lmax = lmax
         self.max_radius = max_radius
-        self.number_of_basis = num_of_basis
+        self.number_of_basis = number_of_basis
         self.num_nodes = num_nodes
         self.pool_nodes = pool_nodes
 
@@ -355,6 +323,7 @@ class MessagePassingReactionModel(torch.nn.Module):
         mask_extra_basis: Optional[bool] = False,
         normalize_sumsq: Optional[bool] = False,
         reference_reduced_output_to_initial_state: Optional[bool] = False,
+        number_of_basis: Optional[int] = 10,
     ) -> None:
         """Reaction model based on message passing."""
 
@@ -369,6 +338,7 @@ class MessagePassingReactionModel(torch.nn.Module):
         self.mul = mul
         self.layers = layers
         self.lmax = lmax
+        self.number_of_basis = number_of_basis
 
         self.reduce_output = reduce_output
         self.mask_extra_basis = mask_extra_basis
@@ -386,6 +356,7 @@ class MessagePassingReactionModel(torch.nn.Module):
             num_nodes=self.num_nodes,
             mul=self.mul,
             layers=self.layers,
+            number_of_basis=self.number_of_basis,
             lmax=self.lmax,
             pool_nodes=False,
         )
@@ -399,6 +370,7 @@ class MessagePassingReactionModel(torch.nn.Module):
             num_nodes=self.num_nodes,
             mul=self.mul,
             layers=self.layers,
+            number_of_basis=self.number_of_basis,
             lmax=self.lmax,
             pool_nodes=False,
         )
@@ -412,6 +384,7 @@ class MessagePassingReactionModel(torch.nn.Module):
             num_nodes=self.num_nodes,
             mul=self.mul,
             layers=self.layers,
+            number_of_basis=self.number_of_basis,
             lmax=self.lmax,
             pool_nodes=False,
         )
