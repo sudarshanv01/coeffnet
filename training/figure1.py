@@ -95,14 +95,14 @@ def get_data(basis_sets: list = None):
                 symbol = symbols[_idx]
                 for _basis_function in _basis_functions:
                     if _basis_function == 1:
-                        basis_functions_orbital.extend([f"{symbol}s"])
+                        basis_functions_orbital.extend([f"{symbol}(s)"])
                         irreps += "+1x0e"
                         indices_to_keep.append(idx)
                         indices_s_orbitals.append([idx])
                         idx += 1
                     elif _basis_function == 3:
                         basis_functions_orbital.extend(
-                            [f"{symbol}p", f"{symbol}p", f"{symbol}p"]
+                            [f"{symbol}(p)", f"{symbol}(p)", f"{symbol}(p)"]
                         )
                         irreps += "+1x1o"
                         indices_to_keep.extend([idx + 1, idx + 2, idx])
@@ -111,7 +111,7 @@ def get_data(basis_sets: list = None):
                     elif _basis_function == 5:
                         if basis_set_type == "full":
                             basis_functions_orbital.extend(
-                                [f"{symbol}d" for _ in range(5)]
+                                [f"{symbol}(d)" for _ in range(5)]
                             )
                             irreps += "+1x2e"
                             indices_to_keep.extend(
@@ -124,7 +124,7 @@ def get_data(basis_sets: list = None):
                     elif _basis_function == 7:
                         if basis_set_type == "full":
                             basis_functions_orbital.extend(
-                                [f"{symbol}f" for _ in range(7)]
+                                [f"{symbol}(f)" for _ in range(7)]
                             )
                             irreps += "+1x3o"
                             indices_to_keep.extend(
@@ -261,7 +261,7 @@ if __name__ == "__main__":
     new_coeff_matrix = np.array(new_coeff_matrix)
     calculated_coeff_matrix = np.array(calculated_coeff_matrix)
 
-    fig, ax = plt.subplots(1, 3, figsize=(6, 2.0))
+    fig, ax = plt.subplots(1, 3, figsize=(7, 2.0))
 
     cax = ax[0].imshow(alpha_coeff_matrix, cmap="cividis", vmin=-1, vmax=1)
     cax1 = ax[1].imshow(rotated_alpha_coeff_matrix, cmap="cividis", vmin=-1, vmax=1)
@@ -280,8 +280,8 @@ if __name__ == "__main__":
     ax[0].set_xticklabels(np.round(eigenvalues, 2), rotation=90, fontsize=4)
     ax[1].set_xticks(np.arange(len(eigenvalues)))
     ax[1].set_xticklabels(np.round(eigenvalues, 2), rotation=90, fontsize=4)
-    ax[0].set_title(r"$\mathbf{C}\left(\alpha_0,\beta_0,\gamma_0\right)$")
-    ax[1].set_title(r"$\mathbf{C}\left(\alpha,\beta,\gamma\right)$")
+    ax[0].set_title(r"a) $\mathbf{C}\left(\alpha_0,\beta_0,\gamma_0\right)$")
+    ax[1].set_title(r"b) $\mathbf{C}\left(\alpha,\beta,\gamma\right)$")
 
     ax[0].set_ylabel("Basis function")
     ax[0].set_xlabel("Eigenvalue of molecular orbital [eV]")
@@ -293,7 +293,7 @@ if __name__ == "__main__":
     selected_eigenval_index = np.where(eigenvalues == selected_eigenval)[0][0]
 
     for i in range(calculated_coeff_matrix.shape[0]):
-        angles = data[basis_set]["euler_angles"][_idx]
+        angles = data[basis_set]["euler_angles"][i]
         label = r"$\alpha=%1.1f, \beta=%1.1f, \gamma=%1.1f$" % (
             angles[0],
             angles[1],
@@ -306,7 +306,13 @@ if __name__ == "__main__":
             markerfacecolor="none",
             label=label,
         )
-
+    # Place legend outside the plot
+    ax[2].legend(
+        bbox_to_anchor=(1.05, 1),
+        loc="upper left",
+        borderaxespad=0.0,
+        fontsize=4,
+    )
     # Draw the parity line
     ax[2].plot(
         [0, 1],
@@ -325,6 +331,16 @@ if __name__ == "__main__":
     # Switch off minor ticks for the first two ax
     ax[0].tick_params(axis="both", which="both", length=0)
     ax[1].tick_params(axis="both", which="both", length=0)
+
+    # Annotate c) in the third plot
+    ax[2].text(
+        0.2,
+        0.8,
+        "c)",
+        transform=ax[2].transAxes,
+        va="top",
+        fontsize=10,
+    )
 
     fig.tight_layout()
     fig.savefig(__output_dir__ / f"figure1.png")

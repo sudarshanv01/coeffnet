@@ -148,6 +148,16 @@ def get_cli_args():
         default="def2-svp",
         help="The basis set to use for the dataset",
     )
+    parser.add_argument(
+        "--debug_dataset",
+        action="store_true",
+        help="Whether to use the debug dataset",
+    )
+    parser.add_argument(
+        "--debug_model",
+        action="store_true",
+        help="Whether to use the debug model",
+    )
 
     return parser.parse_args()
 
@@ -164,8 +174,8 @@ if __name__ == "__main__":
     dataset_name = "rudorff_lilienfeld_sn2_dataset"
     basis_set = args.basis_set
     basis_set_name = get_sanitized_basis_set_name(basis_set)
-    debug_dataset = True
-    debug_model = False
+    debug_dataset = args.debug_dataset
+    debug_model = args.debug_model
     model_config = __config_folder__ / "rudorff_lilienfeld_model.yaml"
     inputs = read_inputs_yaml(model_config)
     basis_set_types = ["full", "minimal"]
@@ -279,14 +289,38 @@ if __name__ == "__main__":
     ax[0, 0].get_legend().remove()
     ax[0, 0].set_ylabel(r"Predicted $E_{\mathrm{TS}} - E_{\mathrm{IS}}$ (eV)")
     ax[0, 0].set_xlabel(r"DFT $E_{\mathrm{TS}} - E_{\mathrm{IS}}$ (eV)")
-    ax[1, 0].set_ylabel(r"Predicted $\mathbf{C}_{\mathrm{TS}}$")
-    ax[1, 0].set_xlabel(r"DFT $\mathbf{C}_{\mathrm{TS}}$")
+    ax[1, 0].set_ylabel(r"Predicted $\left | \mathbf{C}_{\mathrm{TS}} \right |$")
+    ax[1, 0].set_xlabel(r"DFT $ \left | \mathbf{C}_{\mathrm{TS}} \right |$")
     ax[0, 1].set_xlabel(r"DFT $E_{\mathrm{TS}} - E_{\mathrm{IS}}$ (eV)")
     ax[0, 0].set_title("Full basis set")
     ax[0, 1].set_title("Minimal basis set")
-    ax[1, 1].set_xlabel(r"DFT $\mathbf{C}_{\mathrm{TS}}$")
-    # Remove y labels from the right column
+    ax[1, 1].set_xlabel(r"DFT $\left | \mathbf{C}_{\mathrm{TS}} \right |$")
     ax[0, 1].set_ylabel("")
     ax[1, 1].set_ylabel("")
+
+    # Set the axis limits for the C matrix plots to be between -0.1 and 1.1
+    ax[1, 0].set_ylim([-0.1, 1.1])
+    ax[1, 1].set_ylim([-0.1, 1.1])
+    ax[1, 0].set_xlim([-0.1, 1.1])
+    ax[1, 1].set_xlim([-0.1, 1.1])
+
+    # Set the axis limits for the energy plots to be between the highest and lowest
+    # value on the x-axis of 0,0
+    ax[0, 0].set_ylim(ax[0, 0].get_xlim())
+    ax[0, 1].set_ylim(ax[0, 0].get_xlim())
+    ax[0, 0].set_xlim(ax[0, 0].get_xlim())
+    ax[0, 1].set_xlim(ax[0, 0].get_xlim())
+
+    # Draw parity lines for all plots
+    for i in range(2):
+        for j in range(2):
+            ax[i, j].plot(
+                ax[i, j].get_xlim(),
+                ax[i, j].get_xlim(),
+                ls="--",
+                c=".3",
+                alpha=0.5,
+                zorder=0,
+            )
 
     fig.savefig(__output_folder__ / f"figure5_{basis_set_name}.png")

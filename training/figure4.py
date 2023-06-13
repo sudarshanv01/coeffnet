@@ -1,5 +1,7 @@
 from typing import Dict
 
+import argparse
+
 from pathlib import Path
 
 import numpy as np
@@ -50,6 +52,29 @@ def get_structure_prediction_performance(dataloaders):
     return all_mae_norms
 
 
+def get_cli_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description="Plot figure 4 of the manuscript.")
+    parser.add_argument(
+        "--basis_set",
+        type=str,
+        default="6-31g*",
+        help="Basis set to use.",
+    )
+    parser.add_argument(
+        "--basis_set_type",
+        type=str,
+        default="full",
+        help="Basis set type to use.",
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+    )
+
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
     """Plot figure 4 of the manuscript.
     Panel a) Shows the truncated kernel that is used for the structure prediction.
@@ -60,14 +85,15 @@ if __name__ == "__main__":
     __config_folder__ = Path("config")
     __output_folder__ = Path("output")
     __output_folder__.mkdir(exist_ok=True)
+    args = get_cli_args()
 
     dataset_names = {
         r"S$_\mathrm{N}$2": "rudorff_lilienfeld_sn2_dataset",
         "E2": "rudorff_lilienfeld_e2_dataset",
     }
-    basis_set_type = "full"
-    basis_set = "6-31g*"
-    debug_dataset = True
+    basis_set_type = args.basis_set_type
+    basis_set = args.basis_set
+    debug_dataset = args.debug
 
     basis_set_name = get_sanitized_basis_set_name(basis_set)
     model_config = __config_folder__ / "rudorff_lilienfeld_model.yaml"
@@ -118,7 +144,7 @@ if __name__ == "__main__":
 
     ax[0].set_xlabel("Interpolated coordinate")
     ax[0].set_ylabel("Probability density")
-    ax[0].legend(fontsize=6.5, loc="upper left")
+    ax[0].legend(fontsize=5.5, loc="upper left")
 
     for reaction_name, dataset_name in dataset_names.items():
 
@@ -150,8 +176,6 @@ if __name__ == "__main__":
         1.1,
         "a)",
         transform=ax[0].transAxes,
-        fontsize=12,
-        fontweight="bold",
         va="top",
     )
     ax[1].text(
@@ -159,8 +183,6 @@ if __name__ == "__main__":
         1.1,
         "b)",
         transform=ax[1].transAxes,
-        fontsize=12,
-        fontweight="bold",
         va="top",
     )
 
