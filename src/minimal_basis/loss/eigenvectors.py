@@ -37,6 +37,9 @@ class UnsignedMSELoss(nn.Module):
         signed_input = input * signed
         combined_loss = torch.sum((signed_input - target) ** 2, dim=(1, 2))
 
-        loss = torch.min(combined_loss)
+        loss_idx = torch.argmin(combined_loss)
+        signed = signed[loss_idx]
+        signed_input = input * signed
+        loss = F.mse_loss(signed_input, target, reduction=reduction)
 
         return loss

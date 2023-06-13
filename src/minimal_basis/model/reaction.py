@@ -1,5 +1,7 @@
 from typing import Union, Dict, Optional
 
+import logging
+
 import torch
 from torch_geometric.data import Data
 from torch_scatter import scatter
@@ -8,6 +10,8 @@ from e3nn import o3
 from e3nn.math import soft_one_hot_linspace
 from e3nn.nn.models.gate_points_2102 import Network
 from e3nn.nn.models.v2106.gate_points_networks import MessagePassing
+
+logger = logging.getLogger(__name__)
 
 
 def normalize_to_sum_squares_one(x: torch.Tensor, batch: torch.Tensor) -> torch.Tensor:
@@ -32,7 +36,6 @@ class GateReactionModel(torch.nn.Module):
         typical_number_of_nodes: int,
         mul: int,
         layers: int,
-        lmax: int,
         number_of_basis: Optional[int] = 10,
         radial_layers: Optional[int] = 3,
         radial_neurons: Optional[int] = 128,
@@ -40,6 +43,7 @@ class GateReactionModel(torch.nn.Module):
         mask_extra_basis: Optional[bool] = False,
         normalize_sumsq: Optional[bool] = False,
         reference_reduced_output_to_initial_state: Optional[bool] = False,
+        **kwargs,
     ) -> None:
         """Torch module for transition state properties prediction."""
         super().__init__()
@@ -52,7 +56,6 @@ class GateReactionModel(torch.nn.Module):
         self.num_nodes = typical_number_of_nodes
         self.mul = mul
         self.layers = layers
-        self.lmax = lmax
         self.number_of_basis = number_of_basis
         self.radial_layers = radial_layers
         self.radial_neurons = radial_neurons
@@ -64,9 +67,18 @@ class GateReactionModel(torch.nn.Module):
             reference_reduced_output_to_initial_state
         )
 
+        if isinstance(irreps_in, str):
+            self.irreps_in = o3.Irreps(irreps_in)
+        if isinstance(irreps_node_attr, str):
+            self.irreps_node_attr = o3.Irreps(irreps_node_attr)
+        if isinstance(irreps_out, str):
+            self.irreps_out = o3.Irreps(irreps_out)
+
+        lp_irreps_hidden = [(l, (-1) ** l) for l in self.irreps_node_attr.ls]
         self.irreps_hidden = o3.Irreps(
-            [(mul, (l, p)) for l in range(self.lmax + 1) for p in [-1, 1]]
+            [(self.mul, (l, p)) for l, p in lp_irreps_hidden]
         )
+        logger.info(f"irreps_hidden: {self.irreps_hidden}")
 
         self.network_initial_state = Network(
             irreps_in=irreps_in,
@@ -237,13 +249,13 @@ class NetworkForAGraphWithNodeAttributes(torch.nn.Module):
         self.num_nodes = num_nodes
         self.pool_nodes = pool_nodes
 
-        self.irreps_node_hidden = o3.Irreps(
-            [(mul, (l, p)) for l in range(self.lmax + 1) for p in [-1, 1]]
-        )
+        lp_irreps_hidden = [(l, (-1) ** l) for l in irreps_node_attr.ls]
+        self.irreps_hidden = o3.Irreps([(mul, (l, p)) for l, p in lp_irreps_hidden])
+        logger.info(f"irreps_hidden: {self.irreps_hidden}")
 
         self.mp = MessagePassing(
             irreps_node_sequence=[irreps_node_input]
-            + layers * [self.irreps_node_hidden]
+            + layers * [self.irreps_hidden]
             + [irreps_node_output],
             irreps_node_attr=irreps_node_attr,
             irreps_edge_attr=o3.Irreps.spherical_harmonics(lmax),
@@ -346,6 +358,13 @@ class MessagePassingReactionModel(torch.nn.Module):
         self.reference_reduced_output_to_initial_state = (
             reference_reduced_output_to_initial_state
         )
+
+        if isinstance(self.irreps_in, str):
+            self.irreps_in = o3.Irreps(self.irreps_in)
+        if isinstance(self.irreps_node_attr, str):
+            self.irreps_node_attr = o3.Irreps(self.irreps_node_attr)
+        if isinstance(self.irreps_out, str):
+            self.irreps_out = o3.Irreps(self.irreps_out)
 
         self.network_initial_state = NetworkForAGraphWithNodeAttributes(
             irreps_node_input=self.irreps_in,
