@@ -39,7 +39,7 @@ def construct_irreps(
 def signed_coeff_matrix_loss(data, predicted_y, do_backward=True):
     """Get the loss when converting the coefficient matrix to the density."""
 
-    real_y = data.x_transition_state
+    real_y = data.node_attr_transition_state
     batch = data.batch
     batch_size = data.num_graphs
 

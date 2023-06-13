@@ -183,11 +183,10 @@ class ReactionModel(torch.nn.Module):
                 output_network_final_state, data.batch
             )
 
-        p = data.p
+        p = data.p[0]
         p_prime = 1 - p
         x_interpolated_transition_state = (
-            p[0] * output_network_initial_state
-            + p_prime[0] * output_network_final_state
+            p_prime * output_network_initial_state + p * output_network_final_state
         )
 
         kwargs_interpolated_transition_state = {
@@ -456,11 +455,10 @@ class MessagePassingReactionModel(torch.nn.Module):
                 output_network_final_state, data.batch
             )
 
-        p = data.p
+        p = data.p[0]
         p_prime = 1 - p
         node_attr = (
-            p[0] * output_network_initial_state
-            + p_prime[0] * output_network_final_state
+            p_prime * output_network_initial_state + p * output_network_final_state
         )
 
         kwargs_interpolated_transition_state = {
