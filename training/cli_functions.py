@@ -3,6 +3,20 @@ import argparse
 __input_folder__ = "input"
 
 
+def get_basis_set_name(basis_set):
+    """Sanitize basis set name for use in file paths."""
+
+    basis_set_name = basis_set.replace("*", "star")
+    basis_set_name = basis_set_name.replace("+", "plus")
+    basis_set_name = basis_set_name.replace("(", "")
+    basis_set_name = basis_set_name.replace(")", "")
+    basis_set_name = basis_set_name.replace(",", "")
+    basis_set_name = basis_set_name.replace(" ", "_")
+    basis_set_name = basis_set_name.lower()
+
+    return basis_set_name
+
+
 def get_command_line_arguments() -> argparse.Namespace:
     """Get the command line arguments."""
     parser = argparse.ArgumentParser()
@@ -69,36 +83,6 @@ def get_command_line_arguments() -> argparse.Namespace:
         type=int,
         default=250,
         help="Maximum number of epochs to train for.",
-    )
-    parser.add_argument(
-        "--hidden_s",
-        type=int,
-        default=128,
-        help="Number of channels in the hidden_s layer.",
-    )
-    parser.add_argument(
-        "--hidden_p",
-        type=int,
-        default=128,
-        help="Number of channels in the hidden_p layer.",
-    )
-    parser.add_argument(
-        "--hidden_d",
-        type=int,
-        default=64,
-        help="Number of channels in the hidden_d layer.",
-    )
-    parser.add_argument(
-        "--hidden_f",
-        type=int,
-        default=64,
-        help="Number of channels in the hidden_f layer.",
-    )
-    parser.add_argument(
-        "--hidden_g",
-        type=int,
-        default=64,
-        help="Number of channels in the hidden_g layer.",
     )
 
     args = parser.parse_args()

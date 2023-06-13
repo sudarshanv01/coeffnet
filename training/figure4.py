@@ -148,7 +148,9 @@ if __name__ == "__main__":
 
     for reaction_name, dataset_name in dataset_names.items():
 
-        model_name = construct_model_name(dataset_name=dataset_name)
+        model_name = construct_model_name(
+            dataset_name=dataset_name, debug=debug_dataset
+        )
         input_foldername = (
             __input_folder__ / dataset_name / basis_set_type / basis_set_name
         )

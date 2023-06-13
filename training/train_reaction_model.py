@@ -1,9 +1,9 @@
 import os
 import logging
 
-from pathlib import Path
+from datetime import datetime
 
-import argparse
+from pathlib import Path
 
 import wandb
 
@@ -14,7 +14,7 @@ import torch_geometric.transforms as T
 from e3nn import o3
 
 from minimal_basis.dataset.reaction import ReactionDataset as Dataset
-from minimal_basis.model.reaction import ReactionModel as Model
+from minimal_basis.model.reaction import MessagePassingReactionModel as Model
 
 from utils import (
     get_validation_data_path,
@@ -23,7 +23,11 @@ from utils import (
 )
 
 from model_functions import construct_model_name, construct_irreps, train, validate
-from cli_functions import get_command_line_arguments
+from cli_functions import get_command_line_arguments, get_basis_set_name
+
+
+def create_timestamp():
+    return datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
 if __name__ == "__main__":
@@ -35,18 +39,16 @@ if __name__ == "__main__":
     logger.setLevel(logging.INFO)
 
     args = get_command_line_arguments()
-    basis_set_name = args.basis_set.replace("*", "star")
-    basis_set_name = basis_set_name.replace("+", "plus")
-    basis_set_name = basis_set_name.replace("(", "")
-    basis_set_name = basis_set_name.replace(")", "")
-    basis_set_name = basis_set_name.replace(",", "")
-    basis_set_name = basis_set_name.replace(" ", "_")
-    basis_set_name = basis_set_name.lower()
+    basis_set_name = get_basis_set_name(args.basis_set)
+    logger.info(f"Basis set name: {basis_set_name}")
 
     model_name = construct_model_name(
         dataset_name=args.dataset_name,
         debug=args.debug,
     )
+
+    timestamp = create_timestamp()
+
     logger.info(f"Model name: {model_name}")
 
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -69,10 +71,13 @@ if __name__ == "__main__":
         f"{args.basis_set_type}_basis"
     ]
 
-    construct_irreps(model_options=model_options)
     transform = T.ToDevice(DEVICE)
 
-    wandb.init(project=model_name, entity=args.wandb_username)
+    # If args.debug is set, then the calculation is a DEBUG calculation, set wandb to dryrun
+    if args.debug:
+        wandb.init(project=model_name, entity=args.wandb_username, mode="dryrun")
+    else:
+        wandb.init(project=model_name, entity=args.wandb_username)
     wandb.config.update(args)
     wandb.config.update({"dataset_options": dataset_options})
 
@@ -106,31 +111,16 @@ if __name__ == "__main__":
     validate_loader = DataLoader(
         validate_dataset, batch_size=learning_options["batch_size"], shuffle=False
     )
-    model_options["irreps_in"] = train_dataset.irreps_in
+
+    model_options["irreps_in"] = "1x0e"
+    model_options["irreps_node_attr"] = train_dataset.irreps_node_attr
     model_options["irreps_out"] = train_dataset.irreps_out
-    irreps_in = o3.Irreps(model_options["irreps_in"])
-    input_s = irreps_in.count("0e")
-    input_p = irreps_in.count("1o")
-    input_d = irreps_in.count("2e")
-    input_f = irreps_in.count("3o")
-    input_g = irreps_in.count("4e")
-    irreps_hidden = ""
-    if input_s > 0:
-        irreps_hidden += f"+{args.hidden_s}x0e"
-    if input_p > 0:
-        irreps_hidden += f"+{args.hidden_p}x1o"
-    if input_d > 0:
-        irreps_hidden += f"+{args.hidden_d}x2e"
-    if input_f > 0:
-        irreps_hidden += f"+{args.hidden_f}x3o"
-    if input_g > 0:
-        irreps_hidden += f"+{args.hidden_g}x4e"
-    model_options["irreps_hidden"] = irreps_hidden[1:]
+    model_options["lmax"] = o3.Irreps(model_options["irreps_out"]).lmax
+
     wandb.config.update({"model_options": model_options})
     logger.info(f"Model Options: {model_options}")
     model = Model(**model_options)
     model = model.to(DEVICE)
-
     wandb.watch(model)
 
     optim = torch.optim.Adam(model.parameters(), lr=learning_options["learning_rate"])
@@ -155,10 +145,10 @@ if __name__ == "__main__":
             f"Epoch: {epoch}, Train Loss: {train_loss}, Validation Loss: {validate_loss}"
         )
 
-    torch.save(model, f"output/{model_name}.pt")
+    torch.save(model, f"output/{model_name}_{timestamp}.pt")
 
     artifact = wandb.Artifact(f"{model_name}", type="model")
-    artifact.add_file(f"output/{model_name}.pt")
+    artifact.add_file(f"output/{model_name}_{timestamp}.pt")
     logger.debug(f"Added model to artifact: {artifact}.")
 
     wandb.run.log_artifact(artifact)
