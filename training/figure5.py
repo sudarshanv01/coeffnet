@@ -102,9 +102,9 @@ def get_relative_energy_performance():
             output = relative_energy_model(data)
             output = output.mean(dim=1)
 
-            output = output.detach().numpy()
+            output = output.cpu().detach().numpy()
             expected = data.total_energy_transition_state - data.total_energy
-            expected = expected.detach().numpy()
+            expected = expected.cpu().detach().numpy()
 
             output = output * ase_units.Ha
             expected = expected * ase_units.Ha
@@ -127,11 +127,11 @@ def get_coeff_matrix_performance():
         for data in loader:
 
             output = coeff_matrix_model(data)
-            output = output.detach().numpy()
+            output = output.cpu().detach().numpy()
             output = np.abs(output)
 
             expected = data.x_transition_state
-            expected = expected.detach().numpy()
+            expected = expected.cpu().detach().numpy()
             expected = np.abs(expected)
 
             data_to_store = {
