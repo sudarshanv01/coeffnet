@@ -379,13 +379,13 @@ if __name__ == "__main__":
         )
 
     handles, labels = ax[0, 1].get_legend_handles_labels()
-    ax[0, 1].legend(
+    ax[1, 1].legend(
         handles,
         labels,
         bbox_to_anchor=(1.05, 1),
         loc="upper left",
         ncol=1,
-        fontsize=8,
+        fontsize=4,
     )
     # Remove the legend from the other plots
     ax[0, 0].get_legend().remove()
