@@ -206,7 +206,7 @@ def get_coeff_matrix_performance():
                 data_to_store = {
                     "output": output.flatten(),
                     "expected": expected.flatten(),
-                    "loader": loader_name.flatten(),
+                    "loader": loader_name,
                     "basis_function_type": basis_function_type,
                 }
                 df = pd.concat([df, pd.DataFrame(data_to_store)], ignore_index=True)
