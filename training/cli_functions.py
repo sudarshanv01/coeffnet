@@ -2,6 +2,8 @@ import argparse
 
 from datetime import datetime
 
+import uuid
+
 __input_folder__ = "input"
 
 
@@ -18,7 +20,9 @@ def get_basis_set_name(basis_set):
 
 
 def create_timestamp():
-    return datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = timestamp + "_" + str(uuid.uuid4())[:8]
+    return timestamp
 
 
 def get_command_line_arguments() -> argparse.Namespace:
