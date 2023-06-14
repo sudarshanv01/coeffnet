@@ -78,11 +78,11 @@ def get_dataloader_info(
         train_dataset.max_f_functions,
         train_dataset.max_g_functions,
     )
-    max_s = max_s.cpu().detach().numpy()
-    max_p = max_p.cpu().detach().numpy() * 3
-    max_d = max_d.cpu().detach().numpy() * 5
-    max_f = max_f.cpu().detach().numpy() * 7
-    max_g = max_g.cpu().detach().numpy() * 9
+    max_s = max_s
+    max_p = max_p * 3
+    max_d = max_d * 5
+    max_f = max_f * 7
+    max_g = max_g * 9
 
     train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
     validate_loader = DataLoader(validate_dataset, batch_size=1, shuffle=True)
