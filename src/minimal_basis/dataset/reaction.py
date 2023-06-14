@@ -218,7 +218,8 @@ class ReactionDataset(InMemoryDataset):
                 )
                 positions = molecule_graph.molecule.cart_coords
                 if self.invert_coordinates:
-                    positions[:[0, 1, 2]] = positions[:[2, 0, 1]]
+                    positions = np.array(positions)
+                    positions[:, [0, 1, 2]] = positions[:, [2, 0, 1]]
                 data_to_store["pos"][state] = positions
 
                 species_in_molecule = molecule_graph.molecule.species
