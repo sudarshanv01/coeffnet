@@ -158,6 +158,10 @@ def get_cli_args():
         action="store_true",
         help="Whether to use the debug model",
     )
+    parser.add_argument(
+        "--model_config",
+        type=str,
+    )
 
     return parser.parse_args()
 
@@ -176,7 +180,7 @@ if __name__ == "__main__":
     basis_set_name = get_sanitized_basis_set_name(basis_set)
     debug_dataset = args.debug_dataset
     debug_model = args.debug_model
-    model_config = __config_folder__ / "rudorff_lilienfeld_model.yaml"
+    model_config = args.model_config
     inputs = read_inputs_yaml(model_config)
     basis_set_types = ["full", "minimal"]
 
