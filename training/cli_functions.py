@@ -1,6 +1,6 @@
 import argparse
 
-import datetime
+from datetime import datetime
 
 __input_folder__ = "input"
 
