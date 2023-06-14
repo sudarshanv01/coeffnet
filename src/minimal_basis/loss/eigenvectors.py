@@ -43,3 +43,32 @@ class UnsignedMSELoss(nn.Module):
         loss = F.mse_loss(signed_input, target, reduction=reduction)
 
         return loss
+
+
+class UnsignedL1Loss(nn.Module):
+    def __init__(self):
+        super(UnsignedL1Loss, self).__init__()
+
+    def forward(self, input, target, batch, batch_size, reduction="sum"):
+        """Since eigenvectors are accurate only upto a sign change, we need to
+        make sure that the loss is calculated correctly. This function takes
+        care of that for multiple graphs in batch."""
+
+        sign_combinations = itertools.product([1, -1], repeat=batch_size)
+        sign_combinations = torch.tensor(
+            list(sign_combinations),
+            dtype=torch.float32,
+            device=input.device,
+            requires_grad=False,
+        )
+        signed = sign_combinations[:, batch]
+        signed = signed.view(-1, signed.shape[-1], 1)
+        signed_input = input * signed
+        combined_loss = torch.sum((signed_input - target).abs(), dim=(1, 2))
+
+        loss_idx = torch.argmin(combined_loss)
+        signed = signed[loss_idx]
+        signed_input = input * signed
+        loss = F.l1_loss(signed_input, target, reduction=reduction)
+
+        return loss

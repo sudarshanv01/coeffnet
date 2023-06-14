@@ -5,7 +5,6 @@ __input_folder__ = "input"
 
 def get_basis_set_name(basis_set):
     """Sanitize basis set name for use in file paths."""
-
     basis_set_name = basis_set.replace("*", "star")
     basis_set_name = basis_set_name.replace("+", "plus")
     basis_set_name = basis_set_name.replace("(", "")
@@ -13,7 +12,6 @@ def get_basis_set_name(basis_set):
     basis_set_name = basis_set_name.replace(",", "")
     basis_set_name = basis_set_name.replace(" ", "_")
     basis_set_name = basis_set_name.lower()
-
     return basis_set_name
 
 

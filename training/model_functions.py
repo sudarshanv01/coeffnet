@@ -4,7 +4,7 @@ from torch_geometric.loader import DataLoader
 from torch.nn import functional as F
 
 from minimal_basis.dataset.reaction import ReactionDataset as Dataset
-from minimal_basis.loss.eigenvectors import UnsignedMSELoss
+from minimal_basis.loss.eigenvectors import UnsignedMSELoss, UnsignedL1Loss
 
 
 def construct_model_name(dataset_name: str, debug: bool = False) -> str:
@@ -42,7 +42,7 @@ def signed_coeff_matrix_loss(data, predicted_y, do_backward=True):
     batch = data.batch
     batch_size = data.num_graphs
 
-    loss = UnsignedMSELoss()(predicted_y, real_y, batch, batch_size)
+    loss = UnsignedL1Loss()(predicted_y, real_y, batch, batch_size, reduction="sum")
     if do_backward:
         loss.backward()
 
