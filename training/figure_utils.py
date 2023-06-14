@@ -112,7 +112,8 @@ def get_model_data(
         dataset_name=dataset_name,
         debug=debug,
     )
-    runs = wandb_api.runs(f"sudarshanvj/{model_name}")
+    # Remove tags that say "hidden"
+    runs = wandb_api.runs(f"sudarshanvj/{model_name}", filters={"tags": ["-hidden"]})
     df = pd.DataFrame()
     for run in runs:
         if run.state != "finished":
