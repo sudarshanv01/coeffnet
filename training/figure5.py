@@ -2,6 +2,8 @@ from typing import List, Tuple, Dict, Union, Optional
 
 import argparse
 
+import logging
+
 from pathlib import Path
 
 from pprint import pprint
@@ -41,9 +43,8 @@ from figure_utils import get_sanitized_basis_set_name, get_dataloaders, get_mode
 
 wandb_api = wandb.Api()
 
-# import scienceplots
-
-# plt.style.use('science')
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 def get_best_model(
@@ -59,6 +60,8 @@ def get_best_model(
         & (df["basis_set_type"] == basis_set_type)
         & (df["prediction_mode"] == prediction_mode)
     ]
+    df_options = df_options[~df_options["val_loss"].isna()]
+    df_options["val_loss"] = df_options["val_loss"].astype(float)
     while True:
         best_model_row = df_options.sort_values(by="val_loss").iloc[0]
         best_run = [
@@ -80,6 +83,7 @@ def get_best_model(
             continue
         break
     best_model.eval()
+    logger.info(f"Loaded model: {best_model_row['wandb_model_name']}")
     return best_model
 
 
@@ -158,6 +162,15 @@ def get_cli_args():
         action="store_true",
         help="Whether to use the debug model",
     )
+    parser.add_argument(
+        "--model_config",
+        type=str,
+    )
+    parser.add_argument(
+        "--dataset_name",
+        type=str,
+        default="rudorff_lilienfeld_sn2_dataset",
+    )
 
     return parser.parse_args()
 
@@ -170,13 +183,14 @@ if __name__ == "__main__":
     __output_folder__.mkdir(exist_ok=True)
 
     args = get_cli_args()
+    logger.info(f"Using args: {args}")
 
-    dataset_name = "rudorff_lilienfeld_sn2_dataset"
+    dataset_name = args.dataset_name
     basis_set = args.basis_set
     basis_set_name = get_sanitized_basis_set_name(basis_set)
     debug_dataset = args.debug_dataset
     debug_model = args.debug_model
-    model_config = __config_folder__ / "rudorff_lilienfeld_model.yaml"
+    model_config = args.model_config
     inputs = read_inputs_yaml(model_config)
     basis_set_types = ["full", "minimal"]
 
@@ -186,6 +200,7 @@ if __name__ == "__main__":
         dataset_name=dataset_name,
         debug=debug_model,
     )
+    logger.info(f"Using model name: {model_name}")
 
     for idx_type, basis_set_type in enumerate(basis_set_types):
 
@@ -208,6 +223,7 @@ if __name__ == "__main__":
             basis_set=basis_set_name,
             debug=debug_model,
         )
+
         relative_energy_model = get_best_model(
             prediction_mode="relative_energy",
             basis_set=basis_set_name,
@@ -215,6 +231,7 @@ if __name__ == "__main__":
             df=df,
             all_runs=all_runs,
         )
+        logger.info(f"Using relative energy model: {relative_energy_model}")
 
         df_relative_energy = get_relative_energy_performance()
         train_loader_mask = df_relative_energy["loader"] == "train"
@@ -249,6 +266,7 @@ if __name__ == "__main__":
             df=df,
             all_runs=all_runs,
         )
+        logger.info(f"Using coefficient matrix model: {coeff_matrix_model}")
 
         df_coeff_matrix = get_coeff_matrix_performance()
         train_loader_mask = df_coeff_matrix["loader"] == "train"
@@ -274,9 +292,7 @@ if __name__ == "__main__":
             legend=False,
         )
 
-    # make the legend font size smaller
     handles, labels = ax[0, 0].get_legend_handles_labels()
-    # Move the legend to the top right outside the plot
     ax[0, 1].legend(
         handles,
         labels,

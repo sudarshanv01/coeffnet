@@ -8,7 +8,7 @@ def get_plot_params():
 
     import scienceplots
 
-    plt.style.use(["science", "nature"])
+    # plt.style.use(["science", "nature"])
 
     COLOR = "k"
     plt.rcParams["text.color"] = COLOR
