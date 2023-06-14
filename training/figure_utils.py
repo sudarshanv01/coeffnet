@@ -37,7 +37,7 @@ def get_sanitized_basis_set_name(basis_set: str) -> str:
     return basis_set_name
 
 
-def get_dataloaders(
+def get_dataloader_info(
     input_foldername: Path,
     model_name: str,
     debug=False,
@@ -71,16 +71,37 @@ def get_dataloaders(
         transform=transform,
         **dataset_options,
     )
+    max_s, max_p, max_d, max_f, max_g = (
+        train_dataset.max_s_functions,
+        train_dataset.max_p_functions,
+        train_dataset.max_d_functions,
+        train_dataset.max_f_functions,
+        train_dataset.max_g_functions,
+    )
+    max_s = max_s.cpu().detach().numpy()
+    max_p = max_p.cpu().detach().numpy() * 3
+    max_d = max_d.cpu().detach().numpy() * 5
+    max_f = max_f.cpu().detach().numpy() * 7
+    max_g = max_g.cpu().detach().numpy() * 9
 
     train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
     validate_loader = DataLoader(validate_dataset, batch_size=1, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=True)
 
-    return {
-        "train": train_loader,
-        "validation": validate_loader,
-        "test": test_loader,
-    }
+    return [
+        {
+            "train": train_loader,
+            "validation": validate_loader,
+            "test": test_loader,
+        },
+        {
+            "max_s": max_s,
+            "max_p": max_p,
+            "max_d": max_d,
+            "max_f": max_f,
+            "max_g": max_g,
+        },
+    ]
 
 
 def get_model_data(

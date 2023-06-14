@@ -22,7 +22,7 @@ from utils import (
 
 from figure_utils import (
     get_sanitized_basis_set_name,
-    get_dataloaders,
+    get_dataloader_info,
 )
 
 import matplotlib.pyplot as plt
@@ -155,7 +155,7 @@ if __name__ == "__main__":
             __input_folder__ / dataset_name / basis_set_type / basis_set_name
         )
 
-        dataloaders = get_dataloaders(
+        dataloaders = get_dataloader_info(
             input_foldername=input_foldername,
             model_name=model_name,
             basis_set_type=basis_set_type,

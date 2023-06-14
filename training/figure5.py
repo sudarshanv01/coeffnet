@@ -42,7 +42,11 @@ warnings.simplefilter(action="ignore", category=UserWarning)
 from model_functions import construct_model_name
 import wandb
 
-from figure_utils import get_sanitized_basis_set_name, get_dataloaders, get_model_data
+from figure_utils import (
+    get_sanitized_basis_set_name,
+    get_dataloader_info,
+    get_model_data,
+)
 
 wandb_api = wandb.Api()
 
@@ -133,19 +137,6 @@ def get_coeff_matrix_performance():
             expected = data.x_transition_state
             expected = expected.cpu().detach().numpy()
             expected = np.abs(expected)
-
-            max_s, max_p, max_d, max_f, max_g = (
-                data.max_s_functions,
-                data.max_p_functions,
-                data.max_d_functions,
-                data.max_f_functions,
-                data.max_g_functions,
-            )
-            max_s = max_s.cpu().detach().numpy()
-            max_p = max_p.cpu().detach().numpy() * 3
-            max_d = max_d.cpu().detach().numpy() * 5
-            max_f = max_f.cpu().detach().numpy() * 7
-            max_g = max_g.cpu().detach().numpy() * 9
 
             # Split both `output` and `expected` into s, p, d, f, g
             output_s = output[:, :max_s]
@@ -295,13 +286,19 @@ if __name__ == "__main__":
             __input_folder__ / dataset_name / basis_set_type / basis_set_name
         )
 
-        dataloaders = get_dataloaders(
+        dataloaders, max_basis_functions = get_dataloader_info(
             input_foldername=input_foldername,
             model_name=model_name,
             debug=debug_dataset,
             device=DEVICE,
             **inputs["dataset_options"][f"{basis_set_type}_basis"],
         )
+
+        max_s = max_basis_functions["max_s"]
+        max_p = max_basis_functions["max_p"]
+        max_d = max_basis_functions["max_d"]
+        max_f = max_basis_functions["max_f"]
+        max_g = max_basis_functions["max_g"]
 
         df, all_runs = get_model_data(
             dataset_name=dataset_name,
