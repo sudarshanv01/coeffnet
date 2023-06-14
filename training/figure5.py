@@ -19,6 +19,9 @@ import plotly.graph_objects as go
 import pandas as pd
 
 import torch
+
+import torch_geometric.transforms as T
+
 from utils import (
     read_inputs_yaml,
 )
@@ -53,6 +56,7 @@ def get_best_model(
     basis_set_type: str,
     df: pd.DataFrame,
     all_runs,
+    device: torch.device,
 ) -> torch.nn.Module:
     """Get the best model for the given prediction mode."""
     df_options = df[
@@ -84,6 +88,7 @@ def get_best_model(
         break
     best_model.eval()
     logger.info(f"Loaded model: {best_model_row['wandb_model_name']}")
+    best_model.to(device)
     return best_model
 
 
@@ -182,6 +187,9 @@ if __name__ == "__main__":
     __output_folder__ = Path("output")
     __output_folder__.mkdir(exist_ok=True)
 
+    DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    logger.info(f"Device: {DEVICE}")
+
     args = get_cli_args()
     logger.info(f"Using args: {args}")
 
@@ -211,9 +219,8 @@ if __name__ == "__main__":
         dataloaders = get_dataloaders(
             input_foldername=input_foldername,
             model_name=model_name,
-            basis_set_type=basis_set_type,
-            basis_set_name=basis_set_name,
             debug=debug_dataset,
+            device=DEVICE,
             **inputs["dataset_options"][f"{basis_set_type}_basis"],
         )
 
@@ -230,6 +237,7 @@ if __name__ == "__main__":
             basis_set_type=basis_set_type,
             df=df,
             all_runs=all_runs,
+            device=DEVICE,
         )
         logger.info(f"Using relative energy model: {relative_energy_model}")
 

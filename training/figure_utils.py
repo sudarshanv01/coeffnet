@@ -40,9 +40,8 @@ def get_sanitized_basis_set_name(basis_set: str) -> str:
 def get_dataloaders(
     input_foldername: Path,
     model_name: str,
-    basis_set_type: str,
-    basis_set_name: str,
     debug=False,
+    device: Optional[torch.device] = None,
     **dataset_options,
 ) -> Dict[str, DataLoader]:
     """Get the dataloaders for the given model."""
@@ -52,19 +51,24 @@ def get_dataloaders(
 
     timestamp = create_timestamp()
 
+    transform = T.ToDevice(device)
+
     train_dataset = ReactionDataset(
         root=get_train_data_path(model_name + "_" + timestamp),
         filename=train_json_filename,
+        transform=transform,
         **dataset_options,
     )
     validate_dataset = ReactionDataset(
         root=get_validation_data_path(model_name + "_" + timestamp),
         filename=validate_json_filename,
+        transform=transform,
         **dataset_options,
     )
     test_dataset = ReactionDataset(
         root=get_test_data_path(model_name + "_" + timestamp),
         filename=validate_json_filename,
+        transform=transform,
         **dataset_options,
     )
 
