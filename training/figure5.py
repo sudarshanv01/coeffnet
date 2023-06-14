@@ -134,12 +134,91 @@ def get_coeff_matrix_performance():
             expected = expected.cpu().detach().numpy()
             expected = np.abs(expected)
 
-            data_to_store = {
-                "output": output.flatten(),
-                "expected": expected.flatten(),
-                "loader": loader_name,
-            }
-            df = pd.concat([df, pd.DataFrame(data_to_store)], ignore_index=True)
+            max_s, max_p, max_d, max_f, max_g = (
+                data.max_s_functions,
+                data.max_p_functions,
+                data.max_d_functions,
+                data.max_f_functions,
+                data.max_g_functions,
+            )
+            max_s = max_s.cpu().detach().numpy()
+            max_p = max_p.cpu().detach().numpy() * 3
+            max_d = max_d.cpu().detach().numpy() * 5
+            max_f = max_f.cpu().detach().numpy() * 7
+            max_g = max_g.cpu().detach().numpy() * 9
+
+            # Split both `output` and `expected` into s, p, d, f, g
+            output_s = output[:, :max_s]
+            expected_s = expected[:, :max_s]
+
+            if max_p > 0:
+                output_p = output[:, max_s : max_s + max_p]
+                expected_p = expected[:, max_s : max_s + max_p]
+            else:
+                output_p = None
+                expected_p = None
+
+            if max_d > 0:
+                output_d = output[:, max_s + max_p : max_s + max_p + max_d]
+                expected_d = expected[:, max_s + max_p : max_s + max_p + max_d]
+            else:
+                output_d = None
+                expected_d = None
+
+            if max_f > 0:
+                output_f = output[
+                    :, max_s + max_p + max_d : max_s + max_p + max_d + max_f
+                ]
+                expected_f = expected[
+                    :, max_s + max_p + max_d : max_s + max_p + max_d + max_f
+                ]
+            else:
+                output_f = None
+                expected_f = None
+
+            if max_g > 0:
+                output_g = output[
+                    :,
+                    max_s
+                    + max_p
+                    + max_d
+                    + max_f : max_s
+                    + max_p
+                    + max_d
+                    + max_f
+                    + max_g,
+                ]
+                expected_g = expected[
+                    :,
+                    max_s
+                    + max_p
+                    + max_d
+                    + max_f : max_s
+                    + max_p
+                    + max_d
+                    + max_f
+                    + max_g,
+                ]
+            else:
+                output_g = None
+                expected_g = None
+
+            assert max_s + max_p + max_d + max_f + max_g == output.shape[1]
+
+            for output, expected, basis_function_type in zip(
+                [output_s, output_p, output_d, output_f, output_g],
+                [expected_s, expected_p, expected_d, expected_f, expected_g],
+                ["s", "p", "d", "f", "g"],
+            ):
+                if output is None:
+                    continue
+                data_to_store = {
+                    "output": output.flatten(),
+                    "expected": expected.flatten(),
+                    "loader": loader_name.flatten(),
+                    "basis_function_type": basis_function_type,
+                }
+                df = pd.concat([df, pd.DataFrame(data_to_store)], ignore_index=True)
 
     return df
 
@@ -285,23 +364,24 @@ if __name__ == "__main__":
             x="expected",
             y="output",
             hue="loader",
+            style="basis_function_type",
             ax=ax[1, idx_type],
             palette="pastel",
             alpha=0.4,
-            legend=False,
+            legend=legend,
         )
-
         sns.scatterplot(
             data=df_coeff_matrix[~train_loader_mask],
             x="expected",
             y="output",
             hue="loader",
+            style="basis_function_type",
             ax=ax[1, idx_type],
             palette="colorblind",
-            legend=False,
+            legend=legend,
         )
 
-    handles, labels = ax[0, 0].get_legend_handles_labels()
+    handles, labels = ax[0, 1].get_legend_handles_labels()
     ax[0, 1].legend(
         handles,
         labels,
