@@ -389,6 +389,8 @@ if __name__ == "__main__":
     )
     # Remove the legend from the other plots
     ax[0, 0].get_legend().remove()
+    ax[0, 1].get_legend().remove()
+    ax[1, 0].get_legend().remove()
     ax[0, 0].set_ylabel(r"Predicted $E_{\mathrm{TS}} - E_{\mathrm{IS}}$ (eV)")
     ax[0, 0].set_xlabel(r"DFT $E_{\mathrm{TS}} - E_{\mathrm{IS}}$ (eV)")
     ax[1, 0].set_ylabel(r"Predicted $\left | \mathbf{C}_{\mathrm{TS}} \right |$")
