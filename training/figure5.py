@@ -273,6 +273,7 @@ if __name__ == "__main__":
             basis_set_type=basis_set_type,
             df=df,
             all_runs=all_runs,
+            device=DEVICE,
         )
         logger.info(f"Using coefficient matrix model: {coeff_matrix_model}")
 
