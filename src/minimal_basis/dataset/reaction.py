@@ -47,6 +47,7 @@ class ReactionDataset(InMemoryDataset):
         mu: float = 0.5,
         sigma: float = 0.25,
         alpha: float = 1.0,
+        invert_coordinates: bool = False,
     ):
         """Dataset for the reaction.
 
@@ -78,6 +79,7 @@ class ReactionDataset(InMemoryDataset):
         self.mu = mu
         self.sigma = sigma
         self.alpha = alpha
+        self.invert_coordinates = invert_coordinates
 
         if self.spin_channel not in ["alpha", "beta"]:
             raise ValueError("Spin channel must be either alpha or beta.")
@@ -215,6 +217,8 @@ class ReactionDataset(InMemoryDataset):
                     molecule, OpenBabelNN()
                 )
                 positions = molecule_graph.molecule.cart_coords
+                if self.invert_coordinates:
+                    positions[:[0, 1, 2]] = positions[:[2, 0, 1]]
                 data_to_store["pos"][state] = positions
 
                 species_in_molecule = molecule_graph.molecule.species

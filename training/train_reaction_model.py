@@ -61,6 +61,8 @@ if __name__ == "__main__":
         / basis_set_name
     )
     dataset_options = inputs["dataset_options"][f"{args.basis_set_type}_basis"]
+    if args.invert_coordinates:
+        dataset_options["invert_coordinates"] = args.invert_coordinates
     learning_options = {}
     learning_options["batch_size"] = args.batch_size
     learning_options["learning_rate"] = args.learning_rate

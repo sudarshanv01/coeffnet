@@ -94,6 +94,11 @@ def get_command_line_arguments() -> argparse.Namespace:
         default=50,
         help="Multiplier for the hidden irreps of the model.",
     )
+    parser.add_argument(
+        "--invert_coordinates",
+        action="store_true",
+        help="If set, the coordinates are inverted.",
+    )
 
     args = parser.parse_args()
 
