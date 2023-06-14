@@ -144,16 +144,16 @@ class ReactionDataset(InMemoryDataset):
         self.max_f_functions = int(np.ceil(self.max_f_functions))
         self.max_g_functions = int(np.ceil(self.max_g_functions))
 
-        self.irreps_node_attr = f"{self.max_s_functions}x0e"
+        self.irreps_in = f"{self.max_s_functions}x0e"
         if self.max_p_functions > 0:
-            self.irreps_node_attr += f" +{self.max_p_functions}x1o"
+            self.irreps_in += f" +{self.max_p_functions}x1o"
         if self.max_d_functions > 0:
-            self.irreps_node_attr += f" +{self.max_d_functions}x2e"
+            self.irreps_in += f" +{self.max_d_functions}x2e"
         if self.max_f_functions > 0:
-            self.irreps_node_attr += f" +{self.max_f_functions}x3o"
+            self.irreps_in += f" +{self.max_f_functions}x3o"
         if self.max_g_functions > 0:
-            self.irreps_node_attr += f" +{self.max_g_functions}x4e"
-        self.irreps_out = self.irreps_node_attr
+            self.irreps_in += f" +{self.max_g_functions}x4e"
+        self.irreps_out = self.irreps_in
 
     def download(self):
         self.input_data = loadfn(self.filename)
@@ -328,7 +328,7 @@ class ReactionDataset(InMemoryDataset):
             datapoint = DataPoint(
                 pos=data_to_store["pos"],
                 edge_index=data_to_store["edge_index"],
-                node_attr=data_to_store["node_features"],
+                node_inputs=data_to_store["node_features"],
                 total_energies=data_to_store["total_energies"],
                 species=data_to_store["species"],
                 p=p,
@@ -339,7 +339,7 @@ class ReactionDataset(InMemoryDataset):
                 orthogonalization_matrix=data_to_store["orthogonalization_matrix"],
                 indices_to_keep=data_to_store["indices_to_keep"][reactant_idx],
                 identifier=identifier,
-                irreps_node_attr=self.irreps_node_attr,
+                irreps_in=self.irreps_in,
                 irreps_out=self.irreps_out,
             )
 

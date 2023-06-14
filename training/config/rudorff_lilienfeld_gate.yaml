@@ -19,7 +19,6 @@ model_options:
       max_radius: 5
       num_neighbors: 4
       typical_number_of_nodes: 12
-      mul: 50
       layers: 4
       reduce_output: true 
       mask_extra_basis: true
@@ -29,7 +28,6 @@ model_options:
       max_radius: 5
       num_neighbors: 4
       typical_number_of_nodes: 12
-      mul: 50
       layers: 4
       reduce_output: true 
       reference_reduced_output_to_initial_state: true
@@ -40,7 +38,6 @@ model_options:
       max_radius: 5
       num_neighbors: 4
       typical_number_of_nodes: 12
-      mul: 50
       layers: 4
       reduce_output: false
       mask_extra_basis: true
@@ -49,7 +46,6 @@ model_options:
       max_radius: 5
       num_neighbors: 4
       typical_number_of_nodes: 12
-      mul: 50
       layers: 4
       reduce_output: false
       mask_extra_basis: true

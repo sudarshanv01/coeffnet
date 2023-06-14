@@ -84,6 +84,12 @@ def get_command_line_arguments() -> argparse.Namespace:
         default=250,
         help="Maximum number of epochs to train for.",
     )
+    parser.add_argument(
+        "--mul",
+        type=int,
+        default=50,
+        help="Multiplier for the hidden irreps of the model.",
+    )
 
     args = parser.parse_args()
 

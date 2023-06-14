@@ -42,7 +42,7 @@ def convert_to_tensor(
 class ReactionDataPoint(Data):
     def __init__(
         self,
-        node_attr: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
+        node_inputs: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
         edge_index: Dict[str, Union[npt.ArrayLike, List[int]]] = None,
         pos: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
         total_energies: Dict[str, Union[npt.ArrayLike, List[float]]] = None,
@@ -75,19 +75,19 @@ class ReactionDataPoint(Data):
             pos_interpolated_transition_state = None
             pos_transition_state = None
 
-        if node_attr is not None:
-            node_attr_initial_state = node_attr[reactant_tag]
-            node_attr_final_state = node_attr[product_tag]
-            node_attr_transition_state = node_attr[transition_state_tag]
+        if node_inputs is not None:
+            node_inputs_initial_state = node_inputs[reactant_tag]
+            node_inputs_final_state = node_inputs[product_tag]
+            node_input_transition_state = node_inputs[transition_state_tag]
 
-            node_attr_initial_state = convert_to_tensor(node_attr_initial_state)
-            node_attr_final_state = convert_to_tensor(node_attr_final_state)
-            node_attr_transition_state = convert_to_tensor(node_attr_transition_state)
+            node_inputs_initial_state = convert_to_tensor(node_inputs_initial_state)
+            node_inputs_final_state = convert_to_tensor(node_inputs_final_state)
+            node_input_transition_state = convert_to_tensor(node_input_transition_state)
 
         else:
-            node_attr_initial_state = None
-            node_attr_final_state = None
-            node_attr_transition_state = None
+            node_inputs_initial_state = None
+            node_inputs_final_state = None
+            node_input_transition_state = None
 
         if edge_index is not None:
             edge_index_initial_state = edge_index[reactant_tag]
@@ -180,9 +180,10 @@ class ReactionDataPoint(Data):
             indices_to_keep = None
 
         super().__init__(
-            node_attr=node_attr_initial_state,
-            node_attr_final_state=node_attr_final_state,
-            node_attr_transition_state=node_attr_transition_state,
+            x=node_inputs_initial_state,
+            x_final_state=node_inputs_final_state,
+            x_transition_state=node_input_transition_state,
+            species=species_initial_state,
             pos=pos_initial_state,
             pos_final_state=pos_final_state,
             pos_interpolated_transition_state=pos_interpolated_transition_state,
@@ -194,7 +195,6 @@ class ReactionDataPoint(Data):
             total_energy=total_energy_initial_state,
             total_energy_final_state=total_energy_final_state,
             total_energy_transition_state=total_energy_transition_state,
-            x=species_initial_state,
             orthogonalization_matrix=orthogonalization_matrix_initial_state,
             orthogonalization_matrix_final_state=orthogonalization_matrix_final_state,
             orthogonalization_matrix_transition_state=orthogonalization_matrix_transition_state,

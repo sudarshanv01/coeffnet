@@ -1,6 +1,5 @@
 import os
 import logging
-import importlib
 
 from datetime import datetime
 
@@ -22,7 +21,7 @@ from utils import (
     read_inputs_yaml,
 )
 
-from model_functions import construct_model_name, construct_irreps, train, validate
+from model_functions import construct_model_name, train, validate
 from cli_functions import get_command_line_arguments, get_basis_set_name
 
 
@@ -77,7 +76,6 @@ if __name__ == "__main__":
 
     transform = T.ToDevice(DEVICE)
 
-    # If args.debug is set, then the calculation is a DEBUG calculation, set wandb to dryrun
     if args.debug:
         wandb.init(project=model_name, entity=args.wandb_username, mode="dryrun")
     else:
@@ -116,10 +114,11 @@ if __name__ == "__main__":
         validate_dataset, batch_size=learning_options["batch_size"], shuffle=False
     )
 
-    model_options["irreps_in"] = "1x0e"
-    model_options["irreps_node_attr"] = train_dataset.irreps_node_attr
+    model_options["irreps_node_attr"] = "1x0e"
+    model_options["irreps_in"] = train_dataset.irreps_in
     model_options["irreps_out"] = train_dataset.irreps_out
     model_options["lmax"] = o3.Irreps(model_options["irreps_out"]).lmax
+    model_options["mul"] = args.mul
 
     wandb.config.update({"model_options": model_options})
     logger.info(f"Model Options: {model_options}")

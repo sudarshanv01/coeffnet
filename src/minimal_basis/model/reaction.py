@@ -74,7 +74,7 @@ class GateReactionModel(torch.nn.Module):
         if isinstance(irreps_out, str):
             self.irreps_out = o3.Irreps(irreps_out)
 
-        lp_irreps_hidden = [(l, (-1) ** l) for l in self.irreps_node_attr.ls]
+        lp_irreps_hidden = [(l, (-1) ** l) for l in self.irreps_in.ls]
         self.irreps_hidden = o3.Irreps(
             [(self.mul, (l, p)) for l, p in lp_irreps_hidden]
         )
@@ -135,7 +135,7 @@ class GateReactionModel(torch.nn.Module):
             "pos": data.pos,
             "x": data.x,
             "batch": data.batch,
-            "z": data.node_attr,
+            # "z": data.node_attr,
         }
 
         output_network_initial_state = self.network_initial_state(kwargs_initial_state)
@@ -151,9 +151,9 @@ class GateReactionModel(torch.nn.Module):
 
         kwargs_final_state = {
             "pos": data.pos_final_state,
-            "x": data.x,
+            "x": data.x_final_state,
             "batch": data.batch,
-            "z": data.node_attr_final_state,
+            # "z": data.node_attr,
         }
 
         output_network_final_state = self.network_final_state(kwargs_final_state)
@@ -167,15 +167,15 @@ class GateReactionModel(torch.nn.Module):
 
         p = data.p[0]
         p_prime = 1 - p
-        node_attr = (
+        x_interpolated_transition_state = (
             p_prime * output_network_initial_state + p * output_network_final_state
         )
 
         kwargs_interpolated_transition_state = {
             "pos": data.pos_interpolated_transition_state,
-            "x": data.x,
+            "x": x_interpolated_transition_state,
             "batch": data.batch,
-            "z": node_attr,
+            "z": data.node_attr,
         }
 
         output_network_interpolated_transition_state = (
@@ -249,7 +249,7 @@ class NetworkForAGraphWithNodeAttributes(torch.nn.Module):
         self.num_nodes = num_nodes
         self.pool_nodes = pool_nodes
 
-        lp_irreps_hidden = [(l, (-1) ** l) for l in irreps_node_attr.ls]
+        lp_irreps_hidden = [(l, (-1) ** l) for l in irreps_node_input.ls]
         self.irreps_hidden = o3.Irreps([(mul, (l, p)) for l, p in lp_irreps_hidden])
         logger.info(f"irreps_hidden: {self.irreps_hidden}")
 
@@ -283,7 +283,10 @@ class NetworkForAGraphWithNodeAttributes(torch.nn.Module):
         else:
             node_input = data["node_input"]
 
-        node_attr = data["node_attr"]
+        if "node_attr" in data:
+            node_attr = data["node_attr"]
+        else:
+            node_attr = node_input.new_ones(node_input.shape[0], 1)
 
         return batch, node_input, node_attr, edge_src, edge_dst, edge_vec
 
@@ -416,16 +419,18 @@ class MessagePassingReactionModel(torch.nn.Module):
             "pos": data.pos,
             "edge_index": data.edge_index,
             "x": data.x,
-            "node_attr": data.node_attr,
         }
+        if "node_attr" in data:
+            kwargs_initial_state["node_attr"] = data.node_attr
 
         kwargs_final_state = {
             "batch": data.batch,
             "pos": data.pos_final_state,
             "edge_index": data.edge_index_final_state,
-            "x": data.x,
-            "node_attr": data.node_attr_final_state,
+            "x": data.x_final_state,
         }
+        if "node_attr" in data:
+            kwargs_final_state["node_attr"] = data.node_attr_final_state
 
         output_network_initial_state = self.network_initial_state(kwargs_initial_state)
 
@@ -449,7 +454,7 @@ class MessagePassingReactionModel(torch.nn.Module):
 
         p = data.p[0]
         p_prime = 1 - p
-        node_attr = (
+        x_interpolated_transition_state = (
             p_prime * output_network_initial_state + p * output_network_final_state
         )
 
@@ -457,9 +462,12 @@ class MessagePassingReactionModel(torch.nn.Module):
             "batch": data.batch,
             "pos": data.pos_interpolated_transition_state,
             "edge_index": data.edge_index_interpolated_transition_state,
-            "x": data.x,
-            "node_attr": node_attr,
+            "x": x_interpolated_transition_state,
         }
+        if "node_attr" in data:
+            kwargs_interpolated_transition_state[
+                "node_attr"
+            ] = data.node_attr_interpolated_transition_state
 
         output_network_interpolated_transition_state = (
             self.network_interpolated_transition_state(
