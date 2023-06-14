@@ -78,7 +78,7 @@ def get_best_model(
         ][0]
         best_model.download()
         try:
-            best_model = torch.load(best_model.file(), map_location=torch.device("cpu"))
+            best_model = torch.load(best_model.file())
         except RuntimeError:
             print("Failed to load model, skipping")
             df_options = df_options[
