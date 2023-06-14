@@ -135,7 +135,6 @@ class GateReactionModel(torch.nn.Module):
             "pos": data.pos,
             "x": data.x,
             "batch": data.batch,
-            # "z": data.node_attr,
         }
 
         output_network_initial_state = self.network_initial_state(kwargs_initial_state)
@@ -153,7 +152,6 @@ class GateReactionModel(torch.nn.Module):
             "pos": data.pos_final_state,
             "x": data.x_final_state,
             "batch": data.batch,
-            # "z": data.node_attr,
         }
 
         output_network_final_state = self.network_final_state(kwargs_final_state)
@@ -175,8 +173,9 @@ class GateReactionModel(torch.nn.Module):
             "pos": data.pos_interpolated_transition_state,
             "x": x_interpolated_transition_state,
             "batch": data.batch,
-            "z": data.node_attr,
         }
+        if "node_attr" in data:
+            kwargs_interpolated_transition_state["z"] = data.node_attr
 
         output_network_interpolated_transition_state = (
             self.network_interpolated_transition_state(
