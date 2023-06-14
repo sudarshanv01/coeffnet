@@ -1,5 +1,7 @@
 import argparse
 
+import datetime
+
 __input_folder__ = "input"
 
 
@@ -15,6 +17,10 @@ def get_basis_set_name(basis_set):
     basis_set_name = basis_set_name.lower()
 
     return basis_set_name
+
+
+def create_timestamp():
+    return datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
 def get_command_line_arguments() -> argparse.Namespace:

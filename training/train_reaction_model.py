@@ -22,11 +22,11 @@ from utils import (
 )
 
 from model_functions import construct_model_name, train, validate
-from cli_functions import get_command_line_arguments, get_basis_set_name
-
-
-def create_timestamp():
-    return datetime.now().strftime("%Y%m%d_%H%M%S")
+from cli_functions import (
+    get_command_line_arguments,
+    get_basis_set_name,
+    create_timestamp,
+)
 
 
 if __name__ == "__main__":
@@ -91,17 +91,13 @@ if __name__ == "__main__":
         validate_json_filename = input_foldername / "validate.json"
 
     train_dataset = Dataset(
-        root=get_train_data_path(
-            model_name + "_" + args.basis_set_type + "_basis" + "_" + basis_set_name
-        ),
+        root=get_train_data_path(model_name + "_" + timestamp),
         filename=train_json_filename,
         transform=transform,
         **dataset_options,
     )
     validate_dataset = Dataset(
-        root=get_validation_data_path(
-            model_name + "_" + args.basis_set_type + "_basis" + "_" + basis_set_name
-        ),
+        root=get_validation_data_path(model_name + "_" + timestamp),
         filename=validate_json_filename,
         transform=transform,
         **dataset_options,

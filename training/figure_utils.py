@@ -18,6 +18,8 @@ from utils import (
 
 from model_functions import construct_model_name
 
+from cli_functions import create_timestamp
+
 import wandb
 
 wandb_api = wandb.Api()
@@ -48,24 +50,20 @@ def get_dataloaders(
     train_json_filename = input_foldername / f"train{_debug_string}.json"
     validate_json_filename = input_foldername / f"validate{_debug_string}.json"
 
+    timestamp = create_timestamp()
+
     train_dataset = ReactionDataset(
-        root=get_train_data_path(
-            model_name + "_" + basis_set_type + "_" + basis_set_name
-        ),
+        root=get_train_data_path(model_name + "_" + timestamp),
         filename=train_json_filename,
         **dataset_options,
     )
     validate_dataset = ReactionDataset(
-        root=get_validation_data_path(
-            model_name + "_" + basis_set_type + "_" + basis_set_name
-        ),
+        root=get_validation_data_path(model_name + "_" + timestamp),
         filename=validate_json_filename,
         **dataset_options,
     )
     test_dataset = ReactionDataset(
-        root=get_test_data_path(
-            model_name + "_" + basis_set_type + "_" + basis_set_name
-        ),
+        root=get_test_data_path(model_name + "_" + timestamp),
         filename=validate_json_filename,
         **dataset_options,
     )
