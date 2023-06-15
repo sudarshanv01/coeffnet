@@ -113,22 +113,18 @@ class UnsignedDotProductPreservingL1Loss(nn.Module):
         only supposed to ensure that the \Sum_{j} c_ij @ c_ij.T condition is met, which
         is an alias for taking care of the signs of c_ij."""
 
-        dot_product_input = torch.zeros(batch_size, device=input.device)
-        dot_product_target = torch.zeros(batch_size, device=input.device)
+        loss = torch.zeros(batch_size, device=input.device)
+
         for i in range(batch_size):
             c_ij = input[batch == i]
             c_ij = c_ij.view(-1, 1)
-            n_ij = c_ij @ c_ij.T
-            dot_product_input[i] = n_ij.sum()
+            n_ij_input = c_ij @ c_ij.T
 
             c_ij = target[batch == i]
             c_ij = c_ij.view(-1, 1)
-            n_ij = c_ij @ c_ij.T
-            dot_product_target[i] = n_ij.sum()
+            n_ij_target = c_ij @ c_ij.T
+            l1_nij = F.l1_loss(n_ij_input, n_ij_target, reduction="sum")
 
-        loss_dot_product = F.l1_loss(
-            dot_product_input, dot_product_target, reduction=reduction
-        )
-        loss_elements = F.l1_loss(input.abs(), target.abs(), reduction=reduction)
+            loss[i] = l1_nij
 
-        return loss_dot_product + loss_elements
+        return loss.sum()
