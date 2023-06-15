@@ -44,12 +44,13 @@ def signed_coeff_matrix_loss(data, predicted_y, do_backward=True):
     """Get the loss when converting the coefficient matrix to the density."""
 
     real_y = data.x_transition_state
-    batch = data.batch
-    batch_size = data.num_graphs
+    # batch = data.batch
+    # batch_size = data.num_graphs
 
-    loss = UnsignedDotProductPreservingL1Loss()(
-        predicted_y, real_y, batch, batch_size, reduction="sum"
-    )
+    # loss = UnsignedDotProductPreservingL1Loss()(
+    #     predicted_y, real_y, batch, batch_size, reduction="sum"
+    # )
+    loss = F.l1_loss(predicted_y.abs(), real_y.abs(), reduction="sum")
     if do_backward:
         loss.backward()
 

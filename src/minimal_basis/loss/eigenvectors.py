@@ -123,7 +123,7 @@ class UnsignedDotProductPreservingL1Loss(nn.Module):
             c_ij = target[batch == i]
             c_ij = c_ij.view(-1, 1)
             n_ij_target = c_ij @ c_ij.T
-            l1_nij = F.l1_loss(n_ij_input, n_ij_target, reduction="sum")
+            l1_nij = F.l1_loss(n_ij_input, n_ij_target, reduction=reduction)
 
             loss[i] = l1_nij
 
