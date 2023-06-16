@@ -74,18 +74,26 @@ class GateReactionModel(torch.nn.Module):
         if isinstance(irreps_out, str):
             self.irreps_out = o3.Irreps(irreps_out)
 
-        lp_irreps_hidden = [(l, (-1) ** l) for l in self.irreps_in.ls]
+        irreps_ls = self.irreps_in.ls
+        irreps_ls = list(set(irreps_ls))
+        irreps_ls.sort()
+        lp_irreps_hidden = [(l, (-1) ** l) for l in irreps_ls]
         self.irreps_hidden = o3.Irreps(
             [(self.mul, (l, p)) for l, p in lp_irreps_hidden]
         )
         logger.info(f"irreps_hidden: {self.irreps_hidden}")
+
+        self.irreps_edge_attr = o3.Irreps(
+            [(self.number_of_basis, (l, p)) for l, p in lp_irreps_hidden]
+        )
+        logger.info(f"irreps_edge_attr: {self.irreps_edge_attr}")
 
         self.network_initial_state = Network(
             irreps_in=irreps_in,
             irreps_hidden=self.irreps_hidden,
             irreps_out=irreps_in,
             irreps_node_attr=irreps_node_attr,
-            irreps_edge_attr=f"{self.number_of_basis}x0e",
+            irreps_edge_attr=self.irreps_edge_attr,
             layers=self.layers,
             max_radius=max_radius,
             number_of_basis=self.number_of_basis,
@@ -101,7 +109,7 @@ class GateReactionModel(torch.nn.Module):
             irreps_hidden=self.irreps_hidden,
             irreps_out=irreps_in,
             irreps_node_attr=irreps_node_attr,
-            irreps_edge_attr=f"{self.number_of_basis}x0e",
+            irreps_edge_attr=self.irreps_edge_attr,
             layers=self.layers,
             max_radius=max_radius,
             number_of_basis=self.number_of_basis,
@@ -117,7 +125,7 @@ class GateReactionModel(torch.nn.Module):
             irreps_hidden=self.irreps_hidden,
             irreps_out=irreps_in,
             irreps_node_attr=irreps_node_attr,
-            irreps_edge_attr=f"{self.number_of_basis}x0e",
+            irreps_edge_attr=self.irreps_edge_attr,
             layers=self.layers,
             max_radius=max_radius,
             number_of_basis=self.number_of_basis,
@@ -201,7 +209,6 @@ class GateReactionModel(torch.nn.Module):
             ).div(self.num_nodes**0.5)
 
             if self.reference_reduced_output_to_initial_state:
-
                 output_network_initial_state = scatter(
                     output_network_initial_state, data.batch, dim=0
                 ).div(self.num_nodes**0.5)
@@ -209,6 +216,10 @@ class GateReactionModel(torch.nn.Module):
                 output_network_interpolated_transition_state -= (
                     output_network_initial_state
                 )
+
+            output_network_interpolated_transition_state = (
+                output_network_interpolated_transition_state.mean(dim=1)
+            )
 
         return output_network_interpolated_transition_state
 
@@ -252,7 +263,10 @@ class NetworkForAGraphWithNodeAttributes(torch.nn.Module):
         self.num_nodes = num_nodes
         self.pool_nodes = pool_nodes
 
-        lp_irreps_hidden = [(l, (-1) ** l) for l in irreps_node_input.ls]
+        irreps_ls = irreps_node_input.ls
+        irreps_ls = list(set(irreps_ls))
+        irreps_ls.sort()
+        lp_irreps_hidden = [(l, (-1) ** l) for l in irreps_ls]
         self.irreps_hidden = o3.Irreps([(mul, (l, p)) for l, p in lp_irreps_hidden])
         logger.info(f"irreps_hidden: {self.irreps_hidden}")
 

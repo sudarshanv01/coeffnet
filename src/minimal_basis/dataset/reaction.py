@@ -27,6 +27,7 @@ from monty.serialization import loadfn
 from minimal_basis.data.reaction import ReactionDataPoint as DataPoint
 from minimal_basis.data.reaction import ModifiedCoefficientMatrixSphericalBasis
 from minimal_basis.predata.interpolator import GenerateParametersInterpolator
+from minimal_basis.constants import electronic_states
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +170,6 @@ class ReactionDataset(InMemoryDataset):
             orbital_info = pd.DataFrame(orbital_info)
             orbital_info.columns = ["species", "idx", "l", "m"]
             _species = orbital_info["species"].unique()
-
             species.extend(_species)
 
         self.unique_species_in_dataset = np.unique(species)
@@ -178,7 +178,27 @@ class ReactionDataset(InMemoryDataset):
             for species in self.unique_species_in_dataset
         ]
         self.unique_atomic_numbers = np.sort(np.unique(self.unique_atomic_numbers))
-        self.irreps_node_attr = f"{len(self.unique_atomic_numbers)}x0e"
+
+        occupancy_dict = {}
+        for _atomic_number in self.unique_atomic_numbers:
+            electronic_config = electronic_states[
+                ase_data.chemical_symbols[_atomic_number]
+            ]
+            electronic_config = electronic_config.split(" ")
+            electronic_config = [
+                [int(e[0]), str(e[1]), int(e[2])] for e in electronic_config
+            ]
+            electronic_config = np.array(electronic_config)
+            df = pd.DataFrame(electronic_config, columns=["n", "l", "occ"])
+            occ_s = df[df["l"] == "s"]["occ"].values[-1]
+            if "p" not in df["l"].values:
+                occ_p = 0
+            else:
+                occ_p = df[df["l"] == "p"]["occ"].values[-1]
+            occupancy_dict[_atomic_number] = [int(occ_s), int(occ_p)]
+        self.occupancy_dict = occupancy_dict
+
+        self.irreps_node_attr = f"{len(self.unique_atomic_numbers)+2}x0e"
 
     def download(self):
         self.input_data = loadfn(self.filename)
@@ -373,6 +393,7 @@ class ReactionDataset(InMemoryDataset):
                 irreps_in=self.irreps_in,
                 irreps_out=self.irreps_out,
                 irreps_node_attr=self.irreps_node_attr,
+                occupancy_dict=self.occupancy_dict,
             )
 
             datapoint_list.append(datapoint)

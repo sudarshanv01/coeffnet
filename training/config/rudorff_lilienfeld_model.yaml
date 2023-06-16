@@ -2,16 +2,17 @@
 dataset_options:
   minimal_basis:
     idx_eigenvalue: 0
-    reactant_tag: "reactant"
-    product_tag: "product"
-    transition_state_tag: "transition_state"
+    reactant_tag: "perturbed_molecule_-0_5_molecule"
+    product_tag: "perturbed_molecule_0_5_molecule"
+    transition_state_tag: "transition_state_molecule"
   full_basis:
     idx_eigenvalue: 0
-    reactant_tag: "reactant"
-    product_tag: "product"
-    transition_state_tag: "transition_state"
-
+    reactant_tag: "perturbed_molecule_-0_5_molecule"
+    product_tag: "perturbed_molecule_0_5_molecule"
+    transition_state_tag: "transition_state_molecule"
+  
 model_options:
+  relative_energy:
     max_radius: 5
     num_neighbors: 4
     typical_number_of_nodes: 12

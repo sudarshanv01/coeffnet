@@ -103,6 +103,24 @@ def get_command_line_arguments() -> argparse.Namespace:
         action="store_true",
         help="If set, the coordinates are inverted.",
     )
+    parser.add_argument(
+        "--model_class",
+        type=str,
+        default="minimal_basis.model.reaction.GateReactionModel",
+        help="Class name of the model to use.",
+    )
+    parser.add_argument(
+        "--loss_function",
+        type=str,
+        default=None,
+        help="Class name of the loss function to use.",
+    )
+    parser.add_argument(
+        "--reduction",
+        type=str,
+        default="sum",
+        help="Reduction to use for the loss function.",
+    )
 
     args = parser.parse_args()
 

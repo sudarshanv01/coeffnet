@@ -1,8 +1,5 @@
 import torch
 
-# Staying consistent with Mingjian's datatypes.
-# See here: https://github.com/mjwen/eigenn/blob/main/eigenn/data/_dtype.py
-
 DTYPE = torch.get_default_dtype()
 DTYPE_INT = torch.int64
 DTYPE_BOOL = torch.bool

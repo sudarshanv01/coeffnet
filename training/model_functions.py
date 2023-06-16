@@ -3,14 +3,6 @@ import torch
 from torch_geometric.loader import DataLoader
 from torch.nn import functional as F
 
-from minimal_basis.dataset.reaction import ReactionDataset as Dataset
-from minimal_basis.loss.eigenvectors import (
-    UnsignedMSELoss,
-    UnsignedL1Loss,
-    UnsignedDotProductPreservingMSELoss,
-    UnsignedDotProductPreservingL1Loss,
-)
-
 
 def construct_model_name(dataset_name: str, debug: bool = False) -> str:
     """Construct the model name based on the config filename and
@@ -24,30 +16,14 @@ def construct_model_name(dataset_name: str, debug: bool = False) -> str:
     return model_name
 
 
-def construct_irreps(
-    model_options: dict,
-) -> None:
-    """Construct the inputs if there is an @construct in the inputs.
-
-    Args:
-        model_options (dict): The model options.
-        dataset_options (dict): The dataset options.
-        prediction_mode (str): The prediction mode.
-
-    """
-
-    if model_options["irreps_edge_attr"] == "@construct":
-        model_options["irreps_edge_attr"] = f"{model_options['num_basis']}x0e"
-
-
-def signed_coeff_matrix_loss(data, predicted_y, do_backward=True):
+def signed_coeff_matrix_loss(data, predicted_y, loss_function, do_backward=True):
     """Get the loss when converting the coefficient matrix to the density."""
 
     real_y = data.x_transition_state
     batch = data.batch
     batch_size = data.num_graphs
 
-    loss = UnsignedL1Loss()(predicted_y, real_y, batch, batch_size, reduction="sum")
+    loss = loss_function(predicted_y, real_y, batch, batch_size)
 
     if do_backward:
         loss.backward()
@@ -55,12 +31,11 @@ def signed_coeff_matrix_loss(data, predicted_y, do_backward=True):
     return loss.item()
 
 
-def relative_energy_loss(data, predicted_y, do_backward=True):
+def relative_energy_loss(data, predicted_y, loss_function, do_backward=True):
     """Get the loss when predicting the relative energy."""
 
     real_y = data.total_energy_transition_state - data.total_energy
-    predicted_y = predicted_y.mean(dim=1)
-    loss = F.l1_loss(predicted_y, real_y, reduction="sum")
+    loss = loss_function(predicted_y, real_y)
 
     if do_backward:
         loss.backward()
@@ -68,7 +43,13 @@ def relative_energy_loss(data, predicted_y, do_backward=True):
     return loss.item()
 
 
-def train(model, train_loader: DataLoader, optim, prediction_mode: str) -> float:
+def train(
+    model,
+    train_loader: DataLoader,
+    optim,
+    prediction_mode: str,
+    loss_function: torch.nn.Module,
+) -> float:
     """Train the model."""
 
     model.train()
@@ -81,9 +62,9 @@ def train(model, train_loader: DataLoader, optim, prediction_mode: str) -> float
         predicted_y = model(data)
 
         if prediction_mode == "coeff_matrix":
-            losses += signed_coeff_matrix_loss(data, predicted_y)
+            losses += signed_coeff_matrix_loss(data, predicted_y, loss_function)
         elif prediction_mode == "relative_energy":
-            losses += relative_energy_loss(data, predicted_y)
+            losses += relative_energy_loss(data, predicted_y, loss_function)
         else:
             raise ValueError(f"Prediction mode {prediction_mode} not recognized.")
 
@@ -96,7 +77,9 @@ def train(model, train_loader: DataLoader, optim, prediction_mode: str) -> float
 
 
 @torch.no_grad()
-def validate(model, val_loader: DataLoader, prediction_mode: str) -> float:
+def validate(
+    model, val_loader: DataLoader, prediction_mode: str, loss_function: torch.nn.Module
+) -> float:
     """Validate the model."""
     model.eval()
 
@@ -107,9 +90,13 @@ def validate(model, val_loader: DataLoader, prediction_mode: str) -> float:
         predicted_y = model(data)
 
         if prediction_mode == "coeff_matrix":
-            losses += signed_coeff_matrix_loss(data, predicted_y, do_backward=False)
+            losses += signed_coeff_matrix_loss(
+                data, predicted_y, loss_function, do_backward=False
+            )
         elif prediction_mode == "relative_energy":
-            losses += relative_energy_loss(data, predicted_y, do_backward=False)
+            losses += relative_energy_loss(
+                data, predicted_y, loss_function, do_backward=False
+            )
         else:
             raise ValueError(f"Prediction mode {prediction_mode} not recognized.")
 
