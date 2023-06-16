@@ -112,7 +112,7 @@ if __name__ == "__main__":
         validate_dataset, batch_size=learning_options["batch_size"], shuffle=False
     )
 
-    model_options["irreps_node_attr"] = "1x0e"
+    model_options["irreps_node_attr"] = train_dataset.irreps_node_attr
     model_options["irreps_in"] = train_dataset.irreps_in
     model_options["irreps_out"] = train_dataset.irreps_out
     model_options["lmax"] = o3.Irreps(model_options["irreps_out"]).lmax

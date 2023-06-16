@@ -53,6 +53,7 @@ class ReactionDataPoint(Data):
         product_tag: str = None,
         transition_state_tag: str = None,
         indices_to_keep: Union[npt.ArrayLike, List[int]] = None,
+        unique_atomic_numbers: npt.ArrayLike = None,
         **kwargs,
     ):
         """General purpose data class for reaction data."""
@@ -179,11 +180,23 @@ class ReactionDataPoint(Data):
         else:
             indices_to_keep = None
 
+        if species_initial_state is not None:
+            one_hot_species = torch.zeros(
+                len(species_initial_state), len(unique_atomic_numbers)
+            )
+            for i, species in enumerate(species_initial_state):
+                int_species = int(species[0])
+                idx_species = np.where(unique_atomic_numbers == int_species)[0][0]
+                one_hot_species[i, idx_species] = 1
+        else:
+            one_hot_species = None
+
         super().__init__(
             x=node_inputs_initial_state,
             x_final_state=node_inputs_final_state,
             x_transition_state=node_input_transition_state,
             species=species_initial_state,
+            node_attr=one_hot_species,
             pos=pos_initial_state,
             pos_final_state=pos_final_state,
             pos_interpolated_transition_state=pos_interpolated_transition_state,

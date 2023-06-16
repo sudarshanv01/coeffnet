@@ -157,6 +157,29 @@ class ReactionDataset(InMemoryDataset):
             self.irreps_in += f" +{self.max_g_functions}x4e"
         self.irreps_out = self.irreps_in
 
+    def determine_classes_for_one_hot_encoding(self):
+        """Determine the number of classes for one-hot encoding the
+        atomic number. This method provides all the unique atomic numbers
+        that are present in the dataset."""
+
+        species = []
+
+        for reaction_idx, input_data in enumerate(self.input_data):
+            orbital_info = input_data["orbital_info"][0]
+            orbital_info = pd.DataFrame(orbital_info)
+            orbital_info.columns = ["species", "idx", "l", "m"]
+            _species = orbital_info["species"].unique()
+
+            species.extend(_species)
+
+        self.unique_species_in_dataset = np.unique(species)
+        self.unique_atomic_numbers = [
+            ase_data.atomic_numbers[species]
+            for species in self.unique_species_in_dataset
+        ]
+        self.unique_atomic_numbers = np.sort(np.unique(self.unique_atomic_numbers))
+        self.irreps_node_attr = f"{len(self.unique_atomic_numbers)}x0e"
+
     def download(self):
         self.input_data = loadfn(self.filename)
         logger.info("Successfully loaded json file with data.")
@@ -169,6 +192,8 @@ class ReactionDataset(InMemoryDataset):
                      f: {self.max_f_functions},\
                      g: {self.max_g_functions}"
         )
+        self.determine_classes_for_one_hot_encoding()
+        logger.info(f"Unique atomic numbers in dataset: {self.unique_atomic_numbers}")
 
     def process(self):
 
@@ -336,6 +361,7 @@ class ReactionDataset(InMemoryDataset):
                 node_inputs=data_to_store["node_features"],
                 total_energies=data_to_store["total_energies"],
                 species=data_to_store["species"],
+                unique_atomic_numbers=self.unique_atomic_numbers,
                 p=p,
                 basis_mask=data_to_store["basis_mask"][reactant_idx],
                 reactant_tag=self.reactant_tag,
@@ -346,6 +372,7 @@ class ReactionDataset(InMemoryDataset):
                 identifier=identifier,
                 irreps_in=self.irreps_in,
                 irreps_out=self.irreps_out,
+                irreps_node_attr=self.irreps_node_attr,
             )
 
             datapoint_list.append(datapoint)
