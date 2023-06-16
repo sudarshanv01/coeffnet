@@ -89,3 +89,39 @@ class UnsignedL1Loss(nn.Module):
         loss = F.l1_loss(signed_input, target, reduction=self.reduction)
 
         return loss
+
+
+class AbsoluteMSELoss(nn.Module):
+    def __init__(self, reduction="sum"):
+        """Since eigenvectors are accurate only upto a sign change, this loss function
+        takes the absolute value of the predicted eigenvectors and then calculates the
+        MSE loss."""
+        self.reduction = reduction
+        super(AbsoluteMSELoss, self).__init__()
+
+    def forward(self, input, target):
+        """Forward pass of the loss function.
+        Args:
+            input (torch.Tensor): The predicted eigenvectors.
+            target (torch.Tensor): The ground truth eigenvectors.
+        """
+        loss = F.mse_loss(torch.abs(input), torch.abs(target), reduction=self.reduction)
+        return loss
+
+
+class AbsoluteL1Loss(nn.Module):
+    def __init__(self, reduction="sum"):
+        """Since eigenvectors are accurate only upto a sign change, this loss function
+        takes the absolute value of the predicted eigenvectors and then calculates the
+        L1 loss."""
+        self.reduction = reduction
+        super(AbsoluteL1Loss, self).__init__()
+
+    def forward(self, input, target):
+        """Forward pass of the loss function.
+        Args:
+            input (torch.Tensor): The predicted eigenvectors.
+            target (torch.Tensor): The ground truth eigenvectors.
+        """
+        loss = F.l1_loss(torch.abs(input), torch.abs(target), reduction=self.reduction)
+        return loss

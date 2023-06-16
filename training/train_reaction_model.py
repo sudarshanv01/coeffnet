@@ -138,10 +138,13 @@ if __name__ == "__main__":
     logger.info(f"Model Options: {model_options}")
     model = Model(**model_options)
     model = model.to(DEVICE)
-    print(model)
+    logger.info(f"Model: {model}")
     wandb.watch(model)
 
     optim = torch.optim.Adam(model.parameters(), lr=learning_options["learning_rate"])
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optim, mode="min", factor=0.5, patience=10, verbose=True
+    )
 
     for epoch in range(1, learning_options["num_epochs"] + 1):
 
@@ -158,6 +161,8 @@ if __name__ == "__main__":
             prediction_mode=args.prediction_mode,
             loss_function=Loss(reduction=args.reduction),
         )
+
+        scheduler.step(validate_loss)
 
         wandb.log({"train_loss": train_loss})
         wandb.log({"val_loss": validate_loss})
