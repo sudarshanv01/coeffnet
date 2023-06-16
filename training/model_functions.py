@@ -1,5 +1,7 @@
 import torch
 
+from inspect import signature
+
 from torch_geometric.loader import DataLoader
 from torch.nn import functional as F
 
@@ -23,7 +25,17 @@ def signed_coeff_matrix_loss(data, predicted_y, loss_function, do_backward=True)
     batch = data.batch
     batch_size = data.num_graphs
 
-    loss = loss_function(predicted_y, real_y, batch, batch_size)
+    # If the loss_function takes only two inputs, pass it `predicted_y` and
+    # `real_y`. If it takes four inputs, pass it `predicted_y`, `real_y`, and
+    # `batch` and `batch_size`.
+    if len(signature(loss_function.forward).parameters) == 2:
+        loss = loss_function(predicted_y, real_y)
+    elif len(signature(loss_function.forward).parameters) == 4:
+        loss = loss_function(predicted_y, real_y, batch, batch_size)
+    else:
+        raise ValueError(
+            f"Loss function {loss_function} has an invalid number of inputs."
+        )
 
     if do_backward:
         loss.backward()

@@ -183,14 +183,12 @@ class ReactionDataPoint(Data):
 
         if species_initial_state is not None:
             one_hot_species = torch.zeros(
-                len(species_initial_state), len(unique_atomic_numbers) + 2
+                len(species_initial_state), len(unique_atomic_numbers)
             )
             for i, species in enumerate(species_initial_state):
                 int_species = int(species[0])
                 idx_species = np.where(unique_atomic_numbers == int_species)[0][0]
                 one_hot_species[i, idx_species] = 1
-                one_hot_species[i, -2] = occupancy_dict[int_species][0]
-                one_hot_species[i, -1] = occupancy_dict[int_species][1]
         else:
             one_hot_species = None
 

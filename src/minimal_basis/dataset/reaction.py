@@ -198,7 +198,7 @@ class ReactionDataset(InMemoryDataset):
             occupancy_dict[_atomic_number] = [int(occ_s), int(occ_p)]
         self.occupancy_dict = occupancy_dict
 
-        self.irreps_node_attr = f"{len(self.unique_atomic_numbers)+2}x0e"
+        self.irreps_node_attr = f"{len(self.unique_atomic_numbers)}x0e"
 
     def download(self):
         self.input_data = loadfn(self.filename)
