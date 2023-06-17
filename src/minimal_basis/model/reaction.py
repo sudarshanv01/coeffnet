@@ -75,6 +75,7 @@ class GateReactionModel(torch.nn.Module):
         irreps_ls = self.irreps_in.ls
         irreps_ls = list(set(irreps_ls))
         irreps_ls.sort()
+        irreps_ls.append(irreps_ls[-1] + 1)
         lp_irreps_hidden = [(l, (-1) ** l) for l in irreps_ls]
         self.irreps_hidden = o3.Irreps(
             [(self.mul, (l, p)) for l, p in lp_irreps_hidden]
