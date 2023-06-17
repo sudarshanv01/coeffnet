@@ -42,7 +42,7 @@ class GateReactionModel(torch.nn.Module):
         reduce_output: Optional[bool] = False,
         mask_extra_basis: Optional[bool] = False,
         normalize_sumsq: Optional[bool] = False,
-        reference_reduced_output_to_initial_state: Optional[bool] = False,
+        reference_output_to_initial_state: Optional[bool] = False,
         **kwargs,
     ) -> None:
         """Torch module for transition state properties prediction."""
@@ -63,9 +63,7 @@ class GateReactionModel(torch.nn.Module):
         self.reduce_output = reduce_output
         self.mask_extra_basis = mask_extra_basis
         self.normalize_sumsq = normalize_sumsq
-        self.reference_reduced_output_to_initial_state = (
-            reference_reduced_output_to_initial_state
-        )
+        self.reference_output_to_initial_state = reference_output_to_initial_state
 
         if isinstance(irreps_in, str):
             self.irreps_in = o3.Irreps(irreps_in)
@@ -208,7 +206,7 @@ class GateReactionModel(torch.nn.Module):
                 output_network_interpolated_transition_state, data.batch, dim=0
             ).div(self.num_nodes**0.5)
 
-            if self.reference_reduced_output_to_initial_state:
+            if self.reference_output_to_initial_state:
                 output_network_initial_state = scatter(
                     output_network_initial_state, data.batch, dim=0
                 ).div(self.num_nodes**0.5)
@@ -220,6 +218,9 @@ class GateReactionModel(torch.nn.Module):
             output_network_interpolated_transition_state = (
                 output_network_interpolated_transition_state.mean(dim=1)
             )
+        else:
+            if self.reference_output_to_initial_state:
+                output_network_interpolated_transition_state -= data.x
 
         return output_network_interpolated_transition_state
 

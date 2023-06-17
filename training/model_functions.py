@@ -22,6 +22,7 @@ def signed_coeff_matrix_loss(data, predicted_y, loss_function, do_backward=True)
     """Get the loss when converting the coefficient matrix to the density."""
 
     real_y = data.x_transition_state
+    real_y_initial_state = data.x
     batch = data.batch
     batch_size = data.num_graphs
 
@@ -30,6 +31,8 @@ def signed_coeff_matrix_loss(data, predicted_y, loss_function, do_backward=True)
     # `batch` and `batch_size`.
     if len(signature(loss_function.forward).parameters) == 2:
         loss = loss_function(predicted_y, real_y)
+    elif len(signature(loss_function.forward).parameters) == 3:
+        loss = loss_function(predicted_y, real_y, real_y_initial_state)
     elif len(signature(loss_function.forward).parameters) == 4:
         loss = loss_function(predicted_y, real_y, batch, batch_size)
     else:

@@ -125,3 +125,22 @@ class AbsoluteL1Loss(nn.Module):
         """
         loss = F.l1_loss(torch.abs(input), torch.abs(target), reduction=self.reduction)
         return loss
+
+
+class RelativeToInitialStateL1Loss(nn.Module):
+    def __init__(self, reduction="sum"):
+        """The error is calculated relative to the initial state eigenvectors."""
+        self.reduction = reduction
+        super(RelativeToInitialStateL1Loss, self).__init__()
+
+    def forward(self, input, target, target_initial_state):
+        """Forward pass of the loss function.
+        Args:
+            input (torch.Tensor): The predicted eigenvectors.
+            target (torch.Tensor): The ground truth eigenvectors.
+            target_initial_state (torch.Tensor): The ground truth initial state eigenvectors.
+        """
+        absolute_diff_target = target.abs() - target_initial_state.abs()
+        absolute_diff_target = absolute_diff_target.abs()
+        loss = F.l1_loss(input.abs(), absolute_diff_target, reduction=self.reduction)
+        return loss
