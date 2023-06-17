@@ -17,6 +17,8 @@ model_options:
     num_neighbors: 4
     typical_number_of_nodes: 12
     layers: 4
+    number_of_basis: 10
+    radial_neurons: 64
     reduce_output: true 
     mask_extra_basis: true
     normalize_sumsq: true
@@ -26,6 +28,8 @@ model_options:
     num_neighbors: 4
     typical_number_of_nodes: 12
     layers: 4
+    number_of_basis: 10
+    radial_neurons: 64
     reduce_output: false
     mask_extra_basis: true
     normalize_sumsq: true

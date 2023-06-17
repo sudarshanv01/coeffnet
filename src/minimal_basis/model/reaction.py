@@ -134,7 +134,7 @@ class GateReactionModel(torch.nn.Module):
         typical_number_of_nodes: int,
         mul: int,
         layers: int,
-        number_of_basis: Optional[int] = 10,
+        number_of_basis: Optional[int] = 5,
         radial_layers: Optional[int] = 3,
         radial_neurons: Optional[int] = 128,
         reduce_output: Optional[bool] = False,
@@ -179,9 +179,7 @@ class GateReactionModel(torch.nn.Module):
         )
         logger.info(f"irreps_hidden: {self.irreps_hidden}")
 
-        self.irreps_edge_attr = o3.Irreps(
-            [(self.number_of_basis, (l, p)) for l, p in lp_irreps_hidden]
-        )
+        self.irreps_edge_attr = o3.Irreps(f"{self.number_of_basis}x0e")
         logger.info(f"irreps_edge_attr: {self.irreps_edge_attr}")
 
         self.network_initial_state = GateNetworkWithCustomEdges(
