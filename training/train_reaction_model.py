@@ -75,6 +75,7 @@ if __name__ == "__main__":
     learning_options["learning_rate"] = args.learning_rate
     learning_options["num_epochs"] = args.num_epochs
     logger.info(f"Learning options: {learning_options}")
+
     model_options = inputs["model_options"][args.prediction_mode]
 
     if args.debug:
@@ -133,9 +134,14 @@ if __name__ == "__main__":
     model_options["irreps_out"] = train_dataset.irreps_out
     model_options["lmax"] = o3.Irreps(model_options["irreps_out"]).lmax
     model_options["mul"] = args.mul
+    model_options["layers"] = args.layers
+    model_options["max_radius"] = args.max_radius
+    model_options["num_basis"] = args.num_basis
+    model_options["radial_neurons"] = args.radial_neurons
+    model_options["num_neighbors"] = args.num_neighbors
+    logger.info(f"Model options: {model_options}")
     wandb.config.update({"model_options": model_options})
 
-    logger.info(f"Model Options: {model_options}")
     model = Model(**model_options)
     model = model.to(DEVICE)
     logger.info(f"Model: {model}")

@@ -121,6 +121,33 @@ def get_command_line_arguments() -> argparse.Namespace:
         default="sum",
         help="Reduction to use for the loss function.",
     )
+    parser.add_argument(
+        "--layers",
+        type=int,
+        default=3,
+        help="Number of layers to use for the model.",
+    )
+    parser.add_argument(
+        "--max_radius",
+        type=int,
+        default=3,
+        help="Maximum radius to use for the model.",
+    )
+    parser.add_argument(
+        "--num_basis",
+        type=int,
+        default=10,
+    )
+    parser.add_argument(
+        "--radial_neurons",
+        type=int,
+        default=64,
+    )
+    parser.add_argument(
+        "--num_neighbors",
+        type=int,
+        default=2,
+    )
 
     args = parser.parse_args()
 
