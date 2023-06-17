@@ -363,17 +363,19 @@ class ReactionDataset(InMemoryDataset):
                 )
             )
 
-            edges_for_graph = interpolated_transition_state_structure_graph.graph.edges
-            interpolated_transition_state_structure_edge_index = [
-                list(edge[:-1]) for edge in edges_for_graph
-            ]
-
-            interpolated_transition_state_structure_edge_index = np.array(
-                interpolated_transition_state_structure_edge_index
-            ).T
+            # The edge_index for the interpolated transition state is the union of the
+            # edge_index for the reactant and product
+            edge_index_reactant = data_to_store["edge_index"][states[reactant_idx]]
+            edge_index_product = data_to_store["edge_index"][states[product_idx]]
+            edge_index_interpolated_transition_state = np.concatenate(
+                (edge_index_reactant, edge_index_product), axis=1
+            )
+            edge_index_interpolated_transition_state = np.unique(
+                edge_index_interpolated_transition_state, axis=1
+            )
             data_to_store["edge_index"][
                 "interpolated_transition_state"
-            ] = interpolated_transition_state_structure_edge_index
+            ] = edge_index_interpolated_transition_state
 
             datapoint = DataPoint(
                 pos=data_to_store["pos"],

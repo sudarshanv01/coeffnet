@@ -8,7 +8,8 @@ from torch_scatter import scatter
 
 from e3nn import o3
 from e3nn.math import soft_one_hot_linspace
-from e3nn.nn.models.gate_points_2102 import Network
+from e3nn.nn.models.gate_points_2102 import Network as GateNetwork
+from e3nn.nn.models.gate_points_2102 import smooth_cutoff
 from e3nn.nn.models.v2106.gate_points_networks import MessagePassing
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,103 @@ def normalize_to_sum_squares_one(x: torch.Tensor, batch: torch.Tensor) -> torch.
     x = x / normalization_factor[batch].unsqueeze(1)
 
     return x
+
+
+class GateNetworkWithCustomEdges(GateNetwork):
+    def __init__(
+        self,
+        irreps_in,
+        irreps_hidden,
+        irreps_out,
+        irreps_node_attr,
+        irreps_edge_attr,
+        layers,
+        max_radius,
+        number_of_basis,
+        radial_layers,
+        radial_neurons,
+        num_neighbors,
+        num_nodes,
+        reduce_output=True,
+    ) -> None:
+        """Modify the GateNetwork class to use custom edges."""
+        super().__init__(
+            irreps_in=irreps_in,
+            irreps_hidden=irreps_hidden,
+            irreps_out=irreps_out,
+            irreps_node_attr=irreps_node_attr,
+            irreps_edge_attr=irreps_edge_attr,
+            layers=layers,
+            max_radius=max_radius,
+            number_of_basis=number_of_basis,
+            radial_layers=radial_layers,
+            radial_neurons=radial_neurons,
+            num_neighbors=num_neighbors,
+            num_nodes=num_nodes,
+            reduce_output=reduce_output,
+        )
+
+    def forward(self, data: Union[Data, Dict[str, torch.Tensor]]) -> torch.Tensor:
+        """evaluate the network
+
+        Parameters
+        ----------
+        data : `torch_geometric.data.Data` or dict
+            data object containing
+            - ``pos`` the position of the nodes (atoms)
+            - ``x`` the input features of the nodes, optional
+            - ``z`` the attributes of the nodes, for instance the atom type, optional
+            - ``batch`` the graph to which the node belong, optional
+            - ``edge_index`` the edge index
+        """
+        if "batch" in data:
+            batch = data["batch"]
+        else:
+            batch = data["pos"].new_zeros(data["pos"].shape[0], dtype=torch.long)
+
+        edge_index = data["edge_index"]
+        edge_src = edge_index[0]
+        edge_dst = edge_index[1]
+        edge_vec = data["pos"][edge_src] - data["pos"][edge_dst]
+        edge_sh = o3.spherical_harmonics(
+            self.irreps_edge_attr, edge_vec, True, normalization="component"
+        )
+        edge_length = edge_vec.norm(dim=1)
+        edge_length_embedded = soft_one_hot_linspace(
+            x=edge_length,
+            start=0.0,
+            end=self.max_radius,
+            number=self.number_of_basis,
+            basis="gaussian",
+            cutoff=False,
+        ).mul(self.number_of_basis**0.5)
+        edge_attr = smooth_cutoff(edge_length / self.max_radius)[:, None] * edge_sh
+
+        if self.input_has_node_in and "x" in data:
+            assert self.irreps_in is not None
+            x = data["x"]
+        else:
+            assert self.irreps_in is None
+            x = data["pos"].new_ones((data["pos"].shape[0], 1))
+
+        if self.input_has_node_attr and "z" in data:
+            z = data["z"]
+        else:
+            assert self.irreps_node_attr == o3.Irreps("0e")
+            z = data["pos"].new_ones((data["pos"].shape[0], 1))
+
+        scalar_z = self.ext_z(z)
+        edge_features = torch.cat(
+            [edge_length_embedded, scalar_z[edge_src], scalar_z[edge_dst]], dim=1
+        )
+
+        for lay in self.layers:
+            x = lay(x, z, edge_src, edge_dst, edge_attr, edge_features)
+
+        if self.reduce_output:
+            return scatter(x, batch, dim=0).div(self.num_nodes**0.5)
+        else:
+            return x
 
 
 class GateReactionModel(torch.nn.Module):
@@ -87,7 +185,7 @@ class GateReactionModel(torch.nn.Module):
         )
         logger.info(f"irreps_edge_attr: {self.irreps_edge_attr}")
 
-        self.network_initial_state = Network(
+        self.network_initial_state = GateNetworkWithCustomEdges(
             irreps_in=irreps_in,
             irreps_hidden=self.irreps_hidden,
             irreps_out=irreps_in,
@@ -103,7 +201,7 @@ class GateReactionModel(torch.nn.Module):
             reduce_output=False,
         )
 
-        self.network_final_state = Network(
+        self.network_final_state = GateNetworkWithCustomEdges(
             irreps_in=irreps_in,
             irreps_hidden=self.irreps_hidden,
             irreps_out=irreps_in,
@@ -119,7 +217,7 @@ class GateReactionModel(torch.nn.Module):
             reduce_output=False,
         )
 
-        self.network_interpolated_transition_state = Network(
+        self.network_interpolated_transition_state = GateNetworkWithCustomEdges(
             irreps_in=irreps_in,
             irreps_hidden=self.irreps_hidden,
             irreps_out=irreps_in,
@@ -142,6 +240,7 @@ class GateReactionModel(torch.nn.Module):
             "pos": data.pos,
             "x": data.x,
             "batch": data.batch,
+            "edge_index": data.edge_index,
         }
         if "node_attr" in data:
             kwargs_initial_state["z"] = data.node_attr
@@ -161,6 +260,7 @@ class GateReactionModel(torch.nn.Module):
             "pos": data.pos_final_state,
             "x": data.x_final_state,
             "batch": data.batch,
+            "edge_index": data.edge_index_final_state,
         }
         if "node_attr" in data:
             kwargs_final_state["z"] = data.node_attr
@@ -184,6 +284,7 @@ class GateReactionModel(torch.nn.Module):
             "pos": data.pos_interpolated_transition_state,
             "x": x_interpolated_transition_state,
             "batch": data.batch,
+            "edge_index": data.edge_index_interpolated_transition_state,
         }
         if "node_attr" in data:
             kwargs_interpolated_transition_state["z"] = data.node_attr
@@ -221,7 +322,9 @@ class GateReactionModel(torch.nn.Module):
             )
         else:
             if self.reference_output_to_initial_state:
-                output_network_interpolated_transition_state -= data.x
+                output_network_interpolated_transition_state -= (
+                    output_network_initial_state
+                )
 
         return output_network_interpolated_transition_state
 
