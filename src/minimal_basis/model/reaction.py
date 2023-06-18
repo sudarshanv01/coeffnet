@@ -340,6 +340,7 @@ class NetworkForAGraphWithNodeAttributes(torch.nn.Module):
         lmax: int = 2,
         pool_nodes: bool = True,
         number_of_basis: int = 10,
+        radial_neurons: int = 64,
     ) -> None:
         """Modified from e3nn/nn/models/2106/gate_points_network.py to include _only_ node attributes.
 
@@ -378,7 +379,7 @@ class NetworkForAGraphWithNodeAttributes(torch.nn.Module):
             + [irreps_node_output],
             irreps_node_attr=irreps_node_attr,
             irreps_edge_attr=o3.Irreps.spherical_harmonics(lmax),
-            fc_neurons=[self.number_of_basis, 100],
+            fc_neurons=[self.number_of_basis, radial_neurons],
             num_neighbors=num_neighbors,
         )
 
@@ -457,7 +458,8 @@ class MessagePassingReactionModel(torch.nn.Module):
         mask_extra_basis: Optional[bool] = False,
         normalize_sumsq: Optional[bool] = False,
         reference_reduced_output_to_initial_state: Optional[bool] = False,
-        number_of_basis: Optional[int] = 10,
+        num_basis: Optional[int] = 10,
+        radial_neurons: Optional[int] = 64,
     ) -> None:
         """Reaction model based on message passing."""
 
@@ -472,7 +474,7 @@ class MessagePassingReactionModel(torch.nn.Module):
         self.mul = mul
         self.layers = layers
         self.lmax = lmax
-        self.number_of_basis = number_of_basis
+        self.number_of_basis = num_basis
 
         self.reduce_output = reduce_output
         self.mask_extra_basis = mask_extra_basis
@@ -499,6 +501,7 @@ class MessagePassingReactionModel(torch.nn.Module):
             layers=self.layers,
             number_of_basis=self.number_of_basis,
             lmax=self.lmax,
+            radial_neurons=radial_neurons,
             pool_nodes=False,
         )
 
@@ -513,6 +516,7 @@ class MessagePassingReactionModel(torch.nn.Module):
             layers=self.layers,
             number_of_basis=self.number_of_basis,
             lmax=self.lmax,
+            radial_neurons=radial_neurons,
             pool_nodes=False,
         )
 
@@ -527,6 +531,7 @@ class MessagePassingReactionModel(torch.nn.Module):
             layers=self.layers,
             number_of_basis=self.number_of_basis,
             lmax=self.lmax,
+            radial_neurons=radial_neurons,
             pool_nodes=False,
         )
 
