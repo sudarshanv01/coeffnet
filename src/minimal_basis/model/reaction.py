@@ -182,7 +182,7 @@ class GateReactionModel(torch.nn.Module):
         self.irreps_edge_attr = o3.Irreps(f"{self.number_of_basis}x0e")
         logger.info(f"irreps_edge_attr: {self.irreps_edge_attr}")
 
-        self.network_initial_state = GateNetworkWithCustomEdges(
+        self.network_initial_state = GateNetwork(
             irreps_in=irreps_in,
             irreps_hidden=self.irreps_hidden,
             irreps_out=irreps_in,
@@ -198,7 +198,7 @@ class GateReactionModel(torch.nn.Module):
             reduce_output=False,
         )
 
-        self.network_final_state = GateNetworkWithCustomEdges(
+        self.network_final_state = GateNetwork(
             irreps_in=irreps_in,
             irreps_hidden=self.irreps_hidden,
             irreps_out=irreps_in,
@@ -214,7 +214,7 @@ class GateReactionModel(torch.nn.Module):
             reduce_output=False,
         )
 
-        self.network_interpolated_transition_state = GateNetworkWithCustomEdges(
+        self.network_interpolated_transition_state = GateNetwork(
             irreps_in=irreps_in,
             irreps_hidden=self.irreps_hidden,
             irreps_out=irreps_in,
