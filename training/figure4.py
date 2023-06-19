@@ -155,11 +155,9 @@ if __name__ == "__main__":
             __input_folder__ / dataset_name / basis_set_type / basis_set_name
         )
 
-        dataloaders = get_dataloader_info(
+        dataloaders, max_basis_functions = get_dataloader_info(
             input_foldername=input_foldername,
             model_name=model_name,
-            basis_set_type=basis_set_type,
-            basis_set_name=basis_set_name,
             debug=debug_dataset,
             **inputs["dataset_options"][f"{basis_set_type}_basis"],
         )

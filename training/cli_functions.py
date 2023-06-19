@@ -52,27 +52,27 @@ def get_command_line_arguments() -> argparse.Namespace:
         help="Path to the model config file.",
     )
     parser.add_argument(
-        "--prediction_mode",
-        type=str,
-        default="coeff_matrix",
-        help="Mode of prediction. Can be either 'coeff_matrix' or 'relative_energy'.",
-    )
-    parser.add_argument(
         "--wandb_username",
         type=str,
         default="sudarshanvj",
-    )
-    parser.add_argument(
-        "--basis_set_type",
-        type=str,
-        default="full",
-        help="Type of basis set. Can be either 'full' or 'minimal'.",
     )
     parser.add_argument(
         "--basis_set",
         type=str,
         default="6-31g*",
         help="Name of the basis set to use.",
+    )
+    parser.add_argument(
+        "--prediction_mode",
+        type=str,
+        default="coeff_matrix",
+        help="Mode of prediction. Can be either 'coeff_matrix' or 'relative_energy'.",
+    )
+    parser.add_argument(
+        "--basis_set_type",
+        type=str,
+        default="full",
+        help="Type of basis set. Can be either 'full' or 'minimal'.",
     )
     parser.add_argument(
         "--batch_size",

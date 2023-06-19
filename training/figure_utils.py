@@ -105,7 +105,10 @@ def get_dataloader_info(
 
 
 def get_model_data(
-    basis_set_type: str, basis_set: str, dataset_name: str, debug=False
+    basis_set_type: str,
+    basis_set: str,
+    dataset_name: str,
+    debug=False,
 ) -> Tuple[pd.DataFrame, List[wandb.apis.public.Run]]:
     """Get the model data from wandb."""
     model_name = construct_model_name(
@@ -131,3 +134,44 @@ def get_model_data(
                 [df, pd.DataFrame(data_to_store, index=[0])], ignore_index=True
             )
     return df, runs
+
+
+def get_best_model(
+    prediction_mode: str,
+    basis_set: str,
+    basis_set_type: str,
+    df: pd.DataFrame,
+    all_runs,
+    device: torch.device,
+) -> torch.nn.Module:
+    """Get the best model for the given prediction mode."""
+    df_options = df[
+        (df["basis_set"] == basis_set)
+        & (df["basis_set_type"] == basis_set_type)
+        & (df["prediction_mode"] == prediction_mode)
+    ]
+    df_options = df_options[~df_options["val_loss"].isna()]
+    df_options["val_loss"] = df_options["val_loss"].astype(float)
+    while True:
+        best_model_row = df_options.sort_values(by="val_loss").iloc[0]
+        best_run = [
+            run for run in all_runs if run.name == best_model_row["wandb_model_name"]
+        ][0]
+        # print(f"Best model: {best_run.name}")
+        best_artifacts = best_run.logged_artifacts()
+        best_model = [
+            artifact for artifact in best_artifacts if artifact.type == "model"
+        ][0]
+        best_model.download()
+        try:
+            best_model = torch.load(best_model.file())
+        except RuntimeError:
+            print("Failed to load model, skipping")
+            df_options = df_options[
+                df_options["val_loss"] != best_model_row["val_loss"]
+            ]
+            continue
+        break
+    best_model.eval()
+    best_model.to(device)
+    return best_model

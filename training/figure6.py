@@ -55,29 +55,97 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-def get_relative_energy_performance():
-    """Get the relative energy performance of the model."""
+def get_coeff_matrix_performance():
+    """Get the coefficient matrix performance of the model."""
     df = pd.DataFrame()
     for loader_name, loader in dataloaders.items():
 
         for data in loader:
 
-            output = relative_energy_model(data)
-
+            output = coeff_matrix_model(data)
             output = output.cpu().detach().numpy()
-            expected = data.total_energy_transition_state - data.total_energy
+
+            expected = data.x_transition_state
             expected = expected.cpu().detach().numpy()
 
-            output = output * ase_units.Ha
-            expected = expected * ase_units.Ha
+            loss_positive = np.max(np.abs(output - expected))
+            loss_negative = np.max(np.abs(output + expected))
+            if loss_positive > loss_negative:
+                output = -output
 
-            data_to_store = {
-                "output": output,
-                "expected": expected,
-                "loader": loader_name,
-            }
+            # Split both `output` and `expected` into s, p, d, f, g
+            output_s = output[:, :max_s]
+            expected_s = expected[:, :max_s]
 
-            df = pd.concat([df, pd.DataFrame(data_to_store)], ignore_index=True)
+            if max_p > 0:
+                output_p = output[:, max_s : max_s + max_p]
+                expected_p = expected[:, max_s : max_s + max_p]
+            else:
+                output_p = None
+                expected_p = None
+
+            if max_d > 0:
+                output_d = output[:, max_s + max_p : max_s + max_p + max_d]
+                expected_d = expected[:, max_s + max_p : max_s + max_p + max_d]
+            else:
+                output_d = None
+                expected_d = None
+
+            if max_f > 0:
+                output_f = output[
+                    :, max_s + max_p + max_d : max_s + max_p + max_d + max_f
+                ]
+                expected_f = expected[
+                    :, max_s + max_p + max_d : max_s + max_p + max_d + max_f
+                ]
+            else:
+                output_f = None
+                expected_f = None
+
+            if max_g > 0:
+                output_g = output[
+                    :,
+                    max_s
+                    + max_p
+                    + max_d
+                    + max_f : max_s
+                    + max_p
+                    + max_d
+                    + max_f
+                    + max_g,
+                ]
+                expected_g = expected[
+                    :,
+                    max_s
+                    + max_p
+                    + max_d
+                    + max_f : max_s
+                    + max_p
+                    + max_d
+                    + max_f
+                    + max_g,
+                ]
+            else:
+                output_g = None
+                expected_g = None
+
+            assert max_s + max_p + max_d + max_f + max_g == output.shape[1]
+
+            for output, expected, basis_function_type in zip(
+                [output_s, output_p, output_d, output_f, output_g],
+                [expected_s, expected_p, expected_d, expected_f, expected_g],
+                ["s", "p", "d", "f", "g"],
+            ):
+                if output is None:
+                    continue
+                data_to_store = {
+                    "output": output.flatten(),
+                    "expected": expected.flatten(),
+                    "loader": loader_name,
+                    "basis_function_type": basis_function_type,
+                }
+                df = pd.concat([df, pd.DataFrame(data_to_store)], ignore_index=True)
+
     return df
 
 
@@ -142,11 +210,11 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(
         1,
         2,
-        figsize=(4, 1.25),
+        figsize=(4, 1.5),
         constrained_layout=True,
-        sharex=True,
-        sharey=True,
         squeeze=False,
+        sharey=True,
+        sharex=True,
     )
 
     model_name = construct_model_name(
@@ -169,6 +237,12 @@ if __name__ == "__main__":
             **inputs["dataset_options"][f"{basis_set_type}_basis"],
         )
 
+        max_s = max_basis_functions["max_s"]
+        max_p = max_basis_functions["max_p"]
+        max_d = max_basis_functions["max_d"]
+        max_f = max_basis_functions["max_f"]
+        max_g = max_basis_functions["max_g"]
+
         df, all_runs = get_model_data(
             dataset_name=dataset_name,
             basis_set_type=basis_set_type,
@@ -176,8 +250,13 @@ if __name__ == "__main__":
             debug=debug_model,
         )
 
-        relative_energy_model = get_best_model(
-            prediction_mode="relative_energy",
+        if idx_type == 0:
+            legend = False
+        else:
+            legend = True
+
+        coeff_matrix_model = get_best_model(
+            prediction_mode="coeff_matrix",
             basis_set=basis_set_name,
             basis_set_type=basis_set_type,
             df=df,
@@ -185,27 +264,26 @@ if __name__ == "__main__":
             device=DEVICE,
         )
 
-        df_relative_energy = get_relative_energy_performance()
-        train_loader_mask = df_relative_energy["loader"] == "train"
-        if idx_type == 0:
-            legend = False
-        else:
-            legend = True
+        df_coeff_matrix = get_coeff_matrix_performance()
+        train_loader_mask = df_coeff_matrix["loader"] == "train"
+
         sns.scatterplot(
-            data=df_relative_energy[train_loader_mask],
+            data=df_coeff_matrix[train_loader_mask],
             x="expected",
             y="output",
             hue="loader",
+            style="basis_function_type",
             ax=ax[0, idx_type],
             palette="pastel",
             alpha=0.4,
             legend=legend,
         )
         sns.scatterplot(
-            data=df_relative_energy[~train_loader_mask],
+            data=df_coeff_matrix[~train_loader_mask],
             x="expected",
             y="output",
             hue="loader",
+            style="basis_function_type",
             ax=ax[0, idx_type],
             palette="colorblind",
             legend=legend,
@@ -233,12 +311,11 @@ if __name__ == "__main__":
         unique_handles, unique_labels, loc="upper left", bbox_to_anchor=(1.05, 1)
     )
 
-    ax[0, 0].set_ylabel(r"Predicted $E_{\mathrm{TS}} - E_{\mathrm{IS}}$ (eV)")
-    ax[0, 0].set_xlabel(r"DFT $E_{\mathrm{TS}} - E_{\mathrm{IS}}$ (eV)")
-    ax[0, 1].set_xlabel(r"DFT $E_{\mathrm{TS}} - E_{\mathrm{IS}}$ (eV)")
+    ax[0, 0].set_ylabel(r"Predicted $ \mathbf{C}_{\mathrm{TS}} $")
+    ax[0, 0].set_xlabel(r"DFT $ \mathbf{C}_{\mathrm{TS}}$")
     ax[0, 0].set_title("Full basis set")
     ax[0, 1].set_title("Minimal basis set")
-    ax[0, 1].set_ylabel("")
+    ax[0, 1].set_xlabel(r"DFT $ \mathbf{C}_{\mathrm{TS}} $")
 
     # Draw parity lines for all plots
     for i in range(2):
@@ -251,4 +328,4 @@ if __name__ == "__main__":
             zorder=0,
         )
 
-    fig.savefig(__output_folder__ / f"figure5_{basis_set_name}.png")
+    fig.savefig(__output_folder__ / f"figure6_{basis_set_name}.png")
