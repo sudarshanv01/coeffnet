@@ -6,6 +6,8 @@ import torch
 from torch_geometric.data import Data
 from torch_scatter import scatter
 
+from torch_cluster import radius_graph
+
 from e3nn import o3
 from e3nn.math import soft_one_hot_linspace
 from e3nn.nn.models.gate_points_2102 import Network as GateNetwork
@@ -393,8 +395,9 @@ class NetworkForAGraphWithNodeAttributes(torch.nn.Module):
         else:
             batch = data["pos"].new_zeros(data["pos"].shape[0], dtype=torch.long)
 
-        edge_src = data["edge_index"][0]
-        edge_dst = data["edge_index"][1]
+        edge_index = radius_graph(data["pos"], self.max_radius, batch)
+        edge_src = edge_index[0]
+        edge_dst = edge_index[1]
 
         edge_vec = data["pos"][edge_src] - data["pos"][edge_dst]
 
