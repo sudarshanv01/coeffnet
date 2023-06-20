@@ -142,7 +142,7 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(
         1,
         2,
-        figsize=(4, 1.25),
+        figsize=(3.5, 1.25),
         constrained_layout=True,
         sharex=True,
         sharey=True,

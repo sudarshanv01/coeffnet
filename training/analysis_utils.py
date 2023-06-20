@@ -16,11 +16,12 @@ from minimal_basis.postprocessing.transformations import (
 def get_instance_grid(
     data,
     node_features,
-    basis_name: str = "6-31g*",
+    basis_name: str = "def2-svp",
     charge: int = -1,
     grid_points_per_axis: int = 10,
     buffer_grid: int = 5,
     uses_cartesian_orbitals: bool = True,
+    invert_coordinates: bool = False,
 ):
 
     datapoint_to_orthogonalization_matrix = (
@@ -39,11 +40,16 @@ def get_instance_grid(
     )
     nodefeatures_to_orthocoeffmatrix()
 
+    positions = data.pos_transition_state.clone()
+
+    if invert_coordinates:
+        positions[:, [0, 1, 2]] = positions[:, [2, 0, 1]]
+
     ortho_coeff_matrix = nodefeatures_to_orthocoeffmatrix.get_ortho_coeff_matrix()
     ortho_coeff_matrix_to_grid_quantities = OrthoCoeffMatrixToGridQuantities(
         ortho_coeff_matrix=ortho_coeff_matrix,
         orthogonalization_matrix=orthogonalization_matrix_transition_state,
-        positions=data.pos_transition_state,
+        positions=positions,
         species=data.species,
         basis_name=basis_name,
         indices_to_keep=data.indices_to_keep,

@@ -42,11 +42,22 @@ warnings.simplefilter(action="ignore", category=UserWarning)
 from model_functions import construct_model_name
 import wandb
 
+from minimal_basis.postprocessing.transformations import (
+    OrthoCoeffMatrixToGridQuantities,
+    NodeFeaturesToOrthoCoeffMatrix,
+    DatapointStoredVectorToOrthogonlizationMatrix,
+)
+
 from figure_utils import (
     get_sanitized_basis_set_name,
     get_dataloader_info,
     get_model_data,
     get_best_model,
+)
+
+from analysis_utils import (
+    get_instance_grid,
+    add_grid_to_fig,
 )
 
 wandb_api = wandb.Api()
@@ -55,9 +66,33 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
+def get_molecular_orbital_on_grid(
+    data, node_output, grid_points_per_axis=4, buffer_grid=1.2
+):
+    """From the coefficient matrices, get the molecular orbital info."""
+
+    data = data.cpu()
+
+    predicted_ortho_coeff_matrix_to_grid_quantities = get_instance_grid(
+        data,
+        node_output,
+        grid_points_per_axis=grid_points_per_axis,
+        buffer_grid=buffer_grid,
+        uses_cartesian_orbitals=False,
+        invert_coordinates=True,
+    )
+
+    molecular_orbital = (
+        predicted_ortho_coeff_matrix_to_grid_quantities.get_molecular_orbital()
+    )
+
+    return molecular_orbital
+
+
 def get_coeff_matrix_performance():
     """Get the coefficient matrix performance of the model."""
     df = pd.DataFrame()
+    df_mo = pd.DataFrame()
     for loader_name, loader in dataloaders.items():
 
         for data in loader:
@@ -131,6 +166,19 @@ def get_coeff_matrix_performance():
 
             assert max_s + max_p + max_d + max_f + max_g == output.shape[1]
 
+            output_mo = get_molecular_orbital_on_grid(
+                data,
+                output,
+                grid_points_per_axis=args.grid_points_per_axis,
+                buffer_grid=args.buffer_grid,
+            )
+            expected_mo = get_molecular_orbital_on_grid(
+                data,
+                expected,
+                grid_points_per_axis=args.grid_points_per_axis,
+                buffer_grid=args.buffer_grid,
+            )
+
             for output, expected, basis_function_type in zip(
                 [output_s, output_p, output_d, output_f, output_g],
                 [expected_s, expected_p, expected_d, expected_f, expected_g],
@@ -146,7 +194,17 @@ def get_coeff_matrix_performance():
                 }
                 df = pd.concat([df, pd.DataFrame(data_to_store)], ignore_index=True)
 
-    return df
+                data_to_store_mo = {
+                    "output": output_mo.flatten(),
+                    "expected": expected_mo.flatten(),
+                    "loader": loader_name,
+                    "basis_function_type": basis_function_type,
+                }
+                df_mo = pd.concat(
+                    [df_mo, pd.DataFrame(data_to_store_mo)], ignore_index=True
+                )
+
+    return df, df_mo
 
 
 def get_cli_args():
@@ -181,6 +239,18 @@ def get_cli_args():
         type=str,
         default="rudorff_lilienfeld_sn2_dataset",
     )
+    parser.add_argument(
+        "--grid_points_per_axis",
+        type=int,
+        default=10,
+        help="The number of grid points per axis",
+    )
+    parser.add_argument(
+        "--buffer_grid",
+        type=float,
+        default=1.5,
+        help="The number of grid points to buffer the grid by",
+    )
 
     return parser.parse_args()
 
@@ -205,7 +275,7 @@ if __name__ == "__main__":
     debug_model = args.debug_model
     model_config = args.model_config
     inputs = read_inputs_yaml(model_config)
-    basis_set_types = ["full", "minimal"]
+    basis_set_types = ["minimal", "full"]
 
     fig, ax = plt.subplots(
         1,
@@ -215,6 +285,16 @@ if __name__ == "__main__":
         squeeze=False,
         sharey=True,
         sharex=True,
+    )
+
+    figo, axo = plt.subplots(
+        1,
+        2,
+        figsize=(4, 1.5),
+        constrained_layout=True,
+        squeeze=False,
+        sharex=True,
+        sharey=True,
     )
 
     model_name = construct_model_name(
@@ -264,7 +344,7 @@ if __name__ == "__main__":
             device=DEVICE,
         )
 
-        df_coeff_matrix = get_coeff_matrix_performance()
+        df_coeff_matrix, df_mo = get_coeff_matrix_performance()
         train_loader_mask = df_coeff_matrix["loader"] == "train"
 
         sns.scatterplot(
@@ -274,8 +354,8 @@ if __name__ == "__main__":
             hue="loader",
             style="basis_function_type",
             ax=ax[0, idx_type],
-            palette="pastel",
-            alpha=0.4,
+            palette="colorblind",  # "pastel
+            alpha=0.2,
             legend=legend,
         )
         sns.scatterplot(
@@ -285,37 +365,80 @@ if __name__ == "__main__":
             hue="loader",
             style="basis_function_type",
             ax=ax[0, idx_type],
-            palette="colorblind",
+            palette="pastel",
+            alpha=0.4,
             legend=legend,
         )
 
-    # Format the legend
+        train_loader_mask = df_mo["loader"] == "train"
+        sns.scatterplot(
+            data=df_mo[train_loader_mask],
+            x="expected",
+            y="output",
+            hue="loader",
+            style="basis_function_type",
+            ax=axo[0, idx_type],
+            palette="colorblind",  # "pastel"
+            alpha=0.2,
+            legend=legend,
+        )
+        sns.scatterplot(
+            data=df_mo[~train_loader_mask],
+            x="expected",
+            y="output",
+            hue="loader",
+            style="basis_function_type",
+            ax=axo[0, idx_type],
+            palette="pastel",
+            alpha=0.4,
+            legend=legend,
+        )
+
     handles, labels = ax[0, 1].get_legend_handles_labels()
-    # Delete all labels and corresponding handles which have `loader` or
-    # `basis_function_type` in them
     handles = [
         h
         for h, l in zip(handles, labels)
         if "loader" not in l and "basis_function_type" not in l
     ]
     labels = [l for l in labels if "loader" not in l and "basis_function_type" not in l]
-    # Keep only labels and corresponding handles which have unique labels
     unique_labels = []
     unique_handles = []
     for h, l in zip(handles, labels):
         if l not in unique_labels:
             unique_labels.append(l)
             unique_handles.append(h)
-    # Add the legend
     ax[0, 1].legend(
+        unique_handles, unique_labels, loc="upper left", bbox_to_anchor=(1.05, 1)
+    )
+
+    handles, labels = axo[0, 1].get_legend_handles_labels()
+    handles = [
+        h
+        for h, l in zip(handles, labels)
+        if "loader" not in l and "basis_function_type" not in l
+    ]
+    labels = [l for l in labels if "loader" not in l and "basis_function_type" not in l]
+    unique_labels = []
+    unique_handles = []
+    for h, l in zip(handles, labels):
+        if l not in unique_labels:
+            unique_labels.append(l)
+            unique_handles.append(h)
+    axo[0, 1].legend(
         unique_handles, unique_labels, loc="upper left", bbox_to_anchor=(1.05, 1)
     )
 
     ax[0, 0].set_ylabel(r"Predicted $ \mathbf{C}_{\mathrm{TS}} $")
     ax[0, 0].set_xlabel(r"DFT $ \mathbf{C}_{\mathrm{TS}}$")
-    ax[0, 0].set_title("Full basis set")
-    ax[0, 1].set_title("Minimal basis set")
     ax[0, 1].set_xlabel(r"DFT $ \mathbf{C}_{\mathrm{TS}} $")
+    ax[0, 1].set_title("Full basis set")
+    ax[0, 0].set_title("Minimal basis set")
+
+    axo[0, 0].set_ylabel(r"Predicted $ \phi_{\mathrm{TS}} \left( \mathbf{r} \right) $")
+    axo[0, 0].set_xlabel(r"DFT $ \phi_{\mathrm{TS}} \left( \mathbf{r} \right) $")
+    axo[0, 1].set_xlabel(r"DFT $ \phi_{\mathrm{TS}} \left( \mathbf{r} \right) $")
+    axo[0, 1].set_title("Full basis set")
+    axo[0, 0].set_title("Minimal basis set")
 
     # Draw parity lines for all plots
     for i in range(2):
@@ -327,5 +450,14 @@ if __name__ == "__main__":
             alpha=0.5,
             zorder=0,
         )
+        axo[0, i].plot(
+            axo[0, i].get_xlim(),
+            axo[0, i].get_xlim(),
+            ls="--",
+            c=".3",
+            alpha=0.5,
+            zorder=0,
+        )
 
-    fig.savefig(__output_folder__ / f"figure6_{basis_set_name}.png")
+    fig.savefig(__output_folder__ / f"figure6_coeff_{basis_set_name}.png")
+    figo.savefig(__output_folder__ / f"figure6_mo_{basis_set_name}.png")
