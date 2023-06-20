@@ -354,7 +354,7 @@ if __name__ == "__main__":
             hue="loader",
             style="basis_function_type",
             ax=ax[0, idx_type],
-            palette="colorblind",  # "pastel
+            palette="pastel",
             alpha=0.2,
             legend=legend,
         )
@@ -365,7 +365,7 @@ if __name__ == "__main__":
             hue="loader",
             style="basis_function_type",
             ax=ax[0, idx_type],
-            palette="pastel",
+            palette="set2",
             alpha=0.4,
             legend=legend,
         )
@@ -378,7 +378,7 @@ if __name__ == "__main__":
             hue="loader",
             style="basis_function_type",
             ax=axo[0, idx_type],
-            palette="colorblind",  # "pastel"
+            palette="pastel",
             alpha=0.2,
             legend=legend,
         )
@@ -389,7 +389,7 @@ if __name__ == "__main__":
             hue="loader",
             style="basis_function_type",
             ax=axo[0, idx_type],
-            palette="pastel",
+            palette="set2",
             alpha=0.4,
             legend=legend,
         )

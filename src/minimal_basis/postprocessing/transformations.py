@@ -26,7 +26,22 @@ class OrthoCoeffMatrixToGridQuantities:
         buffer_grid: float = 5.0,
         grid_points: int = 100,
     ):
-        """Construct the molecular orbitals from the orthogonal coefficient matrix."""
+        """Construct the molecular orbitals from the orthogonal coefficient matrix.
+
+        Args:
+            ortho_coeff_matrix (npt.ArrayLike): The orthogonal coefficient matrix.
+            orthogonalization_matrix (npt.ArrayLike): The orthogonalization matrix; S^(-1/2).
+            positions (npt.ArrayLike): The positions of the atoms in the molecule.
+            species (npt.ArrayLike): The species of the atoms in the molecule.
+            basis_name (str): The name of the basis set.
+            indices_to_keep (npt.ArrayLike): The indices of the orbitals to keep.
+            charge (int, optional): The charge of the molecule. Defaults to 0.
+            uses_carterian_orbitals (bool, optional): Whether the basis set uses cartesian orbitals.
+             Passed directly to pyscf mol. Defaults to False.
+            buffer_grid (float, optional): The buffer around the molecule to generate the grid.
+                Defaults to 5.0 Angstroms.
+            grid_points (int, optional): The number of grid points in each direction. Defaults to 100.
+        """
 
         self.ortho_coeff_matrix = np.asarray(ortho_coeff_matrix)
         self.orthogonalization_matrix = np.asarray(orthogonalization_matrix)
@@ -50,7 +65,7 @@ class OrthoCoeffMatrixToGridQuantities:
         self.store_molecular_orbital()
 
     def generate_grid(self):
-        """Create a 3D grid around the molecule."""
+        """Create a 3D grid around the molecule with a buffer."""
         x_min = np.min(self.positions[:, 0]) - self.buffer_grid
         x_max = np.max(self.positions[:, 0]) + self.buffer_grid
         y_min = np.min(self.positions[:, 1]) - self.buffer_grid
@@ -58,8 +73,6 @@ class OrthoCoeffMatrixToGridQuantities:
         z_min = np.min(self.positions[:, 2]) - self.buffer_grid
         z_max = np.max(self.positions[:, 2]) + self.buffer_grid
 
-        # Generate an even grid with 100 points in each direction
-        # with shape (Nx3) where N is the number of grid points
         grid = np.mgrid[
             x_min : x_max : self.grid_points * 1j,
             y_min : y_max : self.grid_points * 1j,
@@ -80,7 +93,7 @@ class OrthoCoeffMatrixToGridQuantities:
         return self.grid
 
     def store_gto_molecule(self):
-        """Get the GTO molecule from PySCF."""
+        """Store the GTO molecule from PySCF."""
         if self.pyscf_mol:
             return self.pyscf_mol
         species_names = [
@@ -104,12 +117,13 @@ class OrthoCoeffMatrixToGridQuantities:
         is the number of atomic orbitals as shown in the documentation of
         pyscf.
         https://pyscf.org/pyscf_api_docs/pyscf.dft.html
+
+        The order that pyscf uses to store its atomic orbitals is different from
+        what QChem uses. We need to sort the atomic orbitals in the same order
+        as this electronic structure code in order to make sure that the coefficients
+        are dot-producted with the correct atomic orbitals.
         """
         ao = eval_ao(self.pyscf_mol, self.grid)
-        # The order that pyscf uses to store its atomic orbitals is different from
-        # what QChem uses. We need to sort the atomic orbitals in the same order
-        # as this electronic structure code in order to make sure that the coefficients
-        # are dot-producted with the correct atomic orbitals.
         pyscf_labels = self.pyscf_mol.ao_labels()
         pyscf_labels = [label.split()[0:3] for label in pyscf_labels]
         pyscf_labels = [
@@ -141,7 +155,11 @@ class OrthoCoeffMatrixToGridQuantities:
 
 class NodeFeaturesToOrthoCoeffMatrix:
     def __init__(self, node_features: npt.ArrayLike, mask: npt.ArrayLike):
-        """Convert the node features to the orthogonal coefficient matrix."""
+        """Convert the node features to the orthogonal coefficient matrix.
+        Args:
+            node_features (npt.ArrayLike): The node features.
+            mask (npt.ArrayLike): The mask of the node features.
+        """
         self.node_features = np.asarray(node_features)
         self.mask = np.asarray(mask)
 
@@ -155,7 +173,8 @@ class NodeFeaturesToOrthoCoeffMatrix:
         return self.ortho_coeff_matrix
 
     def store_ortho_coeff_matrix(self):
-        """Store the orthogonal coefficient matrix."""
+        """Store the orthogonal coefficient matrix. First the mask is applied
+        to the node features. Then the node features are flattened."""
         self.ortho_coeff_matrix = self.node_features[self.mask]
         self.ortho_coeff_matrix = self.ortho_coeff_matrix.flatten()
 

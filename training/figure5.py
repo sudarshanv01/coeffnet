@@ -137,7 +137,7 @@ if __name__ == "__main__":
     debug_model = args.debug_model
     model_config = args.model_config
     inputs = read_inputs_yaml(model_config)
-    basis_set_types = ["full", "minimal"]
+    basis_set_types = ["minimal", "full"]
 
     fig, ax = plt.subplots(
         1,
@@ -198,7 +198,7 @@ if __name__ == "__main__":
             hue="loader",
             ax=ax[0, idx_type],
             palette="pastel",
-            alpha=0.4,
+            alpha=0.2,
             legend=legend,
         )
         sns.scatterplot(
@@ -207,8 +207,9 @@ if __name__ == "__main__":
             y="output",
             hue="loader",
             ax=ax[0, idx_type],
-            palette="colorblind",
+            palette="set2",
             legend=legend,
+            alpha=0.4,
         )
 
     # Format the legend
