@@ -10,21 +10,16 @@ dataset_options:
     reactant_tag: "reactant"
     product_tag: "product"
     transition_state_tag: "transition_state"
-
+  
 model_options:
-    max_radius: 5
-    num_neighbors: 4
-    typical_number_of_nodes: 12
-    layers: 4
+  relative_energy:
+    typical_number_of_nodes: 10
     reduce_output: true 
     mask_extra_basis: true
     normalize_sumsq: true
     reference_reduced_output_to_initial_state: true
   coeff_matrix:
-    max_radius: 5
-    num_neighbors: 4
-    typical_number_of_nodes: 12
-    layers: 4
+    typical_number_of_nodes: 10
     reduce_output: false
     mask_extra_basis: true
     normalize_sumsq: true

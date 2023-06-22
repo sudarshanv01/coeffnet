@@ -18,8 +18,6 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 
-plt.rcParams["figure.dpi"] = 300
-
 import torch
 
 from e3nn import o3
@@ -217,6 +215,9 @@ if __name__ == "__main__":
     c) Parity plot of rotated coefficients and D-matrix rotated coefficients.
     """
 
+    MAX_EIGENVAL = 10
+    MIN_EIGENVAL = -10
+
     __output_dir__ = Path("output")
     __output_dir__.mkdir(exist_ok=True)
 
@@ -231,6 +232,16 @@ if __name__ == "__main__":
 
     new_coeff_matrix = []
     calculated_coeff_matrix = []
+
+    plot_new_coeff_matrix = []
+    plot_calculated_coeff_matrix = []
+
+    eigenvalues = data[basis_set]["alpha_eigenvalues"][0]
+    eigenvalues *= ase_units.Hartree
+
+    plotted_index = np.where(
+        (eigenvalues < MAX_EIGENVAL) & (eigenvalues > MIN_EIGENVAL)
+    )[0]
 
     for _idx in range(len(data[basis_set]["euler_angles"])):
 
@@ -255,37 +266,57 @@ if __name__ == "__main__":
         for i in range(alpha_coeff_matrix.shape[1]):
             _new_coeff_matrix[:, i] = alpha_coeff_matrix[:, i] @ D_matrix.T
 
+        _calculated_coeff_matrix = data[basis_set][quantity][_idx]
+
+        _plot_calc_coeff_matrix = _calculated_coeff_matrix[:, plotted_index]
+        _plot_new_coeff_matrix = _new_coeff_matrix[:, plotted_index]
+
+        plot_calculated_coeff_matrix.append(_plot_calc_coeff_matrix)
+        plot_new_coeff_matrix.append(_plot_new_coeff_matrix)
+
         new_coeff_matrix.append(_new_coeff_matrix)
-        calculated_coeff_matrix.append(data[basis_set][quantity][_idx])
+        calculated_coeff_matrix.append(_calculated_coeff_matrix)
 
     new_coeff_matrix = np.array(new_coeff_matrix)
     calculated_coeff_matrix = np.array(calculated_coeff_matrix)
 
-    fig, ax = plt.subplots(1, 3, figsize=(7, 2.0))
+    plot_new_coeff_matrix = np.array(plot_new_coeff_matrix)
+    plot_calculated_coeff_matrix = np.array(plot_calculated_coeff_matrix)
 
-    cax = ax[0].imshow(alpha_coeff_matrix, cmap="cividis", vmin=-1, vmax=1)
-    cax1 = ax[1].imshow(rotated_alpha_coeff_matrix, cmap="cividis", vmin=-1, vmax=1)
+    fig, ax = plt.subplots(1, 3, figsize=(3.8, 1.8), constrained_layout=True)
+
+    cax = ax[0].imshow(plot_new_coeff_matrix[0], cmap="coolwarm", vmin=-1, vmax=1)
+    cax1 = ax[1].imshow(
+        plot_calculated_coeff_matrix[1], cmap="coolwarm", vmin=-1, vmax=1
+    )
 
     cbar = fig.colorbar(cax, ax=ax[0])
     cbar1 = fig.colorbar(cax1, ax=ax[1])
+    # Change the font size of cbar
+    cbar.ax.tick_params(labelsize=5)
+    cbar1.ax.tick_params(labelsize=5)
 
     ax[0].set_yticks(np.arange(len(data[basis_set]["basis_functions_orbital"][0])))
     ax[0].set_yticklabels(data[basis_set]["basis_functions_orbital"][0], fontsize=4)
     ax[1].set_yticks(np.arange(len(data[basis_set]["basis_functions_orbital"][0])))
     ax[1].set_yticklabels(data[basis_set]["basis_functions_orbital"][0], fontsize=4)
 
-    eigenvalues = data[basis_set]["alpha_eigenvalues"][0]
-    eigenvalues *= ase_units.Hartree
-    ax[0].set_xticks(np.arange(len(eigenvalues)))
-    ax[0].set_xticklabels(np.round(eigenvalues, 2), rotation=90, fontsize=4)
-    ax[1].set_xticks(np.arange(len(eigenvalues)))
-    ax[1].set_xticklabels(np.round(eigenvalues, 2), rotation=90, fontsize=4)
-    ax[0].set_title(r"a) $\mathbf{C}\left(\alpha_0,\beta_0,\gamma_0\right)$")
-    ax[1].set_title(r"b) $\mathbf{C}\left(\alpha,\beta,\gamma\right)$")
+    ax[0].set_xticks(np.arange(len(eigenvalues[plotted_index])))
+    ax[0].set_xticklabels(
+        np.round(eigenvalues[plotted_index], 2), rotation=90, fontsize=4
+    )
+    ax[1].set_xticks(np.arange(len(eigenvalues[plotted_index])))
+    ax[1].set_xticklabels(
+        np.round(eigenvalues[plotted_index], 2), rotation=90, fontsize=4
+    )
+    ax[0].set_title(
+        r"a) $\mathbf{C}\left(\alpha_0,\beta_0,\gamma_0\right)$", fontsize=6
+    )
+    ax[1].set_title(r"b) $\mathbf{C}\left(\alpha,\beta,\gamma\right)$", fontsize=6)
 
-    ax[0].set_ylabel("Basis function")
-    ax[0].set_xlabel("Eigenvalue of molecular orbital [eV]")
-    ax[1].set_xlabel("Eigenvalue of molecular orbital [eV]")
+    ax[0].set_ylabel("Basis function", fontsize=5)
+    ax[0].set_xlabel("Eigenvalue [eV]", fontsize=5)
+    ax[1].set_xlabel("Eigenvalue [eV]", fontsize=5)
 
     selected_eigenval = eigenvalues[eigenvalues < 0]
     selected_eigenval = np.sort(selected_eigenval)
@@ -322,15 +353,19 @@ if __name__ == "__main__":
     )
 
     ax[2].set_xlabel(
-        r"$\left|\mathbf{C}^{\mathrm{HOMO}} (\alpha, \beta, \gamma) \right|$"
+        r"$\left|\mathbf{C}^{\mathrm{HOMO}} (\alpha, \beta, \gamma) \right|$",
+        fontsize=5,
     )
     ax[2].set_ylabel(
-        r"$\left|\mathbf{C}^{\mathrm{HOMO}} (\alpha_0, \beta_0, \gamma_0) \cdot \mathbf{D}^T(\alpha, \beta, \gamma)\right|$"
+        r"$\left|\mathbf{C}^{\mathrm{HOMO}} (\alpha_0, \beta_0, \gamma_0) \cdot \mathbf{D}^T(\alpha, \beta, \gamma)\right|$",
+        fontsize=5,
     )
 
     # Switch off minor ticks for the first two ax
     ax[0].tick_params(axis="both", which="both", length=0)
     ax[1].tick_params(axis="both", which="both", length=0)
+
+    ax[2].set_aspect("equal", "box")
 
     # Annotate c) in the third plot
     ax[2].text(
@@ -339,8 +374,7 @@ if __name__ == "__main__":
         "c)",
         transform=ax[2].transAxes,
         va="top",
-        fontsize=10,
     )
 
-    fig.tight_layout()
-    fig.savefig(__output_dir__ / f"figure1.png")
+    fig.savefig(__output_dir__ / f"figure1.png", dpi=300)
+    fig.savefig(__output_dir__ / f"figure1.pdf", dpi=300)

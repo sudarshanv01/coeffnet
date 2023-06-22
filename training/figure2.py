@@ -168,4 +168,5 @@ if __name__ == "__main__":
     ax[0].tick_params(axis="both", which="both", length=0)
     ax[1].tick_params(axis="both", which="both", length=0)
 
-    fig.savefig(__output_dir__ / f"figure2.png")
+    fig.savefig(__output_dir__ / f"figure2.png", dpi=300)
+    fig.savefig(__output_dir__ / f"figure2.pdf", dpi=300)

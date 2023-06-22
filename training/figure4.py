@@ -58,7 +58,7 @@ def get_cli_args():
     parser.add_argument(
         "--basis_set",
         type=str,
-        default="6-31g*",
+        default="def2-svp",
         help="Basis set to use.",
     )
     parser.add_argument(
@@ -186,4 +186,5 @@ if __name__ == "__main__":
         va="top",
     )
 
-    fig.savefig(__output_folder__ / "figure4.png")
+    fig.savefig(__output_folder__ / "figure4.png", dpi=300)
+    fig.savefig(__output_folder__ / "figure4.pdf", dpi=300)

@@ -142,7 +142,7 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(
         1,
         2,
-        figsize=(3.5, 1.25),
+        figsize=(3.5, 1.5),
         constrained_layout=True,
         sharex=True,
         sharey=True,
@@ -187,6 +187,8 @@ if __name__ == "__main__":
 
         df_relative_energy = get_relative_energy_performance()
         train_loader_mask = df_relative_energy["loader"] == "train"
+        # Get the number of points in train_loader_mask
+        n_train = np.sum(train_loader_mask)
         if idx_type == 0:
             legend = False
         else:
@@ -207,29 +209,24 @@ if __name__ == "__main__":
             y="output",
             hue="loader",
             ax=ax[0, idx_type],
-            palette="set2",
+            palette="Set2",
             legend=legend,
-            alpha=0.4,
+            alpha=0.6,
         )
 
-    # Format the legend
     handles, labels = ax[0, 1].get_legend_handles_labels()
-    # Delete all labels and corresponding handles which have `loader` or
-    # `basis_function_type` in them
     handles = [
         h
         for h, l in zip(handles, labels)
         if "loader" not in l and "basis_function_type" not in l
     ]
     labels = [l for l in labels if "loader" not in l and "basis_function_type" not in l]
-    # Keep only labels and corresponding handles which have unique labels
     unique_labels = []
     unique_handles = []
     for h, l in zip(handles, labels):
         if l not in unique_labels:
             unique_labels.append(l)
             unique_handles.append(h)
-    # Add the legend
     ax[0, 1].legend(
         unique_handles, unique_labels, loc="upper left", bbox_to_anchor=(1.05, 1)
     )
@@ -237,8 +234,6 @@ if __name__ == "__main__":
     ax[0, 0].set_ylabel(r"Predicted $E_{\mathrm{TS}} - E_{\mathrm{IS}}$ (eV)")
     ax[0, 0].set_xlabel(r"DFT $E_{\mathrm{TS}} - E_{\mathrm{IS}}$ (eV)")
     ax[0, 1].set_xlabel(r"DFT $E_{\mathrm{TS}} - E_{\mathrm{IS}}$ (eV)")
-    ax[0, 0].set_title("Full basis set")
-    ax[0, 1].set_title("Minimal basis set")
     ax[0, 1].set_ylabel("")
 
     # Draw parity lines for all plots
@@ -251,5 +246,13 @@ if __name__ == "__main__":
             alpha=0.5,
             zorder=0,
         )
+        ax[0, i].set_aspect("equal", "box")
+        character = chr(ord("a") + i)
+        ax[0, i].set_title(f"{character}) {basis_set_types[i].capitalize()} basis")
 
-    fig.savefig(__output_folder__ / f"figure5_{basis_set_name}.png")
+    fig.savefig(
+        __output_folder__ / f"figure5_{dataset_name}_{basis_set_name}.png", dpi=300
+    )
+    fig.savefig(
+        __output_folder__ / f"figure5_{dataset_name}_{basis_set_name}.pdf", dpi=300
+    )

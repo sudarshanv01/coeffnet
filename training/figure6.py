@@ -280,7 +280,7 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(
         1,
         2,
-        figsize=(4, 1.5),
+        figsize=(3.5, 1.5),
         constrained_layout=True,
         squeeze=False,
         sharey=True,
@@ -290,7 +290,7 @@ if __name__ == "__main__":
     figo, axo = plt.subplots(
         1,
         2,
-        figsize=(4, 1.5),
+        figsize=(3.5, 1.5),
         constrained_layout=True,
         squeeze=False,
         sharex=True,
@@ -365,7 +365,7 @@ if __name__ == "__main__":
             hue="loader",
             style="basis_function_type",
             ax=ax[0, idx_type],
-            palette="set2",
+            palette="Set2",
             alpha=0.4,
             legend=legend,
         )
@@ -389,7 +389,7 @@ if __name__ == "__main__":
             hue="loader",
             style="basis_function_type",
             ax=axo[0, idx_type],
-            palette="set2",
+            palette="Set2",
             alpha=0.4,
             legend=legend,
         )
@@ -431,14 +431,10 @@ if __name__ == "__main__":
     ax[0, 0].set_ylabel(r"Predicted $ \mathbf{C}_{\mathrm{TS}} $")
     ax[0, 0].set_xlabel(r"DFT $ \mathbf{C}_{\mathrm{TS}}$")
     ax[0, 1].set_xlabel(r"DFT $ \mathbf{C}_{\mathrm{TS}} $")
-    ax[0, 1].set_title("Full basis set")
-    ax[0, 0].set_title("Minimal basis set")
 
-    axo[0, 0].set_ylabel(r"Predicted $ \phi_{\mathrm{TS}} \left( \mathbf{r} \right) $")
-    axo[0, 0].set_xlabel(r"DFT $ \phi_{\mathrm{TS}} \left( \mathbf{r} \right) $")
-    axo[0, 1].set_xlabel(r"DFT $ \phi_{\mathrm{TS}} \left( \mathbf{r} \right) $")
-    axo[0, 1].set_title("Full basis set")
-    axo[0, 0].set_title("Minimal basis set")
+    axo[0, 0].set_ylabel(r"Predicted $ \psi_{\mathrm{TS}} \left( \mathbf{r} \right) $")
+    axo[0, 0].set_xlabel(r"DFT $ \psi_{\mathrm{TS}} \left( \mathbf{r} \right) $")
+    axo[0, 1].set_xlabel(r"DFT $ \psi_{\mathrm{TS}} \left( \mathbf{r} \right) $")
 
     # Draw parity lines for all plots
     for i in range(2):
@@ -458,6 +454,21 @@ if __name__ == "__main__":
             alpha=0.5,
             zorder=0,
         )
+        ax[0, i].set_aspect("equal", "box")
+        axo[0, i].set_aspect("equal", "box")
+        character = chr(ord("a") + i)
+        ax[0, i].set_title(f"{character}) {basis_set_types[i].capitalize()} basis")
+        axo[0, i].set_title(f"{character}) {basis_set_types[i].capitalize()} basis")
 
-    fig.savefig(__output_folder__ / f"figure6_coeff_{basis_set_name}.png")
-    figo.savefig(__output_folder__ / f"figure6_mo_{basis_set_name}.png")
+    fig.savefig(
+        __output_folder__ / f"figure6_coeff_{dataset_name}_{basis_set_name}.png",
+        dpi=300,
+    )
+    figo.savefig(
+        __output_folder__ / f"figure6_mo_{dataset_name}_{basis_set_name}.png", dpi=300
+    )
+
+    fig.savefig(
+        __output_folder__ / f"figure6_coeff_{dataset_name}_{basis_set_name}.pdf"
+    )
+    figo.savefig(__output_folder__ / f"figure6_mo_{dataset_name}_{basis_set_name}.pdf")
