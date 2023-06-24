@@ -15,7 +15,7 @@ logger.setLevel(logging.INFO)
 
 import matplotlib.pyplot as plt
 
-from minimal_basis.postprocessing.transformations import (
+from coeffnet.postprocessing.transformations import (
     OrthoCoeffMatrixToGridQuantities,
     NodeFeaturesToOrthoCoeffMatrix,
     DatapointStoredVectorToOrthogonlizationMatrix,

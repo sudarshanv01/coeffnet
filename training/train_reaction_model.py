@@ -13,7 +13,7 @@ import torch_geometric.transforms as T
 
 from e3nn import o3
 
-from minimal_basis.dataset.reaction import ReactionDataset as Dataset
+from coeffnet.dataset.reaction import ReactionDataset as Dataset
 
 from utils import (
     get_validation_data_path,

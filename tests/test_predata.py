@@ -4,7 +4,7 @@ import numpy as np
 
 from conftest import mock_database, dataset_config_factory, basis_raw
 
-from minimal_basis.predata.matrices import TaskdocsToData
+from coeffnet.predata.matrices import TaskdocsToData
 
 
 def test_TaskdocToData_minimal_basis_input(

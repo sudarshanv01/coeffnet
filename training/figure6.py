@@ -42,12 +42,6 @@ warnings.simplefilter(action="ignore", category=UserWarning)
 from model_functions import construct_model_name
 import wandb
 
-from minimal_basis.postprocessing.transformations import (
-    OrthoCoeffMatrixToGridQuantities,
-    NodeFeaturesToOrthoCoeffMatrix,
-    DatapointStoredVectorToOrthogonlizationMatrix,
-)
-
 from figure_utils import (
     get_sanitized_basis_set_name,
     get_dataloader_info,

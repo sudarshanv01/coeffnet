@@ -13,8 +13,8 @@ import torch
 from torch_geometric.loader import DataLoader
 import torch_geometric.transforms as T
 
-from minimal_basis.predata.interpolator import GenerateParametersInterpolator
-from minimal_basis.dataset.reaction import ReactionDataset
+from coeffnet.predata.interpolator import GenerateParametersInterpolator
+from coeffnet.dataset.reaction import ReactionDataset
 
 from utils import (
     read_inputs_yaml,

@@ -8,8 +8,8 @@ from torch_geometric.loader import DataLoader
 
 from e3nn import o3
 
-from minimal_basis.dataset.reaction import ReactionDataset
-from minimal_basis.transforms.rotations import RotationMatrix
+from coeffnet.dataset.reaction import ReactionDataset
+from coeffnet.transforms.rotations import RotationMatrix
 
 from conftest import dataset_options_factory, get_mapping_idx_to_euler_angles
 

@@ -17,7 +17,7 @@ import tqdm
 
 import random
 
-from minimal_basis.predata.cart_to_sph import cart_to_sph_d, norm_cart_d_gauss
+from coeffnet.predata.cart_to_sph import cart_to_sph_d, norm_cart_d_gauss
 
 logger = logging.getLogger(__name__)
 

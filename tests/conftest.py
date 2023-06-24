@@ -8,7 +8,7 @@ import json
 
 import mongomock
 
-from minimal_basis.model.reaction import ReactionModel
+from coeffnet.model.reaction import GateReactionModel
 
 
 @pytest.fixture
@@ -40,21 +40,20 @@ def model_options_factory():
         prediction_mode: str = "relative_energy", basis_type: str = "full", **kwargs
     ):
         options = {
-            "irreps_node_attr": "1x0e",
-            "irreps_edge_attr": "12x0e",
+            "irreps_node_attr": "5x0e",
             "radial_layers": 2,
             "radial_neurons": 64,
             "max_radius": 5,
             "num_basis": 12,
             "num_neighbors": 4,
             "typical_number_of_nodes": 12,
+            "mul": 100,
         }
 
         if basis_type == "full":
             options.update(
                 {
                     "irreps_in": "4x0e+3x1o+1x2e",
-                    "irreps_hidden": "64x0e+288x1o+128x2e",
                     "irreps_out": "4x0e+3x1o+1x2e",
                 }
             )
@@ -62,7 +61,6 @@ def model_options_factory():
             options.update(
                 {
                     "irreps_in": "4x0e+3x1o",
-                    "irreps_hidden": "64x0e+288x1o",
                     "irreps_out": "4x0e+3x1o",
                 }
             )
@@ -105,7 +103,7 @@ def network_factory(model_options_factory):
         prediction_mode: str = "relative_energy", basis_type="full", **kwargs
     ):
         options = model_options_factory(prediction_mode, basis_type, **kwargs)
-        return ReactionModel(**options)
+        return GateReactionModel(**options)
 
     return _network_factory
 

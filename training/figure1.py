@@ -22,8 +22,8 @@ import torch
 
 from e3nn import o3
 
-from minimal_basis.predata.matrices import BaseMatrices, ReducedBasisMatrices
-from minimal_basis.transforms.rotations import RotationMatrix
+from coeffnet.predata.matrices import BaseMatrices, ReducedBasisMatrices
+from coeffnet.transforms.rotations import RotationMatrix
 
 from instance_mongodb import instance_mongodb_sei
 from plot_params import get_plot_params

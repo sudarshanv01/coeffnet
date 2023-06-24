@@ -13,7 +13,7 @@ get_plot_params()
 
 import basis_set_exchange as bse
 
-from minimal_basis.predata.matrices import TaskdocsToData
+from coeffnet.predata.matrices import TaskdocsToData
 
 from instance_mongodb import instance_mongodb_sei
 

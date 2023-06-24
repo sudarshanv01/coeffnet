@@ -3,14 +3,14 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "minimal_basis"
-version = "0.1.0"
+name = "coeffnet"
+version = "0.2.0"
 authors = [
-  { name="Sudarshan Vijay", email="svijay@lbl.gov" },
+  { name="Sudarshan Vijay", email="sudarshan.vijay@protonmail.com" },
 ]
-description = "Equivariant network to predict transition state quantities through a minimal basis representation."
+description = "Equivariant network to predict activation barriers and molecular orbitals through coefficients of molecular orbitals."
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.9"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",

@@ -24,10 +24,10 @@ from torch_geometric.data import InMemoryDataset
 
 from monty.serialization import loadfn
 
-from minimal_basis.data.reaction import ReactionDataPoint as DataPoint
-from minimal_basis.data.reaction import ModifiedCoefficientMatrixSphericalBasis
-from minimal_basis.predata.interpolator import GenerateParametersInterpolator
-from minimal_basis.constants import electronic_states
+from coeffnet.data.reaction import ReactionDataPoint as DataPoint
+from coeffnet.data.reaction import ModifiedCoefficientMatrixSphericalBasis
+from coeffnet.predata.interpolator import GenerateParametersInterpolator
+from coeffnet.constants import electronic_states
 
 logger = logging.getLogger(__name__)
 

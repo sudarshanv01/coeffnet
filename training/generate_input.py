@@ -12,7 +12,7 @@ from monty.serialization import dumpfn, loadfn
 
 import basis_set_exchange as bse
 
-from minimal_basis.predata.matrices import TaskdocsToData
+from coeffnet.predata.matrices import TaskdocsToData
 
 from yaml import safe_load
 

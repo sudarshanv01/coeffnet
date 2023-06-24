@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from ase.data import atomic_numbers, atomic_names, atomic_masses, vdw_radii
 from ase.data.colors import jmol_colors
 
-from minimal_basis.postprocessing.transformations import (
+from coeffnet.postprocessing.transformations import (
     OrthoCoeffMatrixToGridQuantities,
     NodeFeaturesToOrthoCoeffMatrix,
     DatapointStoredVectorToOrthogonlizationMatrix,

@@ -15,14 +15,14 @@ from pymatgen.analysis.graphs import MoleculeGraph
 
 from e3nn import o3
 
-from minimal_basis.data._dtype import (
+from coeffnet.data._dtype import (
     DTYPE,
     DTYPE_INT,
     DTYPE_BOOL,
     TORCH_FLOATS,
     TORCH_INTS,
 )
-from minimal_basis.predata.cart_to_sph import cart_to_sph_d
+from coeffnet.predata.cart_to_sph import cart_to_sph_d
 
 logger = logging.getLogger(__name__)
 

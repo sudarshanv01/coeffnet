@@ -8,7 +8,7 @@ import torch
 from torch_geometric.loader import DataLoader
 import torch_geometric.transforms as T
 
-from minimal_basis.dataset.reaction import ReactionDataset
+from coeffnet.dataset.reaction import ReactionDataset
 
 from utils import (
     get_train_data_path,
