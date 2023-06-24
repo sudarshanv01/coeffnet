@@ -24,7 +24,7 @@ jobs:
       with:
         auto-update-conda: true
         python-version: ${{ matrix.python-version }}
-        activate-environment: molml
+        activate-environment: coeffnet 
         environment-file: environment.yml
     
     - name: Install pytorch dependencies
