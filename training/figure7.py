@@ -165,6 +165,7 @@ def get_cli_args():
     parser.add_argument(
         "--model_config",
         type=str,
+        default="config/rudorff_lilienfeld_model.yaml",
     )
     parser.add_argument(
         "--dataset_name",
@@ -239,7 +240,7 @@ if __name__ == "__main__":
     )
     logger.info(f"Using model name: {model_name}")
 
-    fig, ax = plt.subplots(1, 1, figsize=(4.0, 2.5), constrained_layout=True)
+    fig, ax = plt.subplots(1, 1, figsize=(3.5, 2.0), constrained_layout=True)
 
     input_foldername = __input_folder__ / dataset_name / basis_set_type / basis_set_name
 

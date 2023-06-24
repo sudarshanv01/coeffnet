@@ -228,7 +228,7 @@ if __name__ == "__main__":
     data = get_data(basis_sets=[basis_set])
 
     alpha_coeff_matrix = data[basis_set][quantity][0]
-    rotated_alpha_coeff_matrix = data[basis_set][quantity][2]
+    rotated_alpha_coeff_matrix = data[basis_set][quantity][-1]
 
     new_coeff_matrix = []
     calculated_coeff_matrix = []
@@ -323,6 +323,9 @@ if __name__ == "__main__":
     selected_eigenval = selected_eigenval[-1]
     selected_eigenval_index = np.where(eigenvalues == selected_eigenval)[0][0]
 
+    # Generate a list of colors
+    colors = plt.cm.jet(np.linspace(0, 1, calculated_coeff_matrix.shape[0]))
+
     for i in range(calculated_coeff_matrix.shape[0]):
         angles = data[basis_set]["euler_angles"][i]
         label = r"$\alpha=%1.1f, \beta=%1.1f, \gamma=%1.1f$" % (
@@ -336,6 +339,7 @@ if __name__ == "__main__":
             "o",
             markerfacecolor="none",
             label=label,
+            color=colors[i],
         )
     # Place legend outside the plot
     ax[2].legend(

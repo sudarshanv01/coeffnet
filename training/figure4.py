@@ -89,7 +89,6 @@ if __name__ == "__main__":
 
     dataset_names = {
         r"S$_\mathrm{N}$2": "rudorff_lilienfeld_sn2_dataset",
-        "E2": "rudorff_lilienfeld_e2_dataset",
     }
     basis_set_type = args.basis_set_type
     basis_set = args.basis_set

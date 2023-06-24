@@ -48,6 +48,7 @@ def get_dataloader_info(
     _debug_string = "_debug" if debug else ""
     train_json_filename = input_foldername / f"train{_debug_string}.json"
     validate_json_filename = input_foldername / f"validate{_debug_string}.json"
+    test_json_filename = input_foldername / f"test{_debug_string}.json"
 
     timestamp = create_timestamp()
 
@@ -67,7 +68,7 @@ def get_dataloader_info(
     )
     test_dataset = ReactionDataset(
         root=get_test_data_path(model_name + "_" + timestamp),
-        filename=validate_json_filename,
+        filename=test_json_filename,
         transform=transform,
         **dataset_options,
     )

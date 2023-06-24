@@ -80,6 +80,7 @@ def get_molecular_orbital_on_grid(
         buffer_grid=buffer_grid,
         uses_cartesian_orbitals=False,
         invert_coordinates=True,
+        basis_name=args.basis_set,
     )
 
     molecular_orbital = (

@@ -159,8 +159,8 @@ if __name__ == "__main__":
     ax[1].set_xticklabels(["reactant", "transition state", "product"], rotation=90)
 
     ax[0].set_ylabel("Selected basis functions")
-    ax[0].set_title("Full basis")
-    ax[1].set_title("Minimal basis")
+    ax[0].set_title("a) Full basis")
+    ax[1].set_title("b) Minimal basis")
 
     cbar1 = fig.colorbar(cax1, ax=ax[1])
 
