@@ -7,6 +7,7 @@
    :maxdepth: 2
 
    predata/matrices.md
+   predata/input.md
 
 
 

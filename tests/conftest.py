@@ -8,50 +8,65 @@ import json
 
 import mongomock
 
-from minimal_basis.model.reaction import ReactionModel
+from coeffnet.model.reaction import GateReactionModel
 
 
 @pytest.fixture
-def get_dataset_options(tmp_path):
+def dataset_options_factory(tmp_path):
     """Returns dataset options common to all tests."""
-    basis_filename = Path(__file__).parent / "input" / "basis.json"
-    filename = Path(__file__).parent / "input" / "reaction.json"
-    root = tmp_path / "root"
-    return {
-        "filename": filename,
-        "basis_filename": basis_filename,
-        "root": root,
-        "max_s_functions": 5,
-        "max_p_functions": 3,
-        "max_d_functions": 0,
-        "idx_eigenvalue": 0,
-        "use_minimal_basis_node_features": False,
-        "reactant_tag": "reactant",
-        "product_tag": "product",
-        "transition_state_tag": "transition_state",
-        "is_minimal_basis": True,
-        "calculated_using_cartesian_basis": True,
-    }
+
+    def _dataset_options_factory(basis_type: str = "full", **kwargs):
+        options = {
+            "filename": Path(__file__).parent
+            / "input"
+            / f"reaction_{basis_type}_basis.json",
+            "root": tmp_path / "root",
+            "idx_eigenvalue": 0,
+            "reactant_tag": "reactant",
+            "product_tag": "product",
+            "transition_state_tag": "transition_state",
+        }
+        options.update(kwargs)
+        return options
+
+    return _dataset_options_factory
 
 
 @pytest.fixture
 def model_options_factory():
     """Returns the model options common to all tests."""
 
-    def _model_options_factory(prediction_mode, **kwargs):
+    def _model_options_factory(
+        prediction_mode: str = "relative_energy", basis_type: str = "full", **kwargs
+    ):
         options = {
-            "irreps_in": "5x0e+3x1o",
-            "irreps_hidden": "64x0e+288x1o",
-            "irreps_out": "5x0e+3x1o",
-            "irreps_node_attr": "1x0e",
-            "irreps_edge_attr": "12x0e",
+            "irreps_node_attr": "5x0e",
             "radial_layers": 2,
             "radial_neurons": 64,
             "max_radius": 5,
             "num_basis": 12,
             "num_neighbors": 4,
             "typical_number_of_nodes": 12,
+            "mul": 100,
         }
+
+        if basis_type == "full":
+            options.update(
+                {
+                    "irreps_in": "4x0e+3x1o+1x2e",
+                    "irreps_out": "4x0e+3x1o+1x2e",
+                }
+            )
+        elif basis_type == "minimal":
+            options.update(
+                {
+                    "irreps_in": "4x0e+3x1o",
+                    "irreps_out": "4x0e+3x1o",
+                }
+            )
+        else:
+            raise ValueError(f"Unknown basis type {basis_type}")
+
         if prediction_mode == "relative_energy":
             options.update(
                 {
@@ -84,9 +99,11 @@ def model_options_factory():
 def network_factory(model_options_factory):
     """Returns the network for different prediction modes."""
 
-    def _network_factory(prediction_mode, **kwargs):
-        options = model_options_factory(prediction_mode, **kwargs)
-        return ReactionModel(**options)
+    def _network_factory(
+        prediction_mode: str = "relative_energy", basis_type="full", **kwargs
+    ):
+        options = model_options_factory(prediction_mode, basis_type, **kwargs)
+        return GateReactionModel(**options)
 
     return _network_factory
 
@@ -116,10 +133,21 @@ def mock_database():
 
 
 @pytest.fixture
-def dataset_config():
+def dataset_config_factory():
     """Return the dataset configuration."""
-    filename = Path(__file__).parent / "input" / "dataset.yaml"
-    return loadfn(filename)
+
+    def _dataset_config_factory(basis_type: str = "full"):
+        filename = Path(__file__).parent / "input" / "dataset.yaml"
+        config = loadfn(filename)
+        if basis_type == "minimal":
+            config["basis_set_type"] = "minimal"
+        elif basis_type == "full":
+            config["basis_set_type"] = "full"
+        else:
+            raise ValueError(f"Unknown basis type {basis_type}")
+        return config
+
+    return _dataset_config_factory
 
 
 @pytest.fixture

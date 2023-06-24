@@ -1,58 +1,25 @@
 ---
-test_json: "input/grambow_green_dataset_minimal_basis_test.json" 
-train_json: "input/grambow_green_dataset_minimal_basis_train.json"
-validate_json: "input/grambow_green_dataset_minimal_basis_validate.json"
-debug_test_json: "input/grambow_green_dataset_minimal_basis_test_debug.json" 
-debug_train_json: "input/grambow_green_dataset_minimal_basis_train_debug.json"
-debug_validate_json: "input/grambow_green_dataset_minimal_basis_validate_debug.json"
-basis_file: "input/def2-msvp.json"
-
-batch_size: 16
-learning_rate: 0.001
-epochs: 250
-
 dataset_options:
-  max_s_functions: 5
-  max_p_functions: 4
-  max_d_functions: 0
-  idx_eigenvalue: 0
-  reactant_tag: "reactant"
-  product_tag: "product"
-  transition_state_tag: "transition_state"
-
-use_minimal_basis_node_features: false
-
-model_options_relative_energy:
-  irreps_in: "@construct"
-  irreps_hidden: "128x0e+512x1o"
-  irreps_out: "@construct"
-  irreps_node_attr: "1x0e"
-  irreps_edge_attr: "@construct"
-  radial_layers: 4
-  radial_neurons: 64
-  max_radius: 5
-  num_basis: 12
-  num_neighbors: 4
-  typical_number_of_nodes: 10
-  reduce_output: true 
-  reference_reduced_output_to_initial_state: true
-  make_absolute: false 
-  mask_extra_basis: true
-  normalize_sumsq: true
-
-model_options_coeff_matrix:
-  irreps_in: "@construct"
-  irreps_hidden: "64x0e+288x1o"
-  irreps_out: "@construct"
-  irreps_node_attr: "1x0e"
-  irreps_edge_attr: "@construct"
-  radial_layers: 4
-  radial_neurons: 64
-  max_radius: 5
-  num_basis: 12
-  num_neighbors: 4
-  typical_number_of_nodes: 10
-  reduce_output: false
-  make_absolute: false 
-  mask_extra_basis: true
-  normalize_sumsq: true
+  minimal_basis:
+    idx_eigenvalue: 0
+    reactant_tag: "reactant"
+    product_tag: "product"
+    transition_state_tag: "transition_state"
+  full_basis:
+    idx_eigenvalue: 0
+    reactant_tag: "reactant"
+    product_tag: "product"
+    transition_state_tag: "transition_state"
+  
+model_options:
+  relative_energy:
+    typical_number_of_nodes: 10
+    reduce_output: true 
+    mask_extra_basis: true
+    normalize_sumsq: true
+    reference_reduced_output_to_initial_state: true
+  coeff_matrix:
+    typical_number_of_nodes: 10
+    reduce_output: false
+    mask_extra_basis: true
+    normalize_sumsq: true

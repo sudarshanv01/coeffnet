@@ -1,8 +1,0 @@
----
-filter_collection: 
-  "input.job_type": "sp"
-identifier: "label"
-state_identifier: "scaling"
-reactant_tag: -0.5
-product_tag: 0.5
-transition_state_tag: 0.0

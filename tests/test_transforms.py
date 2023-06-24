@@ -4,7 +4,7 @@ import numpy as np
 
 from scipy.spatial.transform import Rotation as R
 
-from minimal_basis.transforms.rotations import RotationMatrix
+from coeffnet.transforms.rotations import RotationMatrix
 
 """Check the rotation matrices against those from scipy."""
 

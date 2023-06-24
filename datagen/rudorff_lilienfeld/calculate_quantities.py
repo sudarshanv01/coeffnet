@@ -1,7 +1,8 @@
 import logging
 import yaml
-import copy
 import argparse
+
+import numpy as np
 
 from bson.objectid import ObjectId
 
@@ -22,6 +23,7 @@ lp = LaunchPad.from_file("/global/u1/s/svijay/fw_config/my_launchpad_mlts.yaml")
 def get_cli():
     args = argparse.ArgumentParser()
     args.add_argument("--dryrun", action="store_true", default=False)
+    args.add_argument("--basis", type=str, default="sto-3g")
     return args.parse_args()
 
 
@@ -41,13 +43,24 @@ if __name__ == "__main__":
     initial_structure_collection = db.rudorff_lilienfeld_initial_structures
     find_tags = {}
 
-    with open("config/reproduce_paper_parameters.yaml", "r") as f:
+    with open("config/spherical_only_parameters.yaml", "r") as f:
         params = yaml.safe_load(f)
-    nbo_params = {"nbo_params": {"version": 7}}
-    params.update(nbo_params)
+    params["overwrite_inputs"]["rem"]["basis"] = args.basis
 
     count_structures = 0
-    for document in data_collection.find(find_tags):
+    documents = data_collection.find(
+        find_tags,
+        {
+            "perturbed_molecule_0_5_molecule": 1,
+            "perturbed_molecule_-0_5_molecule": 1,
+            "transition_state_molecule": 1,
+            "rxn_number": 1,
+            "reaction_name": 1,
+        },
+    )
+    documents = list(documents)
+
+    for document in documents:
 
         keys = list(document.keys())
         keys = [key for key in keys if key.endswith("_molecule")]
@@ -55,19 +68,26 @@ if __name__ == "__main__":
         for state in keys:
             molecule_dict = document[state]
             molecule = Molecule.from_dict(molecule_dict)
+
+            coordinates = np.array(molecule.cart_coords)
+            _coordinates = coordinates.copy()
+            _coordinates[:, [0, 1, 2]] = _coordinates[:, [2, 0, 1]]
+            molecule = Molecule(
+                species=molecule.species,
+                coords=_coordinates,
+                charge=molecule.charge,
+                spin_multiplicity=molecule.spin_multiplicity,
+            )
+
             tags = {
                 "state": state,
-                "quantities": ["nbo", "coeff_matrix"],
+                "quantities": ["coeff_matrix"],
                 "rxn_number": document["rxn_number"],
                 "reaction_name": document["reaction_name"],
                 "constraints": "only carbon allowed to move",
+                "inverted_coordinates": True,
+                "basis_are_spherical": True,
             }
-
-            if collection.count_documents({"tags": tags}) > 0:
-                logger.info(f"Skipping {tags}")
-                continue
-            else:
-                logger.info(f"Processing {tags}")
 
             count_structures += 1
 
@@ -76,6 +96,7 @@ if __name__ == "__main__":
                 qchem_input_params=params,
                 extra_scf_print=True,
                 db_file=">>db_file<<",
+                spec={"_dupefinder": DupeFinderExact()},
             )
 
             wf = Workflow([firew])
