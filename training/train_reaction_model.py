@@ -43,7 +43,7 @@ if __name__ == "__main__":
 
     if args.loss_function is None:
         if args.prediction_mode == "coeff_matrix":
-            args.loss_function = "minimal_basis.loss.eigenvectors.UnsignedL1Loss"
+            args.loss_function = "coeffnet.loss.eigenvectors.UnsignedL1Loss"
         elif args.prediction_mode == "relative_energy":
             args.loss_function = "torch.nn.L1Loss"
 

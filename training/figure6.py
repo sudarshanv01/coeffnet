@@ -227,6 +227,7 @@ def get_cli_args():
     )
     parser.add_argument(
         "--model_config",
+        default="config/rudorff_lilienfeld_model.yaml",
         type=str,
     )
     parser.add_argument(
@@ -237,13 +238,13 @@ def get_cli_args():
     parser.add_argument(
         "--grid_points_per_axis",
         type=int,
-        default=10,
+        default=5,
         help="The number of grid points per axis",
     )
     parser.add_argument(
         "--buffer_grid",
         type=float,
-        default=1.5,
+        default=1.25,
         help="The number of grid points to buffer the grid by",
     )
 

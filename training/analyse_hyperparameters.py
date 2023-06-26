@@ -1,5 +1,7 @@
 import argparse
 
+from pathlib import Path
+
 import pandas as pd
 
 import wandb
@@ -47,6 +49,9 @@ if __name__ == "__main__":
 
     args = get_cli_arguments()
 
+    __output_folder__ = Path("output")
+    __output_folder__.mkdir(exist_ok=True)
+
     hyperparameters_to_analyze = [
         "max_radius",
         "radial_neurons",
@@ -86,19 +91,27 @@ if __name__ == "__main__":
         df,
         color="val_loss",
         dimensions=hyperparameters_to_analyze + ["val_loss"],
-        color_continuous_scale=px.colors.diverging.Tealrose,
+        color_continuous_scale=px.colors.sequential.Blues_r,
         template="simple_white",
         color_continuous_midpoint=df["val_loss"].median(),
     )
-    # Add a color bar which maps values to colors
     fig.update_layout(coloraxis_colorbar=dict(title="Validation Loss"))
-    # For the best visualization, we want to have the best models at the top
+    # Remove colorbar
+    fig.update_layout(coloraxis_showscale=False)
     fig.update_yaxes(autorange="reversed")
 
     # Lower dimensions of the plot
     fig.update_layout(
-        height=800,
-        width=1200,
+        height=400,
+        width=700,
         font=dict(size=18),
     )
-    fig.show()
+    fig.write_image(
+        __output_folder__
+        / f"hyperparameter_analysis_{args.prediction_mode}_{args.dataset_name}_{args.basis_set_type}.pdf"
+    )
+    fig.write_image(
+        __output_folder__
+        / f"hyperparameter_analysis_{args.prediction_mode}_{args.dataset_name}_{args.basis_set_type}.png",
+        scale=3,
+    )

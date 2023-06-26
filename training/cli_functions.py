@@ -106,7 +106,7 @@ def get_command_line_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--model_class",
         type=str,
-        default="minimal_basis.model.reaction.GateReactionModel",
+        default="coeffnet.model.reaction.GateReactionModel",
         help="Class name of the model to use.",
     )
     parser.add_argument(

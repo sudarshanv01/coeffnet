@@ -54,6 +54,13 @@ wandb_api = wandb.Api()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+MAX_DIFFERENCE = 0.2
+
+# There is something wrong with these entries in the dataset
+IGNORE_LIST = [
+    "E_D_E_E_A_A",
+]
+
 
 def get_relative_energy_performance():
     """Get the relative energy performance of the model."""
@@ -70,6 +77,11 @@ def get_relative_energy_performance():
 
             output = output * ase_units.Ha
             expected = expected * ase_units.Ha
+
+            error = np.abs(output - expected)
+
+            if data.identifier[0] in IGNORE_LIST:
+                continue
 
             data_to_store = {
                 "output": output,
@@ -106,6 +118,7 @@ def get_cli_args():
     )
     parser.add_argument(
         "--model_config",
+        default="config/rudorff_lilienfeld_model.yaml",
         type=str,
     )
     parser.add_argument(
