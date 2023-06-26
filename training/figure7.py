@@ -268,7 +268,7 @@ if __name__ == "__main__":
         device=DEVICE,
     )
 
-    for data in dataloaders["test"]:
+    for data in dataloaders["validation"]:
 
         identifier = data["identifier"][0]
         species_tag = identify_species(identifier)
@@ -343,11 +343,11 @@ if __name__ == "__main__":
 
         break
 
-    ax.set_ylabel(r"Highest Occupied $\psi \left(\mathbf{r}\right)$")
+    ax.set_ylabel(r"Highest Occupied $\psi \left(\mathbf{r}\right)$", fontsize=8)
     ax.set_xticks([])
     ax.set_xticks([0, int(len(mo_output) / 2), len(mo_output) - 1])
     ax.set_xticklabels([_X, "C", _Y])
-    ax2.set_ylabel(r"$\left | \psi \left(\mathbf{r}\right) \right |^2$")
+    ax2.set_ylabel(r"$\left | \psi \left(\mathbf{r}\right) \right |^2$", fontsize=8)
     ax2.yaxis.label.set_color("tab:blue")
     ax2.tick_params(axis="y", colors="tab:blue")
     ax.yaxis.label.set_color("tab:red")

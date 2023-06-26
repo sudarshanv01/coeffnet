@@ -1,0 +1,5 @@
+scienceplots
+seaborn
+kaleido
+ipykernel
+nbformat
