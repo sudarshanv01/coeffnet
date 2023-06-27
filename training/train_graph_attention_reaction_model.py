@@ -23,7 +23,7 @@ from utils import (
 
 from model_functions import construct_model_name, train, validate
 from cli_functions import (
-    get_command_line_arguments,
+    get_command_line_arguments_graph_attention,
     get_basis_set_name,
     create_timestamp,
 )
@@ -37,7 +37,7 @@ if __name__ == "__main__":
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
 
-    args = get_command_line_arguments()
+    args = get_command_line_arguments_graph_attention()
     basis_set_name = get_basis_set_name(args.basis_set)
     logger.info(f"Basis set name: {basis_set_name}")
 
@@ -130,15 +130,12 @@ if __name__ == "__main__":
     )
 
     model_options["irreps_node_attr"] = train_dataset.irreps_node_attr
-    model_options["irreps_in"] = train_dataset.irreps_in
-    model_options["irreps_out"] = train_dataset.irreps_out
-    model_options["lmax"] = o3.Irreps(model_options["irreps_out"]).lmax
-    model_options["mul"] = args.mul
-    model_options["layers"] = args.layers
-    model_options["max_radius"] = args.max_radius
-    model_options["num_basis"] = args.num_basis
-    model_options["radial_neurons"] = args.radial_neurons
-    model_options["num_neighbors"] = args.num_neighbors
+    model_options["irreps_node_input"] = train_dataset.irreps_in
+    model_options["irreps_edge_attr"] = "1x0e"
+    model_options["irreps_node_output"] = train_dataset.irreps_out
+    model_options["irreps_head"] = "10x0e+10x1o+10x2e"
+    model_options["num_heads"] = args.num_heads
+    model_options["fc_neurons"] = [1, args.fc_neurons]
     logger.info(f"Model options: {model_options}")
     wandb.config.update({"model_options": model_options})
 

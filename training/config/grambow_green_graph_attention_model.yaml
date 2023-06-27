@@ -1,0 +1,24 @@
+---
+dataset_options:
+  minimal_basis:
+    idx_eigenvalue: 0
+    reactant_tag: "reactant"
+    product_tag: "product"
+    transition_state_tag: "transition_state"
+  full_basis:
+    idx_eigenvalue: 0
+    reactant_tag: "reactant"
+    product_tag: "product"
+    transition_state_tag: "transition_state"
+  
+model_options:
+  relative_energy:
+    typical_number_of_nodes: 10
+    reduce_output: true 
+    mask_extra_basis: true
+    normalize_sumsq: true
+    reference_reduced_output_to_initial_state: true
+  coeff_matrix:
+    reduce_output: false
+    mask_extra_basis: true
+    normalize_sumsq: true

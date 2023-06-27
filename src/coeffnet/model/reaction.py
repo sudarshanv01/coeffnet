@@ -14,6 +14,8 @@ from e3nn.nn.models.gate_points_2102 import Network as GateNetwork
 from e3nn.nn.models.gate_points_2102 import smooth_cutoff
 from e3nn.nn.models.v2106.gate_points_networks import MessagePassing
 
+from .equiformer.graph_attention import GraphAttention
+
 logger = logging.getLogger(__name__)
 
 
@@ -622,5 +624,214 @@ class MessagePassingReactionModel(torch.nn.Module):
                 output_network_interpolated_transition_state -= (
                     output_network_initial_state
                 )
+
+        return output_network_interpolated_transition_state
+
+
+class GraphAttentionReactionModel(torch.nn.Module):
+    def __init__(
+        self,
+        irreps_node_input: Union[str, o3.Irreps],
+        irreps_node_attr: Union[str, o3.Irreps],
+        irreps_edge_attr: Union[str, o3.Irreps],
+        irreps_node_output: Union[str, o3.Irreps],
+        fc_neurons: int,
+        irreps_head: Union[str, o3.Irreps],
+        num_heads: int,
+        irreps_pre_attn: Optional[Union[str, o3.Irreps]] = None,
+        rescale_degree: bool = False,
+        nonlinear_message: bool = False,
+        alpha_drop: float = 0.1,
+        proj_drop: float = 0.1,
+        reduce_output: Optional[bool] = False,
+        mask_extra_basis: Optional[bool] = False,
+        normalize_sumsq: Optional[bool] = False,
+        reference_reduced_output_to_initial_state: Optional[bool] = False,
+        typical_number_of_nodes: Optional[int] = None,
+    ):
+        super().__init__()
+
+        self.irreps_in = o3.Irreps(irreps_node_input)
+        self.irreps_node_attr = o3.Irreps(irreps_node_attr)
+        self.irreps_edge_attr = o3.Irreps(irreps_edge_attr)
+        self.irreps_out = o3.Irreps(irreps_node_output)
+        self.irreps_head = o3.Irreps(irreps_head)
+        self.irreps_pre_attn = (
+            o3.Irreps(irreps_pre_attn) if irreps_pre_attn is not None else None
+        )
+        self.num_heads = num_heads
+        self.reduce_output = reduce_output
+        self.mask_extra_basis = mask_extra_basis
+        self.normalize_sumsq = normalize_sumsq
+        self.reference_reduced_output_to_initial_state = (
+            reference_reduced_output_to_initial_state
+        )
+
+        if typical_number_of_nodes:
+            self.num_nodes = typical_number_of_nodes
+
+        self.network_initial_state = GraphAttention(
+            irreps_node_input=self.irreps_in,
+            irreps_node_attr=self.irreps_node_attr,
+            irreps_edge_attr=self.irreps_edge_attr,
+            irreps_node_output=self.irreps_in,
+            fc_neurons=fc_neurons,
+            irreps_head=self.irreps_head,
+            num_heads=self.num_heads,
+            irreps_pre_attn=self.irreps_pre_attn,
+            rescale_degree=rescale_degree,
+            nonlinear_message=nonlinear_message,
+            alpha_drop=alpha_drop,
+            proj_drop=proj_drop,
+        )
+
+        self.network_final_state = GraphAttention(
+            irreps_node_input=self.irreps_in,
+            irreps_node_attr=self.irreps_node_attr,
+            irreps_edge_attr=self.irreps_edge_attr,
+            irreps_node_output=self.irreps_in,
+            fc_neurons=fc_neurons,
+            irreps_head=self.irreps_head,
+            num_heads=self.num_heads,
+            irreps_pre_attn=self.irreps_pre_attn,
+            rescale_degree=rescale_degree,
+            nonlinear_message=nonlinear_message,
+            alpha_drop=alpha_drop,
+            proj_drop=proj_drop,
+        )
+
+        self.network_interpolated_transition_state = GraphAttention(
+            irreps_node_input=self.irreps_in,
+            irreps_node_attr=self.irreps_node_attr,
+            irreps_edge_attr=self.irreps_edge_attr,
+            irreps_node_output=self.irreps_out,
+            fc_neurons=fc_neurons,
+            irreps_head=self.irreps_head,
+            num_heads=self.num_heads,
+            irreps_pre_attn=self.irreps_pre_attn,
+            rescale_degree=rescale_degree,
+            nonlinear_message=nonlinear_message,
+            alpha_drop=alpha_drop,
+            proj_drop=proj_drop,
+        )
+
+    def forward(self, data: Data) -> torch.Tensor:
+        """Forward pass."""
+
+        edge_src = data.edge_index[0]
+        edge_dst = data.edge_index[1]
+        edge_vec = data["pos"][edge_src] - data["pos"][edge_dst]
+        edge_length = edge_vec.norm(dim=-1)
+        edge_length = edge_length.view(-1, 1)
+        edge_scalars = torch.ones_like(edge_vec[:, 0])
+        edge_scalars = edge_scalars.view(-1, 1)
+        kwargs_initial_state = {
+            "node_input": data.x,
+            "node_attr": data.node_attr,
+            "edge_src": edge_src,
+            "edge_dst": edge_dst,
+            "edge_attr": edge_length,
+            "edge_scalars": edge_scalars,
+            "batch": data.batch,
+        }
+
+        output_network_initial_state = self.network_initial_state(
+            **kwargs_initial_state
+        )
+
+        if self.mask_extra_basis:
+            output_network_initial_state = (
+                output_network_initial_state * data.basis_mask
+            )
+        if self.normalize_sumsq:
+            output_network_initial_state = normalize_to_sum_squares_one(
+                output_network_initial_state, data.batch
+            )
+
+        edge_src = data.edge_index_final_state[0]
+        edge_dst = data.edge_index_final_state[1]
+        edge_vec = data["pos_final_state"][edge_src] - data["pos_final_state"][edge_dst]
+        edge_length = edge_vec.norm(dim=-1)
+        edge_length = edge_length.view(-1, 1)
+        edge_scalars = torch.ones_like(edge_vec[:, 0])
+        edge_scalars = edge_scalars.view(-1, 1)
+        kwargs_final_state = {
+            "node_input": data.x_final_state,
+            "node_attr": data.node_attr,
+            "edge_src": edge_src,
+            "edge_dst": edge_dst,
+            "edge_attr": edge_length,
+            "edge_scalars": edge_scalars,
+            "batch": data.batch,
+        }
+
+        output_network_final_state = self.network_final_state(**kwargs_final_state)
+
+        if self.mask_extra_basis:
+            output_network_final_state = output_network_final_state * data.basis_mask
+
+        if self.normalize_sumsq:
+            output_network_final_state = normalize_to_sum_squares_one(
+                output_network_final_state,
+                data.batch,
+            )
+
+        p = data.p[0]
+        p_prime = 1 - p
+        x_interpolated_transition_state = (
+            p_prime * output_network_initial_state + p * output_network_final_state
+        )
+
+        edge_src = data.edge_index_interpolated_transition_state[0]
+        edge_dst = data.edge_index_interpolated_transition_state[1]
+        edge_vec = (
+            data["pos_interpolated_transition_state"][edge_src]
+            - data["pos_interpolated_transition_state"][edge_dst]
+        )
+        edge_length = edge_vec.norm(dim=-1)
+        edge_length = edge_length.view(-1, 1)
+        edge_scalars = torch.ones_like(edge_vec[:, 0])
+        edge_scalars = edge_scalars.view(-1, 1)
+        kwargs_interpolated_transition_state = {
+            "node_input": x_interpolated_transition_state,
+            "node_attr": data.node_attr,
+            "edge_src": edge_src,
+            "edge_dst": edge_dst,
+            "edge_attr": edge_length,
+            "edge_scalars": edge_scalars,
+            "batch": data.batch,
+        }
+
+        output_network_interpolated_transition_state = (
+            self.network_interpolated_transition_state(
+                **kwargs_interpolated_transition_state
+            )
+        )
+
+        if self.mask_extra_basis:
+            output_network_interpolated_transition_state = (
+                output_network_interpolated_transition_state * data.basis_mask
+            )
+        if self.normalize_sumsq:
+            output_network_interpolated_transition_state = normalize_to_sum_squares_one(
+                output_network_interpolated_transition_state, data.batch
+            )
+        if self.reduce_output:
+            output_network_interpolated_transition_state = scatter(
+                output_network_interpolated_transition_state, data.batch, dim=0
+            ).div(self.num_nodes**0.5)
+
+            if self.reference_reduced_output_to_initial_state:
+                output_network_initial_state = scatter(
+                    output_network_initial_state, data.batch, dim=0
+                ).div(self.num_nodes**0.5)
+
+                output_network_interpolated_transition_state -= (
+                    output_network_initial_state
+                )
+
+            output_network_interpolated_transition_state = (
+                output_network_interpolated_transition_state.mean(dim=1)
+            )
 
         return output_network_interpolated_transition_state
