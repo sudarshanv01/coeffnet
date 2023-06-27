@@ -258,6 +258,11 @@ def get_command_line_arguments_graph_attention() -> argparse.Namespace:
         default=4,
         help="Number of attention heads.",
     )
+    parser.add_argument(
+        "--mul",
+        type=int,
+        default=50,
+    )
 
     args = parser.parse_args()
 

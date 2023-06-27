@@ -133,7 +133,7 @@ if __name__ == "__main__":
     model_options["irreps_node_input"] = train_dataset.irreps_in
     model_options["irreps_edge_attr"] = "1x0e"
     model_options["irreps_node_output"] = train_dataset.irreps_out
-    model_options["irreps_head"] = "10x0e+10x1o+10x2e"
+    model_options["irreps_head"] = f"{args.mul}x0e+{args.mul}x1o+{args.mul}x2e"
     model_options["num_heads"] = args.num_heads
     model_options["fc_neurons"] = [1, args.fc_neurons]
     logger.info(f"Model options: {model_options}")
