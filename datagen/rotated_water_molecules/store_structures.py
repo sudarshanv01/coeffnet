@@ -9,7 +9,7 @@ from ase import build as ase_build
 from pymatgen.core.structure import Molecule
 from pymatgen.io.ase import AseAtomsAdaptor
 
-from minimal_basis.transforms.rotations import RotationMatrix
+from coeffnet.transforms.rotations import RotationMatrix
 
 from instance_mongodb import instance_mongodb_sei
 
