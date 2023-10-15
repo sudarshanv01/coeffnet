@@ -1,8 +1,6 @@
-import pytest
-
 import numpy as np
-
-from conftest import mock_database, dataset_config_factory, basis_raw
+import pytest
+from conftest import basis_raw, dataset_config_factory, mock_database
 
 from coeffnet.predata.matrices import TaskdocsToData
 

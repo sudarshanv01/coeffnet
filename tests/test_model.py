@@ -1,25 +1,20 @@
-import pytest
-
 import numpy as np
-
+import pytest
 import torch
-
-from torch_geometric.data import Data
-from torch_geometric.loader import DataLoader
-
+from conftest import (
+    dataset_options_factory,
+    get_mapping_idx_to_euler_angles,
+    model_options_factory,
+    network_factory,
+)
 from e3nn import o3
 from e3nn.util.test import assert_equivariant
+from torch_geometric.data import Data
+from torch_geometric.loader import DataLoader
 
 from coeffnet.dataset.reaction import ReactionDataset
 from coeffnet.model.reaction import GateReactionModel
 from coeffnet.transforms.rotations import RotationMatrix
-
-from conftest import (
-    dataset_options_factory,
-    model_options_factory,
-    network_factory,
-    get_mapping_idx_to_euler_angles,
-)
 
 
 def test_input_model_minimal_basis(network_factory):

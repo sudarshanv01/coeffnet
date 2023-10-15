@@ -1,12 +1,9 @@
-import pytest
-
+import json
 from pathlib import Path
 
-from monty.serialization import loadfn
-
-import json
-
 import mongomock
+import pytest
+from monty.serialization import loadfn
 
 from coeffnet.model.reaction import GateReactionModel
 
@@ -118,17 +115,12 @@ def get_mapping_idx_to_euler_angles():
 @pytest.fixture
 def mock_database():
     """Mock a MongoDatabase for the purposes of testing."""
-
     documents_file = Path(__file__).parent / "input" / "collection.json"
-
     db = mongomock.MongoClient().db
     collection = db.collection
-
     documents_from_file = json.loads(documents_file.read_text())
-
     for document in documents_from_file:
         collection.insert_one(document)
-
     return db
 
 
