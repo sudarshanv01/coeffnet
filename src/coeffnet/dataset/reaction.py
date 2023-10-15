@@ -37,7 +37,7 @@ class ReactionDataset(InMemoryDataset):
         spin_channel: str = "alpha",
         pre_transform: bool = None,
         pre_filter: bool = None,
-        idx_eigenvalue: int = 0,
+        idx_eigenvalue: Union[int, Sequence] = 0,
         reactant_tag: str = "reactant",
         product_tag: str = "product",
         transition_state_tag: str = "transition_state",
@@ -101,6 +101,10 @@ class ReactionDataset(InMemoryDataset):
             self.spin_index = 0
         elif self.spin_channel == "beta":
             self.spin_index = 1
+        if isinstance(idx_eigenvalue, int):
+            self.idx_eigenvalue = np.array([idx_eigenvalue])
+        elif isinstance(idx_eigenvalue, list):
+            self.idx_eigenvalue = np.array(idx_eigenvalue)
 
         super().__init__(
             root=root,
@@ -146,7 +150,7 @@ class ReactionDataset(InMemoryDataset):
                         prev_max=max_functions[orbital],
                         group=group,
                     )
-        self.irreps_in = ""
+        irreps_in = ""
         for orbital in ORBITALS:
             num_orbitals = self._determine_num_functions_orbitals(
                 num_of_functions=max_functions[orbital],
@@ -155,10 +159,12 @@ class ReactionDataset(InMemoryDataset):
             setattr(self, f"max_{orbital}_functions", num_orbitals)
             max_function = getattr(self, f"max_{orbital}_functions")
             if max_function > 0:
-                self.irreps_in += f" +{max_function}x{IRREPS_ORBITALS[orbital]}"
-        if not self.irreps_in:
+                irreps_in += f" +{max_function}x{IRREPS_ORBITALS[orbital]}"
+        if not irreps_in:
             raise ValueError("There are no orbitals for this datapoint.")
-        self.irreps_in = self.irreps_in[2:]
+        irreps_in = " ".join([irreps_in] * self.idx_eigenvalue.shape[0])
+        irreps_in = irreps_in[2:]
+        self.irreps_in = irreps_in.replace(" ", "")
         self.irreps_out = self.irreps_in
 
     def determine_classes_for_one_hot_encoding(self):
@@ -212,7 +218,7 @@ class ReactionDataset(InMemoryDataset):
         logger.info("Successfully loaded json file with data.")
         self.determine_basis_functions_and_irreps()
         logger.info(
-            f"Determined basis functions,\
+            f"Determined basis functions per eigenvalue,\
                      s: {self.max_s_functions},\
                      p: {self.max_p_functions},\
                      d: {self.max_d_functions},\
@@ -247,22 +253,28 @@ class ReactionDataset(InMemoryDataset):
                     idx_state, self.spin_index
                 ]
                 eigenvalues = input.eigenvalues[idx_state, self.spin_index]
-                eigenvalue_idx = generate_eigenval_idx(eigenvalues)
-                modified_coeff_matrix = ModifiedCoefficientMatrixSphericalBasis(
-                    molecule_graph=molecule_graph,
-                    orbital_info=input.orbital_info,
-                    coefficient_matrix=coeff_matrix,
-                    store_idx_only=eigenvalue_idx,
-                    max_s_functions=self.max_s_functions,
-                    max_p_functions=self.max_p_functions,
-                    max_d_functions=self.max_d_functions,
-                    max_f_functions=self.max_f_functions,
-                    max_g_functions=self.max_g_functions,
-                    indices_to_keep=input.indices_to_keep,
-                )
-                node_features = modified_coeff_matrix.get_node_features()
-                node_features = node_features.reshape(node_features.shape[0], -1)
-                basis_mask = modified_coeff_matrix.basis_mask
+                eigenvalue_idx = generate_eigenval_idx(eigenvalues, self.idx_eigenvalue)
+                node_features = []
+                basis_mask = []
+                for _eigenvalue_idx in eigenvalue_idx:
+                    modified_coeff_matrix = ModifiedCoefficientMatrixSphericalBasis(
+                        molecule_graph=molecule_graph,
+                        orbital_info=input.orbital_info,
+                        coefficient_matrix=coeff_matrix,
+                        store_idx_only=_eigenvalue_idx,
+                        max_s_functions=self.max_s_functions,
+                        max_p_functions=self.max_p_functions,
+                        max_d_functions=self.max_d_functions,
+                        max_f_functions=self.max_f_functions,
+                        max_g_functions=self.max_g_functions,
+                        indices_to_keep=input.indices_to_keep,
+                    )
+                    _node_features = modified_coeff_matrix.get_node_features()
+                    _node_features = _node_features.reshape(_node_features.shape[0], -1)
+                    node_features.append(_node_features)
+                    basis_mask.append(modified_coeff_matrix.basis_mask)
+                node_features = np.concatenate(node_features, axis=1)
+                basis_mask = np.concatenate(basis_mask, axis=1)
                 data_to_store["total_energies"][state] = input.final_energy[idx_state]
                 data_to_store["pos"][state] = generate_positions(
                     molecule_graph, self.invert_coordinates

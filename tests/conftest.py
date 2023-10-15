@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Sequence, Union
 
 import mongomock
 import pytest
@@ -12,13 +13,15 @@ from coeffnet.model.reaction import GateReactionModel
 def dataset_options_factory(tmp_path):
     """Returns dataset options common to all tests."""
 
-    def _dataset_options_factory(basis_type: str = "full", **kwargs):
+    def _dataset_options_factory(
+        basis_type: str = "full", idx_eigenvalue: Union[int, Sequence] = 0, **kwargs
+    ):
         options = {
             "filename": Path(__file__).parent
             / "input"
             / f"reaction_{basis_type}_basis.json",
             "root": tmp_path / "root",
-            "idx_eigenvalue": 0,
+            "idx_eigenvalue": idx_eigenvalue,
             "reactant_tag": "reactant",
             "product_tag": "product",
             "transition_state_tag": "transition_state",
