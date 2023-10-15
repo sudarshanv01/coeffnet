@@ -3,6 +3,7 @@
 
 ![example workflow](https://github.com/sudarshanv01/minimal-basis/actions/workflows/main.yml/badge.svg?event=push)
 
+![network](images/network.pdf)
 
 Equivariant Neural Network to predict transition state properties with knowledge of only the reactant and product graphs and coefficient matrices. 
 
