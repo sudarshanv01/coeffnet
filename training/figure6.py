@@ -49,157 +49,46 @@ from figure_utils import (
     get_best_model,
 )
 
-from analysis_utils import (
-    get_instance_grid,
-    add_grid_to_fig,
-)
-
 wandb_api = wandb.Api()
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-
-def get_molecular_orbital_on_grid(
-    data, node_output, grid_points_per_axis=4, buffer_grid=1.2
-):
-    """From the coefficient matrices, get the molecular orbital info."""
-
-    data = data.cpu()
-
-    predicted_ortho_coeff_matrix_to_grid_quantities = get_instance_grid(
-        data,
-        node_output,
-        grid_points_per_axis=grid_points_per_axis,
-        buffer_grid=buffer_grid,
-        uses_cartesian_orbitals=False,
-        invert_coordinates=True,
-        basis_name=args.basis_set,
-    )
-
-    molecular_orbital = (
-        predicted_ortho_coeff_matrix_to_grid_quantities.get_molecular_orbital()
-    )
-
-    return molecular_orbital
+# There is something wrong with these entries in the dataset
+IGNORE_LIST = [
+    "E_D_E_E_A_A",
+]
 
 
-def get_coeff_matrix_performance():
-    """Get the coefficient matrix performance of the model."""
+def get_relative_energy_performance():
+    """Get the relative energy performance of the model."""
     df = pd.DataFrame()
-    df_mo = pd.DataFrame()
     for loader_name, loader in dataloaders.items():
 
         for data in loader:
 
-            output = coeff_matrix_model(data)
-            output = output.cpu().detach().numpy()
+            output = relative_energy_model(data)
 
-            expected = data.x_transition_state
+            output = output.cpu().detach().numpy()
+            expected = data.total_energy_transition_state - data.total_energy
             expected = expected.cpu().detach().numpy()
 
-            loss_positive = np.max(np.abs(output - expected))
-            loss_negative = np.max(np.abs(output + expected))
-            if loss_positive > loss_negative:
-                output = -output
+            output = output * ase_units.Ha
+            expected = expected * ase_units.Ha
 
-            # Split both `output` and `expected` into s, p, d, f, g
-            output_s = output[:, :max_s]
-            expected_s = expected[:, :max_s]
+            error = np.abs(output - expected)
 
-            if max_p > 0:
-                output_p = output[:, max_s : max_s + max_p]
-                expected_p = expected[:, max_s : max_s + max_p]
-            else:
-                output_p = None
-                expected_p = None
+            if data.identifier[0] in IGNORE_LIST:
+                continue
 
-            if max_d > 0:
-                output_d = output[:, max_s + max_p : max_s + max_p + max_d]
-                expected_d = expected[:, max_s + max_p : max_s + max_p + max_d]
-            else:
-                output_d = None
-                expected_d = None
+            data_to_store = {
+                "output": output,
+                "expected": expected,
+                "loader": loader_name,
+            }
 
-            if max_f > 0:
-                output_f = output[
-                    :, max_s + max_p + max_d : max_s + max_p + max_d + max_f
-                ]
-                expected_f = expected[
-                    :, max_s + max_p + max_d : max_s + max_p + max_d + max_f
-                ]
-            else:
-                output_f = None
-                expected_f = None
-
-            if max_g > 0:
-                output_g = output[
-                    :,
-                    max_s
-                    + max_p
-                    + max_d
-                    + max_f : max_s
-                    + max_p
-                    + max_d
-                    + max_f
-                    + max_g,
-                ]
-                expected_g = expected[
-                    :,
-                    max_s
-                    + max_p
-                    + max_d
-                    + max_f : max_s
-                    + max_p
-                    + max_d
-                    + max_f
-                    + max_g,
-                ]
-            else:
-                output_g = None
-                expected_g = None
-
-            assert max_s + max_p + max_d + max_f + max_g == output.shape[1]
-
-            output_mo = get_molecular_orbital_on_grid(
-                data,
-                output,
-                grid_points_per_axis=args.grid_points_per_axis,
-                buffer_grid=args.buffer_grid,
-            )
-            expected_mo = get_molecular_orbital_on_grid(
-                data,
-                expected,
-                grid_points_per_axis=args.grid_points_per_axis,
-                buffer_grid=args.buffer_grid,
-            )
-
-            for output, expected, basis_function_type in zip(
-                [output_s, output_p, output_d, output_f, output_g],
-                [expected_s, expected_p, expected_d, expected_f, expected_g],
-                ["s", "p", "d", "f", "g"],
-            ):
-                if output is None:
-                    continue
-                data_to_store = {
-                    "output": output.flatten(),
-                    "expected": expected.flatten(),
-                    "loader": loader_name,
-                    "basis_function_type": basis_function_type,
-                }
-                df = pd.concat([df, pd.DataFrame(data_to_store)], ignore_index=True)
-
-                data_to_store_mo = {
-                    "output": output_mo.flatten(),
-                    "expected": expected_mo.flatten(),
-                    "loader": loader_name,
-                    "basis_function_type": basis_function_type,
-                }
-                df_mo = pd.concat(
-                    [df_mo, pd.DataFrame(data_to_store_mo)], ignore_index=True
-                )
-
-    return df, df_mo
+            df = pd.concat([df, pd.DataFrame(data_to_store)], ignore_index=True)
+    return df
 
 
 def get_cli_args():
@@ -216,14 +105,9 @@ def get_cli_args():
         help="The basis set to use for the dataset",
     )
     parser.add_argument(
-        "--debug_dataset",
+        "--debug",
         action="store_true",
         help="Whether to use the debug dataset",
-    )
-    parser.add_argument(
-        "--debug_model",
-        action="store_true",
-        help="Whether to use the debug model",
     )
     parser.add_argument(
         "--model_config",
@@ -234,18 +118,6 @@ def get_cli_args():
         "--dataset_name",
         type=str,
         default="rudorff_lilienfeld_sn2_dataset",
-    )
-    parser.add_argument(
-        "--grid_points_per_axis",
-        type=int,
-        default=5,
-        help="The number of grid points per axis",
-    )
-    parser.add_argument(
-        "--buffer_grid",
-        type=float,
-        default=1.25,
-        help="The number of grid points to buffer the grid by",
     )
 
     return parser.parse_args()
@@ -267,8 +139,7 @@ if __name__ == "__main__":
     dataset_name = args.dataset_name
     basis_set = args.basis_set
     basis_set_name = get_sanitized_basis_set_name(basis_set)
-    debug_dataset = args.debug_dataset
-    debug_model = args.debug_model
+    debug_dataset = args.debug
     model_config = args.model_config
     inputs = read_inputs_yaml(model_config)
     basis_set_types = ["minimal", "full"]
@@ -276,26 +147,26 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(
         1,
         2,
-        figsize=(3.5, 1.5),
+        figsize=(2.8, 1.5),
         constrained_layout=True,
-        squeeze=False,
-        sharey=True,
         sharex=True,
+        sharey=True,
+        squeeze=False,
     )
 
-    figo, axo = plt.subplots(
+    figs, axs = plt.subplots(
         1,
         2,
         figsize=(3.5, 1.5),
         constrained_layout=True,
-        squeeze=False,
         sharex=True,
         sharey=True,
+        squeeze=False,
     )
 
     model_name = construct_model_name(
         dataset_name=dataset_name,
-        debug=debug_model,
+        debug=False,
     )
     logger.info(f"Using model name: {model_name}")
 
@@ -313,26 +184,15 @@ if __name__ == "__main__":
             **inputs["dataset_options"][f"{basis_set_type}_basis"],
         )
 
-        max_s = max_basis_functions["max_s"]
-        max_p = max_basis_functions["max_p"]
-        max_d = max_basis_functions["max_d"]
-        max_f = max_basis_functions["max_f"]
-        max_g = max_basis_functions["max_g"]
-
         df, all_runs = get_model_data(
             dataset_name=dataset_name,
             basis_set_type=basis_set_type,
             basis_set=basis_set_name,
-            debug=debug_model,
+            debug=False,
         )
 
-        if idx_type == 0:
-            legend = False
-        else:
-            legend = True
-
-        coeff_matrix_model = get_best_model(
-            prediction_mode="coeff_matrix",
+        relative_energy_model = get_best_model(
+            prediction_mode="relative_energy",
             basis_set=basis_set_name,
             basis_set_type=basis_set_type,
             df=df,
@@ -340,57 +200,35 @@ if __name__ == "__main__":
             device=DEVICE,
         )
 
-        df_coeff_matrix, df_mo = get_coeff_matrix_performance()
-        train_loader_mask = df_coeff_matrix["loader"] == "train"
-
+        df_relative_energy = get_relative_energy_performance()
+        train_loader_mask = df_relative_energy["loader"].isin(["train", "validation"])
+        if idx_type == 0:
+            legend = False
+        else:
+            legend = True
         sns.scatterplot(
-            data=df_coeff_matrix[train_loader_mask],
+            data=df_relative_energy[train_loader_mask],
             x="expected",
             y="output",
             hue="loader",
-            style="basis_function_type",
-            ax=ax[0, idx_type],
+            ax=axs[0, idx_type],
             palette="pastel",
             alpha=0.2,
             legend=legend,
         )
         sns.scatterplot(
-            data=df_coeff_matrix[~train_loader_mask],
+            data=df_relative_energy[~train_loader_mask],
             x="expected",
             y="output",
             hue="loader",
-            style="basis_function_type",
             ax=ax[0, idx_type],
-            palette="Set2",
-            alpha=0.4,
-            legend=legend,
-        )
-
-        train_loader_mask = df_mo["loader"] == "train"
-        sns.scatterplot(
-            data=df_mo[train_loader_mask],
-            x="expected",
-            y="output",
-            hue="loader",
-            style="basis_function_type",
-            ax=axo[0, idx_type],
             palette="pastel",
-            alpha=0.2,
-            legend=legend,
-        )
-        sns.scatterplot(
-            data=df_mo[~train_loader_mask],
-            x="expected",
-            y="output",
-            hue="loader",
-            style="basis_function_type",
-            ax=axo[0, idx_type],
-            palette="Set2",
-            alpha=0.4,
-            legend=legend,
+            alpha=0.5,
+            legend=False,
         )
 
-    handles, labels = ax[0, 1].get_legend_handles_labels()
+    # Place legend outside of plot for axs
+    handles, labels = axs[0, 1].get_legend_handles_labels()
     handles = [
         h
         for h, l in zip(handles, labels)
@@ -403,34 +241,14 @@ if __name__ == "__main__":
         if l not in unique_labels:
             unique_labels.append(l)
             unique_handles.append(h)
-    ax[0, 1].legend(
+    axs[0, 1].legend(
         unique_handles, unique_labels, loc="upper left", bbox_to_anchor=(1.05, 1)
     )
 
-    handles, labels = axo[0, 1].get_legend_handles_labels()
-    handles = [
-        h
-        for h, l in zip(handles, labels)
-        if "loader" not in l and "basis_function_type" not in l
-    ]
-    labels = [l for l in labels if "loader" not in l and "basis_function_type" not in l]
-    unique_labels = []
-    unique_handles = []
-    for h, l in zip(handles, labels):
-        if l not in unique_labels:
-            unique_labels.append(l)
-            unique_handles.append(h)
-    axo[0, 1].legend(
-        unique_handles, unique_labels, loc="upper left", bbox_to_anchor=(1.05, 1)
-    )
-
-    ax[0, 0].set_ylabel(r"Predicted $ \mathbf{C}_{\mathrm{TS}} $")
-    ax[0, 0].set_xlabel(r"DFT $ \mathbf{C}_{\mathrm{TS}}$")
-    ax[0, 1].set_xlabel(r"DFT $ \mathbf{C}_{\mathrm{TS}} $")
-
-    axo[0, 0].set_ylabel(r"Predicted $ \psi_{\mathrm{TS}} \left( \mathbf{r} \right) $")
-    axo[0, 0].set_xlabel(r"DFT $ \psi_{\mathrm{TS}} \left( \mathbf{r} \right) $")
-    axo[0, 1].set_xlabel(r"DFT $ \psi_{\mathrm{TS}} \left( \mathbf{r} \right) $")
+    ax[0, 0].set_ylabel(r"Predicted $E_{\mathrm{TS}} - E_{\mathrm{IS}}$ (eV)")
+    ax[0, 0].set_xlabel(r"DFT $E_{\mathrm{TS}} - E_{\mathrm{IS}}$ (eV)")
+    ax[0, 1].set_xlabel(r"DFT $E_{\mathrm{TS}} - E_{\mathrm{IS}}$ (eV)")
+    ax[0, 1].set_ylabel("")
 
     # Draw parity lines for all plots
     for i in range(2):
@@ -442,29 +260,35 @@ if __name__ == "__main__":
             alpha=0.5,
             zorder=0,
         )
-        axo[0, i].plot(
-            axo[0, i].get_xlim(),
-            axo[0, i].get_xlim(),
+        ax[0, i].set_aspect("equal", "box")
+        character = chr(ord("a") + i)
+        ax[0, i].set_title(f"{character}) {basis_set_types[i].capitalize()} basis")
+
+        axs[0, i].plot(
+            axs[0, i].get_xlim(),
+            axs[0, i].get_xlim(),
             ls="--",
             c=".3",
             alpha=0.5,
             zorder=0,
         )
-        ax[0, i].set_aspect("equal", "box")
-        axo[0, i].set_aspect("equal", "box")
-        character = chr(ord("a") + i)
-        ax[0, i].set_title(f"{character}) {basis_set_types[i].capitalize()} basis")
-        axo[0, i].set_title(f"{character}) {basis_set_types[i].capitalize()} basis")
+        axs[0, i].set_aspect("equal", "box")
+        axs[0, i].set_title(f"{character}) {basis_set_types[i].capitalize()} basis")
 
     fig.savefig(
-        __output_folder__ / f"figure6_coeff_{dataset_name}_{basis_set_name}.png",
+        __output_folder__ / f"figure6_{dataset_name}_{basis_set_name}.png", dpi=300
+    )
+    fig.savefig(
+        __output_folder__ / f"figure6_{dataset_name}_{basis_set_name}.pdf",
         dpi=300,
-    )
-    figo.savefig(
-        __output_folder__ / f"figure6_mo_{dataset_name}_{basis_set_name}.png", dpi=300
+        transparent=True,
     )
 
-    fig.savefig(
-        __output_folder__ / f"figure6_coeff_{dataset_name}_{basis_set_name}.pdf"
+    figs.savefig(
+        __output_folder__ / f"figure6s_{dataset_name}_{basis_set_name}.png", dpi=300
     )
-    figo.savefig(__output_folder__ / f"figure6_mo_{dataset_name}_{basis_set_name}.pdf")
+    figs.savefig(
+        __output_folder__ / f"figure6s_{dataset_name}_{basis_set_name}.pdf",
+        dpi=300,
+        transparent=True,
+    )

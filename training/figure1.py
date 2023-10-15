@@ -91,25 +91,32 @@ def get_data(basis_sets: list = None):
                 _angular_momenta = np.array(_angular_momenta)
                 _basis_functions = 2 * _angular_momenta + 1
                 symbol = symbols[_idx]
+                _ns = 1
+                _np = 2
+                _nd = 3
+                _nf = 4
+                _ng = 5
                 for _basis_function in _basis_functions:
                     if _basis_function == 1:
-                        basis_functions_orbital.extend([f"{symbol}(s)"])
+                        basis_functions_orbital.extend([f"{symbol}({_ns}s)"])
                         irreps += "+1x0e"
                         indices_to_keep.append(idx)
                         indices_s_orbitals.append([idx])
                         idx += 1
+                        _ns += 1
                     elif _basis_function == 3:
                         basis_functions_orbital.extend(
-                            [f"{symbol}(p)", f"{symbol}(p)", f"{symbol}(p)"]
+                            [f"{symbol}({_np}p)" for _ in range(3)]
                         )
                         irreps += "+1x1o"
                         indices_to_keep.extend([idx + 1, idx + 2, idx])
                         indices_p_orbitals.append([idx + 1, idx + 2, idx])
                         idx += 3
+                        _np += 1
                     elif _basis_function == 5:
                         if basis_set_type == "full":
                             basis_functions_orbital.extend(
-                                [f"{symbol}(d)" for _ in range(5)]
+                                [f"{symbol}({_nd}d)" for _ in range(5)]
                             )
                             irreps += "+1x2e"
                             indices_to_keep.extend(
@@ -118,11 +125,12 @@ def get_data(basis_sets: list = None):
                             indices_d_orbitals.append(
                                 [idx, idx + 1, idx + 2, idx + 3, idx + 4]
                             )
+                            _nd += 1
                         idx += 5
                     elif _basis_function == 7:
                         if basis_set_type == "full":
                             basis_functions_orbital.extend(
-                                [f"{symbol}(f)" for _ in range(7)]
+                                [f"{symbol}({_nf}f)" for _ in range(7)]
                             )
                             irreps += "+1x3o"
                             indices_to_keep.extend(
@@ -147,11 +155,12 @@ def get_data(basis_sets: list = None):
                                     idx + 6,
                                 ]
                             )
+                            _nf += 1
                         idx += 7
                     elif _basis_function == 9:
                         if basis_set_type == "full":
                             basis_functions_orbital.extend(
-                                [f"{symbol}g" for _ in range(9)]
+                                [f"{symbol}({_ng}g)" for _ in range(9)]
                             )
                             irreps += "+1x4e"
                             indices_to_keep.extend(
@@ -167,6 +176,7 @@ def get_data(basis_sets: list = None):
                                     idx + 8,
                                 ]
                             )
+                            _ng += 1
                         idx += 9
                     else:
                         raise NotImplementedError
@@ -245,6 +255,9 @@ if __name__ == "__main__":
 
     for _idx in range(len(data[basis_set]["euler_angles"])):
 
+        if _idx > 5:
+            continue
+
         angles = data[basis_set]["euler_angles"][_idx]
         torch_angles = torch.tensor(angles, dtype=torch.float64)
 
@@ -283,7 +296,12 @@ if __name__ == "__main__":
     plot_new_coeff_matrix = np.array(plot_new_coeff_matrix)
     plot_calculated_coeff_matrix = np.array(plot_calculated_coeff_matrix)
 
-    fig, ax = plt.subplots(1, 3, figsize=(3.8, 1.8), constrained_layout=True)
+    # fig, ax = plt.subplots(1, 3, figsize=(4, 2.))
+    # Make a grid spec for the figure where the first two columns are 1:1
+    # and the third column is twice as wide
+    fig = plt.figure(figsize=(3.25, 2.4))
+    gs = fig.add_gridspec(1, 3, width_ratios=[1, 1, 3.5])
+    ax = gs.subplots()
 
     cax = ax[0].imshow(plot_new_coeff_matrix[0], cmap="coolwarm", vmin=-1, vmax=1)
     cax1 = ax[1].imshow(
@@ -297,24 +315,29 @@ if __name__ == "__main__":
     cbar1.ax.tick_params(labelsize=5)
 
     ax[0].set_yticks(np.arange(len(data[basis_set]["basis_functions_orbital"][0])))
-    ax[0].set_yticklabels(data[basis_set]["basis_functions_orbital"][0], fontsize=4)
+    ax[0].set_yticklabels(data[basis_set]["basis_functions_orbital"][0], fontsize=3)
     ax[1].set_yticks(np.arange(len(data[basis_set]["basis_functions_orbital"][0])))
-    ax[1].set_yticklabels(data[basis_set]["basis_functions_orbital"][0], fontsize=4)
+    ax[1].set_yticklabels(data[basis_set]["basis_functions_orbital"][0], fontsize=3)
 
     ax[0].set_xticks(np.arange(len(eigenvalues[plotted_index])))
     ax[0].set_xticklabels(
-        np.round(eigenvalues[plotted_index], 2), rotation=90, fontsize=4
+        np.round(eigenvalues[plotted_index], 2),
+        rotation=90,
+        fontsize=4,
     )
     ax[1].set_xticks(np.arange(len(eigenvalues[plotted_index])))
     ax[1].set_xticklabels(
-        np.round(eigenvalues[plotted_index], 2), rotation=90, fontsize=4
+        np.round(eigenvalues[plotted_index], 2),
+        rotation=90,
+        fontsize=4,
     )
     ax[0].set_title(
         r"a) $\mathbf{C}\left(\alpha_0,\beta_0,\gamma_0\right)$", fontsize=6
     )
     ax[1].set_title(r"b) $\mathbf{C}\left(\alpha,\beta,\gamma\right)$", fontsize=6)
 
-    ax[0].set_ylabel("Basis function", fontsize=5)
+    ax[0].set_ylabel("Atomic orbital", fontsize=5)
+    ax[1].set_ylabel("Atomic orbital", fontsize=5)
     ax[0].set_xlabel("Eigenvalue [eV]", fontsize=5)
     ax[1].set_xlabel("Eigenvalue [eV]", fontsize=5)
 
@@ -328,10 +351,11 @@ if __name__ == "__main__":
 
     for i in range(calculated_coeff_matrix.shape[0]):
         angles = data[basis_set]["euler_angles"][i]
-        label = r"$\alpha=%1.1f, \beta=%1.1f, \gamma=%1.1f$" % (
-            angles[0],
-            angles[1],
-            angles[2],
+        angles /= np.pi
+        label = r"$\alpha=%s, \beta=%s, \gamma=%s$" % (
+            f"{angles[0]:.1f}" + r"\pi",
+            f"{angles[1]:.1f}" + r"\pi",
+            f"{angles[2]:.1f}" + r"\pi",
         )
         ax[2].plot(
             np.abs(calculated_coeff_matrix[i, :, selected_eigenval_index]),
@@ -341,12 +365,14 @@ if __name__ == "__main__":
             label=label,
             color=colors[i],
         )
-    # Place legend outside the plot
+    # Place the legend outside the plot and below it
     ax[2].legend(
-        bbox_to_anchor=(1.05, 1),
-        loc="upper left",
-        borderaxespad=0.0,
-        fontsize=4,
+        bbox_to_anchor=(0, 1.02, 1, 0.2),
+        loc="lower left",
+        mode="expand",
+        borderaxespad=0,
+        ncol=1,
+        fontsize=3,
     )
     # Draw the parity line
     ax[2].plot(
@@ -364,6 +390,9 @@ if __name__ == "__main__":
         r"$\left|\mathbf{C}^{\mathrm{HOMO}} (\alpha_0, \beta_0, \gamma_0) \cdot \mathbf{D}^T(\alpha, \beta, \gamma)\right|$",
         fontsize=5,
     )
+    # Set the ticklabel fontsize
+    ax[2].tick_params(axis="x", labelsize=5)
+    ax[2].tick_params(axis="y", labelsize=5)
 
     # Switch off minor ticks for the first two ax
     ax[0].tick_params(axis="both", which="both", length=0)
@@ -380,5 +409,6 @@ if __name__ == "__main__":
         va="top",
     )
 
-    fig.savefig(__output_dir__ / f"figure1.png", dpi=300)
-    fig.savefig(__output_dir__ / f"figure1.pdf", dpi=300)
+    fig.tight_layout()
+    fig.savefig(__output_dir__ / f"figure1.png", dpi=400)
+    fig.savefig(__output_dir__ / f"figure1.pdf", dpi=400, transparent=True)
