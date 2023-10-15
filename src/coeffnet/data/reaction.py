@@ -1,27 +1,17 @@
-from typing import List, Dict, Union, Any
 import logging
+from typing import Any, Dict, List, Union
 
-import numpy.typing as npt
 import numpy as np
-
-from ase import data as ase_data
-
+import numpy.typing as npt
 import torch
+from ase import data as ase_data
+from e3nn import o3
+from pymatgen.analysis.graphs import MoleculeGraph
+from pymatgen.core.structure import Molecule
 from torch_geometric.data import Data
 from torch_geometric.typing import OptTensor
 
-from pymatgen.core.structure import Molecule
-from pymatgen.analysis.graphs import MoleculeGraph
-
-from e3nn import o3
-
-from coeffnet.data._dtype import (
-    DTYPE,
-    DTYPE_INT,
-    DTYPE_BOOL,
-    TORCH_FLOATS,
-    TORCH_INTS,
-)
+from coeffnet.data._dtype import DTYPE, DTYPE_BOOL, DTYPE_INT, TORCH_FLOATS, TORCH_INTS
 from coeffnet.predata.cart_to_sph import cart_to_sph_d
 
 logger = logging.getLogger(__name__)
@@ -62,7 +52,7 @@ class ReactionDataPoint(Data):
         if pos is not None:
             pos_initial_state = pos[reactant_tag]
             pos_final_state = pos[product_tag]
-            pos_interpolated_transition_state = pos["interpolated_transition_state"]
+            pos_interpolated_transition_state = pos["interp_ts"]
             pos_transition_state = pos[transition_state_tag]
 
             pos_initial_state = convert_to_tensor(pos_initial_state)
@@ -94,9 +84,7 @@ class ReactionDataPoint(Data):
         if edge_index is not None:
             edge_index_initial_state = edge_index[reactant_tag]
             edge_index_final_state = edge_index[product_tag]
-            edge_index_interpolated_transition_state = edge_index[
-                "interpolated_transition_state"
-            ]
+            edge_index_interpolated_transition_state = edge_index["interp_ts"]
             edge_index_transition_state = edge_index[transition_state_tag]
 
             edge_index_initial_state = convert_to_tensor(
