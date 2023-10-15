@@ -15,6 +15,7 @@ from fireworks.user_objects.dupefinders.dupefinder_exact import DupeFinderExact
 
 lp = LaunchPad.from_file("/global/u1/s/svijay/fw_config/my_launchpad_mlts.yaml")
 
+
 def get_cli():
     args = argparse.ArgumentParser()
     args.add_argument("--dryrun", action="store_true", default=False)
@@ -44,7 +45,7 @@ if __name__ == "__main__":
         molecule = Molecule.from_dict(molecule_dict)
         document.pop("_id")
         tags = document
-        tags['group'] = "visualize_difficult_transition_state"
+        tags["group"] = "visualize_difficult_transition_state"
         print(tags)
 
         firew = SinglePointFW(

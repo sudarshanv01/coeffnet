@@ -1,4 +1,3 @@
-
 import numpy as np
 
 import matplotlib.pyplot as plt
@@ -26,9 +25,9 @@ if __name__ == "__main__":
 
     for idx, document in enumerate(collection.find(find_tags)):
 
-        molecule = document['output']['initial_molecule']
+        molecule = document["output"]["initial_molecule"]
         molecule = Molecule.from_dict(molecule)
-        energy = document['output']['final_energy']
+        energy = document["output"]["final_energy"]
 
         positions = [a.coords for a in molecule.sites]
 
@@ -59,7 +58,6 @@ if __name__ == "__main__":
     im = ax.tricontourf(x, y, z, levels=100, cmap="viridis")
     # Add a colorbar.
     fig.colorbar(im, ax=ax, label="Energy (eV)")
-
 
     ax.set_xlabel("Distance (Å)")
     ax.set_ylabel("Distance (Å)")

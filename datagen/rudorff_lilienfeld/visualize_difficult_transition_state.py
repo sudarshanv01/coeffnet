@@ -8,10 +8,10 @@ from instance_mongodb import instance_mongodb_sei
 
 
 def generate_potential_energy_scan(
-        molecule: Molecule,
-        index_fixed: int,
-        index_move: int,
-        distance: float,
+    molecule: Molecule,
+    index_fixed: int,
+    index_move: int,
+    distance: float,
 ):
     """Generate a potential energy scan along a bond."""
 
@@ -37,8 +37,9 @@ def generate_potential_energy_scan(
     # Set new positions
     for i, a in enumerate(new_molecule.sites):
         a.coords = new_positions[i]
-    
+
     return new_molecule
+
 
 if __name__ == "__main__":
     """Get the structure of a difficult to compute transition state."""
@@ -61,13 +62,17 @@ if __name__ == "__main__":
     )
 
     for doc in doc_ffopt:
-        if len(doc['opt_trajectory']) > 200:
-            opt_trajectory = doc['opt_trajectory']
-            opt_trajectory = [Molecule.from_dict(mol['molecule']) for mol in opt_trajectory]
+        if len(doc["opt_trajectory"]) > 200:
+            opt_trajectory = doc["opt_trajectory"]
+            opt_trajectory = [
+                Molecule.from_dict(mol["molecule"]) for mol in opt_trajectory
+            ]
             for i, mol in enumerate(opt_trajectory):
-                filename = __output_folder__ / f"{doc['tags']['reaction_name']}_ts_{i}.xyz"
+                filename = (
+                    __output_folder__ / f"{doc['tags']['reaction_name']}_ts_{i}.xyz"
+                )
                 mol.to(str(filename))
-            
+
             ts_molecule = opt_trajectory[-1]
 
             for idx_scaling_1, scaling_1 in enumerate(scalings):
@@ -87,11 +92,14 @@ if __name__ == "__main__":
                         distance=scaling_2,
                     )
 
-                    filename = __output_folder__ / f"scaling_{scaling_1}_scaling_{scaling_2}.xyz"
+                    filename = (
+                        __output_folder__
+                        / f"scaling_{scaling_1}_scaling_{scaling_2}.xyz"
+                    )
                     new_molecule.to(str(filename))
 
                     data_to_store = {
-                        "reaction_name": doc['tags']['reaction_name'],
+                        "reaction_name": doc["tags"]["reaction_name"],
                         "scaling": [scaling_1, scaling_2],
                         "molecule": new_molecule.as_dict(),
                     }
