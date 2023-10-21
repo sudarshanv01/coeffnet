@@ -135,39 +135,10 @@ class ReactionDataPoint(Data):
             species_final_state = None
             species_transition_state = None
 
-        if orthogonalization_matrix is not None:
-            orthogonalization_matrix_initial_state = orthogonalization_matrix[
-                reactant_tag
-            ]
-            orthogonalization_matrix_final_state = orthogonalization_matrix[product_tag]
-            orthogonalization_matrix_transition_state = orthogonalization_matrix[
-                transition_state_tag
-            ]
-
-            orthogonalization_matrix_initial_state = convert_to_tensor(
-                orthogonalization_matrix_initial_state
-            )
-            orthogonalization_matrix_final_state = convert_to_tensor(
-                orthogonalization_matrix_final_state
-            )
-            orthogonalization_matrix_transition_state = convert_to_tensor(
-                orthogonalization_matrix_transition_state
-            )
-
-        else:
-            orthogonalization_matrix_initial_state = None
-            orthogonalization_matrix_final_state = None
-            orthogonalization_matrix_transition_state = None
-
         if basis_mask is not None:
             basis_mask = convert_to_tensor(basis_mask, dtype=DTYPE_BOOL)
         else:
             basis_mask = None
-
-        if indices_to_keep is not None:
-            indices_to_keep = convert_to_tensor(indices_to_keep, dtype=DTYPE_INT)
-        else:
-            indices_to_keep = None
 
         if species_initial_state is not None:
             one_hot_species = torch.zeros(
@@ -197,11 +168,7 @@ class ReactionDataPoint(Data):
             total_energy=total_energy_initial_state,
             total_energy_final_state=total_energy_final_state,
             total_energy_transition_state=total_energy_transition_state,
-            orthogonalization_matrix=orthogonalization_matrix_initial_state,
-            orthogonalization_matrix_final_state=orthogonalization_matrix_final_state,
-            orthogonalization_matrix_transition_state=orthogonalization_matrix_transition_state,
             basis_mask=basis_mask,
-            indices_to_keep=indices_to_keep,
             **kwargs,
         )
 
