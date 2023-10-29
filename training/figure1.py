@@ -25,7 +25,7 @@ __output_dir__.mkdir(exist_ok=True)
 basis_set = "def2-svp"
 get_plot_params()
 
-def get_angular_moment_for_basis(basis_set, elements=None):
+def _get_angular_moment_for_basis(basis_set, elements=None):
     if not elements:
         elements=list(range(1,18))
     basis_info = bse.get_basis(basis_set, fmt="json", elements=elements)
@@ -45,6 +45,21 @@ def get_angular_moment_for_basis(basis_set, elements=None):
     return angular_momenta
 
 def generate_taskdoc(collection, basis_set):
+    """Generator to create required taskdocs for this figure.
+    
+    The taskdocs are generated based on the assumption that calculations for inverted
+    coordinated (z,x,y) with spherical basis sets are used. Only the basis set specified
+    in basis_set is used. 
+
+    Args
+    ----
+        collection (Collection): The collection to take data from
+        basis_set (str): Basis set
+
+    Yields
+    ------
+        taskdoc: Task document 
+    """
     find_tags = {
         "orig.rem.basis": basis_set,
         "tags.inverted_coordinates": True,
@@ -54,11 +69,11 @@ def generate_taskdoc(collection, basis_set):
     for doc in collection.find(find_tags).sort("tags.idx", 1):
         yield doc
 
-def get_quantity_from_doc(doc, quantity):
+def _get_quantity_from_doc(doc, quantity):
     data = doc["calcs_reversed"][0][quantity]
     return np.array(data)
 
-def get_basis_functions_info(molecule, angular_momenta): 
+def _get_basis_functions_info(molecule, angular_momenta): 
     atom_symbols = [site.specie.symbol for site in molecule.sites]
     atom_numbers = [atomic_numbers[symbol] for symbol in atom_symbols]
     irreps = ""
@@ -136,6 +151,15 @@ class DatasetEigenvalueSpin:
             self.rotated_ortho_coeff_matrix = np.array(self.rotated_ortho_coeff_matrix)
 
 def rotate_coeff_matrix(data):
+    """Rotates the coefficient matrix.
+
+    Rotates both the coefficient matrix and the orthogonal coefficient matrix. Check the
+    manuscript for more details on the rotation. The dataclass that is passed in is 
+    updated with the rotated matrices.
+
+    Args:
+        data (DatasetEigenvalueSpin): Dataclass for the eigenvalues
+    """
     irreps = o3.Irreps(data.irreps)
     for idx, angle in enumerate(data.euler_angle):
         rotation_matrix = RotationMatrix(angle_type="euler", angles=angle)()
@@ -154,17 +178,31 @@ def rotate_coeff_matrix(data):
         data.rotated_ortho_coeff_matrix.append(rotated_ortho_coeff_matrix)
 
 def get_data(collection, basis_set):
+    """Get data from the collection
+
+    For a given basis set, get data from the collection and post-process for rotations
+    for the coefficient matrix.
+
+    Args
+    ----
+        collection (Collection): The collection to take data from
+        basis_set (str): Basis set
+    
+    Returns
+    -------
+        data (DatasetEigenvalueSpin): Dataclass with all the data
+    """
     data = defaultdict(lambda: defaultdict(list))
-    angular_momenta = get_angular_moment_for_basis(basis_set)
+    angular_momenta = _get_angular_moment_for_basis(basis_set)
     data = DatasetEigenvalueSpin()
     data.basis_set = basis_set
     for idx, doc in enumerate(generate_taskdoc(collection, basis_set)): 
-        raw_alpha_coeff_matrix = get_quantity_from_doc(doc, "alpha_coeff_matrix")
-        raw_alpha_fock_matrix = get_quantity_from_doc(doc, "alpha_fock_matrix")
-        raw_alpha_eigenvalues = get_quantity_from_doc(doc, "alpha_eigenvalues")
+        raw_alpha_coeff_matrix = _get_quantity_from_doc(doc, "alpha_coeff_matrix")
+        raw_alpha_fock_matrix = _get_quantity_from_doc(doc, "alpha_fock_matrix")
+        raw_alpha_eigenvalues = _get_quantity_from_doc(doc, "alpha_eigenvalues")
         molecule = Molecule.from_dict(doc["orig"]["molecule"])
         if idx == 0:
-            basis_functions_info = get_basis_functions_info(molecule, angular_momenta)
+            basis_functions_info = _get_basis_functions_info(molecule, angular_momenta)
             data.basis_functions_orbital = basis_functions_info["basis_functions_orbital"]
             data.irreps = basis_functions_info["irreps"]
         base_quantities_qchem = ReducedBasisMatrices(
