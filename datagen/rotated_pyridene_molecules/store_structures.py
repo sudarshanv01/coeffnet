@@ -1,18 +1,14 @@
-from typing import List, Any
-
 import argparse
+from typing import Any, List
 
 import numpy as np
-
 from ase import build as ase_build
 from ase.data.pubchem import pubchem_atoms_search
-
+from instance_mongodb import instance_mongodb_sei
 from pymatgen.core.structure import Molecule
 from pymatgen.io.ase import AseAtomsAdaptor
 
 from coeffnet.transforms.rotations import RotationMatrix
-
-from instance_mongodb import instance_mongodb_sei
 
 
 def get_command_line_arguments():
