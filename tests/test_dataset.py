@@ -78,6 +78,7 @@ def test_output_dataset_minimal_basis(dataset_options_factory):
         assert data.pos_transition_state.shape == (num_atoms, 3)
         assert data.species.shape == (num_atoms, 1)
         assert data.basis_mask.shape == (num_atoms, 13)
+        assert data.number_eigenvalues == 1
 
 
 def test_output_dataset_minimal_basis_multiple_eigenval(dataset_options_factory):
@@ -95,6 +96,7 @@ def test_output_dataset_minimal_basis_multiple_eigenval(dataset_options_factory)
         assert data.pos_transition_state.shape == (num_atoms, 3)
         assert data.species.shape == (num_atoms, 1)
         assert data.basis_mask.shape == (num_atoms, 26)
+        assert data.number_eigenvalues == 2
 
 
 def test_output_dataset_full_basis(dataset_options_factory):
@@ -112,6 +114,7 @@ def test_output_dataset_full_basis(dataset_options_factory):
         assert data.pos_transition_state.shape == (num_atoms, 3)
         assert data.species.shape == (num_atoms, 1)
         assert data.basis_mask.shape == (num_atoms, 18)
+        assert data.number_eigenvalues == 1
 
 
 def test_output_dataset_full_basis_multiple_eigenval(dataset_options_factory):
@@ -129,6 +132,7 @@ def test_output_dataset_full_basis_multiple_eigenval(dataset_options_factory):
         assert data.pos_transition_state.shape == (num_atoms, 3)
         assert data.species.shape == (num_atoms, 1)
         assert data.basis_mask.shape == (num_atoms, 36)
+        assert data.number_eigenvalues == 2
 
 
 def test_equivariance_dataset_minimal_basis(

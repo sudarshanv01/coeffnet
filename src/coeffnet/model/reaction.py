@@ -1,30 +1,27 @@
-from typing import Union, Dict, Optional
-
 import logging
+from typing import Dict, Optional, Union
 
 import torch
-from torch_geometric.data import Data
-from torch_scatter import scatter
-
-from torch_cluster import radius_graph
-
 from e3nn import o3
 from e3nn.math import soft_one_hot_linspace
 from e3nn.nn.models.gate_points_2102 import Network as GateNetwork
 from e3nn.nn.models.gate_points_2102 import smooth_cutoff
 from e3nn.nn.models.v2106.gate_points_networks import MessagePassing
+from torch_cluster import radius_graph
+from torch_geometric.data import Data
+from torch_scatter import scatter
 
 logger = logging.getLogger(__name__)
 
 
-def normalize_to_sum_squares_one(x: torch.Tensor, batch: torch.Tensor) -> torch.Tensor:
-    """Normalize the output such that the sum of squares of each graph is 1."""
-
+def normalize_to_sum_squares_one(
+    x: torch.Tensor, batch: torch.Tensor, number_eigenvalues: int = 1
+) -> torch.Tensor:
+    """Normalize the output such that the sum of squares of each graph is 1 per eigenvalue."""
     sum_squares_output = torch.sum(x**2, dim=1)
     sum_squares_graph = scatter(sum_squares_output, batch, dim=0, reduce="sum")
     normalization_factor = torch.sqrt(sum_squares_graph)
-    x = x / normalization_factor[batch].unsqueeze(1)
-
+    x = torch.sqrt(number_eigenvalues) * x / normalization_factor[batch].unsqueeze(1)
     return x
 
 
@@ -252,7 +249,9 @@ class GateReactionModel(torch.nn.Module):
             )
         if self.normalize_sumsq:
             output_network_initial_state = normalize_to_sum_squares_one(
-                output_network_initial_state, data.batch
+                output_network_initial_state,
+                data.batch,
+                data.number_eigenvalues,
             )
 
         kwargs_final_state = {
@@ -270,7 +269,9 @@ class GateReactionModel(torch.nn.Module):
             output_network_final_state = output_network_final_state * data.basis_mask
         if self.normalize_sumsq:
             output_network_final_state = normalize_to_sum_squares_one(
-                output_network_final_state, data.batch
+                output_network_final_state,
+                data.batch,
+                data.number_eigenvalues,
             )
 
         p = data.p[0]
@@ -300,7 +301,9 @@ class GateReactionModel(torch.nn.Module):
             )
         if self.normalize_sumsq:
             output_network_interpolated_transition_state = normalize_to_sum_squares_one(
-                output_network_interpolated_transition_state, data.batch
+                output_network_interpolated_transition_state,
+                data.batch,
+                data.number_eigenvalues,
             )
         if self.reduce_output:
             output_network_interpolated_transition_state = scatter(
@@ -567,7 +570,9 @@ class MessagePassingReactionModel(torch.nn.Module):
             )
         if self.normalize_sumsq:
             output_network_initial_state = normalize_to_sum_squares_one(
-                output_network_initial_state, data.batch
+                output_network_initial_state,
+                data.batch,
+                data.number_eigenvalues,
             )
 
         output_network_final_state = self.network_final_state(kwargs_final_state)
@@ -576,7 +581,9 @@ class MessagePassingReactionModel(torch.nn.Module):
             output_network_final_state = output_network_final_state * data.basis_mask
         if self.normalize_sumsq:
             output_network_final_state = normalize_to_sum_squares_one(
-                output_network_final_state, data.batch
+                output_network_final_state,
+                data.batch,
+                data.number_eigenvalues,
             )
 
         p = data.p[0]
@@ -606,7 +613,9 @@ class MessagePassingReactionModel(torch.nn.Module):
             )
         if self.normalize_sumsq:
             output_network_interpolated_transition_state = normalize_to_sum_squares_one(
-                output_network_interpolated_transition_state, data.batch
+                output_network_interpolated_transition_state,
+                data.batch,
+                data.number_eigenvalues,
             )
         if self.reduce_output:
             output_network_interpolated_transition_state = scatter(

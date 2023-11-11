@@ -3,7 +3,9 @@ filter_collection:
   "input.job_type": "sp"
   "tags.inverted_coordinates": true
   "orig.rem.purecart": "1111"
-  "tags.number_of_bond_changes": 1
+  "tags.number_of_bond_changes":
+    "$gt": -2
+    "$lt": 2
 identifier: "rxn_number"
 state_identifier: "state"
 reactant_tag: "reactant"

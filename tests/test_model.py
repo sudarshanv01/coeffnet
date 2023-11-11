@@ -90,22 +90,33 @@ def test_sum_square_one_minimal_basis(dataset_options_factory, model_options_fac
         assert torch.allclose(sum_sq_output, torch.ones_like(sum_sq_output))
 
 
-def test_sum_square_one_full_basis(dataset_options_factory, model_options_factory):
-    """Test that the output of each network pass is normalized to sum of squares one."""
-    dataset_options = dataset_options_factory(basis_type="full")
+@pytest.mark.parametrize("basis_type", ["full", "minimal"])
+@pytest.mark.parametrize("idx_eigenvalue", [[0], [0, -1]])
+def test_normalized_sum_squared_coefficients(
+    dataset_options_factory, model_options_factory, basis_type, idx_eigenvalue
+):
+    """Test that the output of each network pass is normalized to the right number."""
+    dataset_options = dataset_options_factory(
+        basis_type=basis_type, idx_eigenvalue=idx_eigenvalue
+    )
     dataset = ReactionDataset(**dataset_options)
     loader = DataLoader(dataset, batch_size=1, shuffle=False)
-
     model_options = model_options_factory(
-        prediction_mode="coeff_matrix", basis_type="full"
+        prediction_mode="coeff_matrix",
+        basis_type=basis_type,
     )
     model_options["normalize_sumsq"] = True
+    # Overwrite the irreps of the model with that coming from the dataset
+    model_options["irreps_in"] = dataset.irreps_in
+    model_options["irreps_out"] = dataset.irreps_out
+    number_eigenvals = len(idx_eigenvalue)
     model = GateReactionModel(**model_options)
-
     for batch in loader:
         output = model(batch)
         sum_sq_output = torch.sum(output**2)
-        assert torch.allclose(sum_sq_output, torch.ones_like(sum_sq_output))
+        assert torch.allclose(
+            sum_sq_output, number_eigenvals * torch.ones_like(sum_sq_output)
+        )
 
 
 def test_masked_basis_are_masked_minimal_basis(
@@ -168,6 +179,7 @@ def test_equivariance_minimal_basis(dataset_options_factory, network_factory):
                 edge_index_interpolated_transition_state
             ),
             node_attr=node_attr,
+            number_eigenvalues=torch.tensor([1]),
         )
 
         return model(data)
@@ -222,6 +234,7 @@ def test_equivariance_full_basis(dataset_options_factory, network_factory):
                 edge_index_interpolated_transition_state
             ),
             node_attr=node_attr,
+            number_eigenvalues=torch.tensor([1]),
         )
 
         return model(data)

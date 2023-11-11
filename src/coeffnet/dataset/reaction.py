@@ -317,6 +317,7 @@ class ReactionDataset(InMemoryDataset):
                 irreps_out=self.irreps_out,
                 irreps_node_attr=self.irreps_node_attr,
                 occupancy_dict=self.occupancy_dict,
+                number_eigenvalues=len(self.idx_eigenvalue),
             )
             datapoint_list.append(datapoint)
         data, slices = self.collate(datapoint_list)
