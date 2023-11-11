@@ -21,7 +21,11 @@ def normalize_to_sum_squares_one(
     sum_squares_output = torch.sum(x**2, dim=1)
     sum_squares_graph = scatter(sum_squares_output, batch, dim=0, reduce="sum")
     normalization_factor = torch.sqrt(sum_squares_graph)
-    x = torch.sqrt(number_eigenvalues) * x / normalization_factor[batch].unsqueeze(1)
+    x = (
+        torch.sqrt(number_eigenvalues[batch].unsqueeze(1))
+        * x
+        / normalization_factor[batch].unsqueeze(1)
+    )
     return x
 
 
