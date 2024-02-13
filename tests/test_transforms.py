@@ -1,7 +1,5 @@
-import pytest
-
 import numpy as np
-
+import pytest
 from scipy.spatial.transform import Rotation as R
 
 from coeffnet.transforms.rotations import RotationMatrix

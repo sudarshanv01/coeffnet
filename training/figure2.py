@@ -158,7 +158,7 @@ if __name__ == "__main__":
     ax[1].set_xticks(np.arange(3))
     ax[1].set_xticklabels(["reactant", "transition state", "product"], rotation=90)
 
-    ax[0].set_ylabel("Selected basis functions")
+    ax[0].set_ylabel("Selected atomic orbitals")
     ax[0].set_title("a) Full basis")
     ax[1].set_title("b) Minimal basis")
 
@@ -169,4 +169,4 @@ if __name__ == "__main__":
     ax[1].tick_params(axis="both", which="both", length=0)
 
     fig.savefig(__output_dir__ / f"figure2.png", dpi=300)
-    fig.savefig(__output_dir__ / f"figure2.pdf", dpi=300)
+    fig.savefig(__output_dir__ / f"figure2.pdf", dpi=300, transparent=True)

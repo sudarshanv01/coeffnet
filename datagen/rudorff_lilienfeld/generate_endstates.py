@@ -13,7 +13,7 @@ import ase.io as ase_io
 
 from instance_mongodb import instance_mongodb_sei
 
-from minimal_basis.datagen.utils import perturb_along_eigenmode
+from coeffnet.datagen.utils import perturb_along_eigenmode
 
 if __name__ == "__main__":
     """Visualise the eigenmodes of the transition states."""

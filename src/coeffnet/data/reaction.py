@@ -1,27 +1,17 @@
-from typing import List, Dict, Union, Any
 import logging
+from typing import Any, Dict, List, Union
 
-import numpy.typing as npt
 import numpy as np
-
-from ase import data as ase_data
-
+import numpy.typing as npt
 import torch
+from ase import data as ase_data
+from e3nn import o3
+from pymatgen.analysis.graphs import MoleculeGraph
+from pymatgen.core.structure import Molecule
 from torch_geometric.data import Data
 from torch_geometric.typing import OptTensor
 
-from pymatgen.core.structure import Molecule
-from pymatgen.analysis.graphs import MoleculeGraph
-
-from e3nn import o3
-
-from coeffnet.data._dtype import (
-    DTYPE,
-    DTYPE_INT,
-    DTYPE_BOOL,
-    TORCH_FLOATS,
-    TORCH_INTS,
-)
+from coeffnet.data._dtype import DTYPE, DTYPE_BOOL, DTYPE_INT, TORCH_FLOATS, TORCH_INTS
 from coeffnet.predata.cart_to_sph import cart_to_sph_d
 
 logger = logging.getLogger(__name__)
@@ -62,7 +52,7 @@ class ReactionDataPoint(Data):
         if pos is not None:
             pos_initial_state = pos[reactant_tag]
             pos_final_state = pos[product_tag]
-            pos_interpolated_transition_state = pos["interpolated_transition_state"]
+            pos_interpolated_transition_state = pos["interp_ts"]
             pos_transition_state = pos[transition_state_tag]
 
             pos_initial_state = convert_to_tensor(pos_initial_state)
@@ -94,9 +84,7 @@ class ReactionDataPoint(Data):
         if edge_index is not None:
             edge_index_initial_state = edge_index[reactant_tag]
             edge_index_final_state = edge_index[product_tag]
-            edge_index_interpolated_transition_state = edge_index[
-                "interpolated_transition_state"
-            ]
+            edge_index_interpolated_transition_state = edge_index["interp_ts"]
             edge_index_transition_state = edge_index[transition_state_tag]
 
             edge_index_initial_state = convert_to_tensor(
@@ -147,39 +135,10 @@ class ReactionDataPoint(Data):
             species_final_state = None
             species_transition_state = None
 
-        if orthogonalization_matrix is not None:
-            orthogonalization_matrix_initial_state = orthogonalization_matrix[
-                reactant_tag
-            ]
-            orthogonalization_matrix_final_state = orthogonalization_matrix[product_tag]
-            orthogonalization_matrix_transition_state = orthogonalization_matrix[
-                transition_state_tag
-            ]
-
-            orthogonalization_matrix_initial_state = convert_to_tensor(
-                orthogonalization_matrix_initial_state
-            )
-            orthogonalization_matrix_final_state = convert_to_tensor(
-                orthogonalization_matrix_final_state
-            )
-            orthogonalization_matrix_transition_state = convert_to_tensor(
-                orthogonalization_matrix_transition_state
-            )
-
-        else:
-            orthogonalization_matrix_initial_state = None
-            orthogonalization_matrix_final_state = None
-            orthogonalization_matrix_transition_state = None
-
         if basis_mask is not None:
             basis_mask = convert_to_tensor(basis_mask, dtype=DTYPE_BOOL)
         else:
             basis_mask = None
-
-        if indices_to_keep is not None:
-            indices_to_keep = convert_to_tensor(indices_to_keep, dtype=DTYPE_INT)
-        else:
-            indices_to_keep = None
 
         if species_initial_state is not None:
             one_hot_species = torch.zeros(
@@ -209,11 +168,7 @@ class ReactionDataPoint(Data):
             total_energy=total_energy_initial_state,
             total_energy_final_state=total_energy_final_state,
             total_energy_transition_state=total_energy_transition_state,
-            orthogonalization_matrix=orthogonalization_matrix_initial_state,
-            orthogonalization_matrix_final_state=orthogonalization_matrix_final_state,
-            orthogonalization_matrix_transition_state=orthogonalization_matrix_transition_state,
             basis_mask=basis_mask,
-            indices_to_keep=indices_to_keep,
             **kwargs,
         )
 

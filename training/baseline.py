@@ -187,29 +187,27 @@ if __name__ == "__main__":
     print(f"Test L1: {l1_test}")
     print(f"Val L1: {l1_val}")
 
-    # Plot the results in the form of a parity plot
-    fig, ax = plt.subplots(1, 1, figsize=(3.5, 3), constrained_layout=True)
+    fig, ax = plt.subplots(1, 3, figsize=(6.5, 2.0), constrained_layout=True)
+    for idx, loadername in enumerate(["train", "validation", "test"]):
+        sns.histplot(
+            data=df[df["loader"] == loadername],
+            x="expected",
+            y="output",
+            hue="loader",
+            ax=ax[idx],
+            bins=50,
+            legend=False,
+        )
+        char = "a" if idx == 0 else "b" if idx == 1 else "c"
+        cbar = ax[idx].figure.colorbar(ax[idx].collections[0], ax=ax[idx])
+        ax[idx].set_title(f"{char}){loadername.capitalize()} set")
 
-    sns.scatterplot(
-        data=df,
-        x="expected",
-        y="output",
-        hue="loader",
-        ax=ax,
-        s=10,
-        linewidth=0,
-        alpha=0.5,
-    )
-
-    ax.set_xlabel("Expected barrier (eV)")
-    ax.set_ylabel("Predicted barrier (eV)")
-
-    # Draw the parity line
     x = np.linspace(df["expected"].min(), df["expected"].max(), 100)
-    ax.plot(x, x, color="black", linestyle="--", linewidth=1)
-
-    # make the aspect ratio equal
-    # ax.set_aspect("equal", "box")
+    for _ax in ax:
+        _ax.set_xlabel("Expected barrier (eV)")
+        _ax.set_ylabel("Predicted barrier (eV)")
+        _ax.plot(x, x, color="grey", linestyle="--", linewidth=1)
+        _ax.set_aspect("equal", "box")
 
     fig.savefig(__output_folder__ / f"baseline.png", dpi=300)
     fig.savefig(__output_folder__ / f"baseline.pdf")

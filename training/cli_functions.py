@@ -1,8 +1,6 @@
 import argparse
-
-from datetime import datetime
-
 import uuid
+from datetime import datetime
 
 __input_folder__ = "input"
 
@@ -48,7 +46,7 @@ def get_command_line_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--model_config",
         type=str,
-        default="config/rudorff_lilienfeld_sn2_dataset.yaml",
+        default="config/rudorff_lilienfeld_model.yaml",
         help="Path to the model config file.",
     )
     parser.add_argument(

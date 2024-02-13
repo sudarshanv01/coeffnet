@@ -1,12 +1,16 @@
 ---
 dataset_options:
   minimal_basis:
-    idx_eigenvalue: 0
+    idx_eigenvalue:
+      - 0
+      - -1
     reactant_tag: "reactant"
     product_tag: "product"
     transition_state_tag: "transition_state"
   full_basis:
-    idx_eigenvalue: 0
+    idx_eigenvalue:
+      - 0
+      - -1
     reactant_tag: "reactant"
     product_tag: "product"
     transition_state_tag: "transition_state"

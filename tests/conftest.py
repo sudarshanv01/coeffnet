@@ -1,12 +1,10 @@
-import pytest
-
-from pathlib import Path
-
-from monty.serialization import loadfn
-
 import json
+from pathlib import Path
+from typing import Sequence, Union
 
 import mongomock
+import pytest
+from monty.serialization import loadfn
 
 from coeffnet.model.reaction import GateReactionModel
 
@@ -15,13 +13,15 @@ from coeffnet.model.reaction import GateReactionModel
 def dataset_options_factory(tmp_path):
     """Returns dataset options common to all tests."""
 
-    def _dataset_options_factory(basis_type: str = "full", **kwargs):
+    def _dataset_options_factory(
+        basis_type: str = "full", idx_eigenvalue: Union[int, Sequence] = 0, **kwargs
+    ):
         options = {
             "filename": Path(__file__).parent
             / "input"
             / f"reaction_{basis_type}_basis.json",
             "root": tmp_path / "root",
-            "idx_eigenvalue": 0,
+            "idx_eigenvalue": idx_eigenvalue,
             "reactant_tag": "reactant",
             "product_tag": "product",
             "transition_state_tag": "transition_state",
@@ -118,17 +118,12 @@ def get_mapping_idx_to_euler_angles():
 @pytest.fixture
 def mock_database():
     """Mock a MongoDatabase for the purposes of testing."""
-
     documents_file = Path(__file__).parent / "input" / "collection.json"
-
     db = mongomock.MongoClient().db
     collection = db.collection
-
     documents_from_file = json.loads(documents_file.read_text())
-
     for document in documents_from_file:
         collection.insert_one(document)
-
     return db
 
 
